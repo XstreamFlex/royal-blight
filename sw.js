@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-v4';
+const CACHE_VERSION = 'royal-blight-v5';
 const CORE = [
   './', './index.html', './manifest.json',
   './assets/tailwind.js', './assets/fonts/fonts.css',

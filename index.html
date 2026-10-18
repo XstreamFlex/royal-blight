@@ -222,8 +222,9 @@
       </div>
 
       <!-- TURRET PLACEMENT BANNER PROMPT -->
-      <div id="turret-indicator-banner" class="hidden absolute top-3 left-1/2 transform -translate-x-1/2 bg-slate-900/95 border-2 border-amber-400 px-4 py-1.5 rounded-full z-20 text-center shadow-2xl">
-        <p class="text-xs text-amber-300 font-extrabold tracking-wide">Tap a glowing pad to construct Turret!</p>
+      <div id="turret-indicator-banner" class="hidden absolute top-3 left-1/2 transform -translate-x-1/2 bg-slate-900/95 border-2 border-amber-400 pl-4 pr-1 py-1 rounded-full z-20 text-center shadow-2xl flex items-center space-x-2 pointer-events-none">
+        <p class="text-xs text-amber-300 font-extrabold tracking-wide whitespace-nowrap">Tap a glowing pad to build (250g)</p>
+        <button id="btn-cancel-turret" class="pointer-events-auto text-[10px] font-black uppercase px-2 py-1 rounded-full bg-rose-600 text-white active:scale-95">Cancel</button>
       </div>
     </div>
 
@@ -719,6 +720,8 @@
 
     // --- INITIALIZATION ---
     function initGame() {
+      state.placingTurret = false;
+      const tb = document.getElementById('turret-indicator-banner'); if (tb) tb.classList.add('hidden');
       state.units = [];
       state.projectiles = [];
       state.floatingTexts = [];
@@ -1596,10 +1599,11 @@
 
         // Highlight pad if in placement mode
         if (state.placingTurret && padFree(pad) && pad.team === 'blue') {
+          const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
           ctx.strokeStyle = '#facc15';
-          ctx.lineWidth = 4;
+          ctx.lineWidth = 3 + pulse * 3;
           ctx.beginPath();
-          ctx.arc(pad.x, pad.y, 36, 0, Math.PI * 2);
+          ctx.arc(pad.x, pad.y, 36 + pulse * 8, 0, Math.PI * 2);
           ctx.stroke();
           ctx.fillStyle = 'rgba(250, 204, 21, 0.25)';
           ctx.fill();
@@ -2327,51 +2331,67 @@
     });
 
     // Turret Placement Mode
+    // Tap the Turret card -> camera pans to your nearest free pad, free pads pulse, tap one to build.
+    // Gold is only spent when a turret is actually placed. Tap the card again or Cancel to exit.
     const turretBanner = document.getElementById('turret-indicator-banner');
+    const PAD_HIT_RADIUS = 45; // world px (generous for fingers)
+    function setPlacing(on) {
+      state.placingTurret = on;
+      turretBanner.classList.toggle('hidden', !on);
+      if (on) {
+        // Pan to the free pad nearest the current view centre
+        const mid = state.cameraY + viewportH / 2;
+        const pads = state.turretPads.filter(p => p.team === VIEW.bottomTeam && padFree(p))
+          .map(p => ({ p, sy: isFlipped() ? WORLD_H - p.y : p.y }))
+          .sort((a, b) => Math.abs(a.sy - mid) - Math.abs(b.sy - mid));
+        if (pads.length) {
+          const sy = pads[0].sy;
+          if (sy < state.cameraY + 60 || sy > state.cameraY + viewportH - 60) {
+            state.targetCameraY = sy - viewportH / 2;
+            clampCamera();
+          }
+        }
+      }
+    }
     document.getElementById('btn-buy-turret').addEventListener('click', () => {
+      if (state.placingTurret) { setPlacing(false); return; }
       const emptyPads = state.turretPads.filter(p => p.team === 'blue' && padFree(p));
       if (emptyPads.length === 0 || state.blueGold < 250) return;
-
-      if (emptyPads.length === 1) {
-        constructTurret(emptyPads[0]);
-      } else {
-        state.placingTurret = !state.placingTurret;
-        turretBanner.classList.toggle('hidden', !state.placingTurret);
-      }
+      setPlacing(true);
     });
+    document.getElementById('btn-cancel-turret').addEventListener('click', (e) => { e.stopPropagation(); setPlacing(false); });
 
     function constructTurret(pad) {
       if (state.blueGold >= 250 && padFree(pad)) {
         state.blueGold -= 250;
         sound.playHammerSlam();
         pad.turret = new Turret(pad);
-        state.placingTurret = false;
-        turretBanner.classList.add('hidden');
+        setPlacing(false);
         addFloatingText(pad.x, pad.y - 20, 'TURRET CONSTRUCTED!', '#f59e0b', 16);
         updateHUD();
+        return true;
       }
+      if (state.blueGold < 250) addFloatingText(pad.x, pad.y - 20, 'NEED 250g', '#ef4444', 14);
+      return false;
     }
 
     // Board-space -> world-space (undo the 180deg flip when the red army is at the bottom)
     function screenToWorld(x, y) {
       return isFlipped() ? { x: WORLD_W - x, y: WORLD_H - y } : { x, y };
     }
-
-    // Canvas Pointer Touch & Drag
-    canvas.addEventListener('pointerdown', (e) => {
+    // Client (CSS px) -> world. NOTE: `scale` is in *device* pixels (canvas.width includes
+    // devicePixelRatio), so touch coordinates must use the CSS-pixel scale instead.
+    function clientToWorld(clientX, clientY) {
       const rect = canvas.getBoundingClientRect();
-      const { x: clickX, y: clickY } = screenToWorld((e.clientX - rect.left) / scale, ((e.clientY - rect.top) / scale) + state.cameraY);
+      const cssScale = rect.width / WORLD_W;
+      return screenToWorld((clientX - rect.left) / cssScale, (clientY - rect.top) / cssScale + state.cameraY);
+    }
+    function cssScale() { return canvas.getBoundingClientRect().width / WORLD_W; }
 
-      if (state.placingTurret) {
-        const hitPad = state.turretPads.find(p => {
-          return p.team === 'blue' && padFree(p) && Math.hypot(p.x - clickX, p.y - clickY) < 42;
-        });
-        if (hitPad) {
-          constructTurret(hitPad);
-          return;
-        }
-      }
-
+    // Canvas pointer input (mouse + touch + pen): drag to pan, tap to place turrets.
+    let tapStart = null;
+    canvas.addEventListener('pointerdown', (e) => {
+      tapStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
       state.isDragging = true;
       state.dragStartY = e.clientY;
       state.cameraStartY = state.cameraY;
@@ -2379,14 +2399,27 @@
 
     window.addEventListener('pointermove', (e) => {
       if (!state.isDragging) return;
-      const dy = (e.clientY - state.dragStartY) / scale;
+      const dy = (e.clientY - state.dragStartY) / cssScale();
+      if (Math.abs(e.clientY - state.dragStartY) < 8) return; // small finger jitter is still a tap
       state.targetCameraY = state.cameraStartY - dy;
       clampCamera();
     });
 
-    window.addEventListener('pointerup', () => {
+    function endPointer(e, cancelled) {
       state.isDragging = false;
-    });
+      const t = tapStart; tapStart = null;
+      if (cancelled || !t || !state.placingTurret) return;
+      if (Math.hypot(e.clientX - t.x, e.clientY - t.y) > 14) return; // it was a drag
+      const w = clientToWorld(e.clientX, e.clientY);
+      const hit = state.turretPads
+        .filter(p => p.team === 'blue' && padFree(p))
+        .map(p => ({ p, d: Math.hypot(p.x - w.x, p.y - w.y) }))
+        .filter(o => o.d <= PAD_HIT_RADIUS)
+        .sort((a, b) => a.d - b.d)[0];
+      if (hit) constructTurret(hit.p);
+    }
+    window.addEventListener('pointerup', (e) => endPointer(e, false));
+    window.addEventListener('pointercancel', (e) => endPointer(e, true));
 
     canvas.addEventListener('wheel', (e) => {
       state.targetCameraY += e.deltaY * 0.8;

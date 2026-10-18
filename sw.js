@@ -1,7 +1,7 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-v8';
+const CACHE_VERSION = 'royal-blight-v9';
 const CORE = [
-  './', './index.html', './manifest.json', './mp.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js',
+  './', './index.html', './manifest.json', './mp.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/fonts/fonts.css',
   './assets/fonts/f0.woff2',
   './assets/fonts/f1.woff2',
@@ -34,7 +34,7 @@ self.addEventListener('activate', e => {
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request).then(r => {
     if (r.ok && new URL(e.request.url).origin === location.origin) {
       const copy = r.clone(); caches.open(CACHE_VERSION).then(c => c.put(e.request, copy));

@@ -312,15 +312,33 @@
     <!-- PLAY VS FRIEND (WebRTC + QR pairing) -->
     <div id="modal-mp" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-start overflow-y-auto p-4 text-center">
       <h2 class="text-2xl font-black text-sky-300 uppercase tracking-wider mt-2">Play vs Friend</h2>
-      <p class="text-[11px] text-slate-300 max-w-xs mt-1 mb-3">Both phones on the <b>same Wi-Fi</b> or one phone's <b>Personal Hotspot</b>. No internet needed. Keep this screen open on both phones while pairing.</p>
+      <div id="mp-step-choose" class="w-full max-w-xs space-y-2 mt-2">
+        <div class="rounded-xl border border-emerald-500/50 bg-emerald-950/40 p-2 space-y-2">
+          <div class="text-xs font-black text-emerald-300 uppercase">📡 Nearby (QR, offline)</div>
+          <p class="text-[10px] text-slate-300">Same Wi-Fi or one phone's Personal Hotspot. No internet needed. Allow camera access when asked.</p>
+          <button id="mp-host" class="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs uppercase active:scale-95">👑 Host <span class="normal-case text-[10px] font-bold">(King)</span></button>
+          <button id="mp-join" class="w-full py-2.5 rounded-xl bg-purple-700 text-white font-black text-xs uppercase active:scale-95">💀 Join <span class="normal-case text-[10px] font-bold">(Necromancer)</span></button>
+        </div>
+        <div class="rounded-xl border border-sky-500/50 bg-sky-950/40 p-2 space-y-2">
+          <div class="text-xs font-black text-sky-300 uppercase">🌐 Online (room code)</div>
+          <p class="text-[10px] text-slate-300">Both phones need internet (Wi-Fi or mobile data). Most reliable.</p>
+          <button id="mp-ohost" class="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs uppercase active:scale-95">👑 Create room <span class="normal-case text-[10px] font-bold">(King)</span></button>
+          <div class="flex space-x-1">
+            <input id="mp-room-in" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="CODE" class="w-24 text-center uppercase tracking-widest font-black text-sm bg-slate-800 text-white rounded-xl">
+            <button id="mp-ojoin" class="flex-1 py-2.5 rounded-xl bg-purple-700 text-white font-black text-xs uppercase active:scale-95">💀 Join room</button>
+          </div>
+        </div>
+      </div>
 
-      <div id="mp-step-choose" class="w-full max-w-xs space-y-2">
-        <button id="mp-host" class="w-full py-3 rounded-xl bg-blue-600 text-white font-black text-sm uppercase active:scale-95">👑 Host game <span class="normal-case text-[10px] font-bold">(you are the King)</span></button>
-        <button id="mp-join" class="w-full py-3 rounded-xl bg-purple-700 text-white font-black text-sm uppercase active:scale-95">💀 Join game <span class="normal-case text-[10px] font-bold">(you are the Necromancer)</span></button>
+      <div id="mp-step-ohost" class="hidden w-full max-w-xs space-y-2 mt-2">
+        <div class="text-xs font-black text-amber-300 uppercase">Tell your friend this room code</div>
+        <div id="mp-room-code" class="text-5xl font-black tracking-[0.25em] text-white bg-slate-800 rounded-xl py-4">…</div>
+        <p class="text-[10px] text-slate-300">They tap Play vs Friend → Online → type the code → Join room. The game starts automatically.</p>
       </div>
 
       <div id="mp-step-host" class="hidden w-full max-w-xs space-y-2">
         <div class="text-xs font-black text-amber-300 uppercase">1. Friend scans this invite</div>
+        <p class="text-[10px] text-slate-300">With the game's Join → Scan button, or with the iPhone Camera app (opens the game).</p>
         <div id="mp-host-qr" class="bg-white rounded-xl p-2 mx-auto w-60 h-60 flex items-center justify-center text-slate-500 text-xs">Creating invite…</div>
         <div class="flex space-x-1">
           <textarea id="mp-host-code" readonly class="flex-1 h-12 text-[9px] bg-slate-800 text-slate-200 rounded p-1 font-mono"></textarea>
@@ -348,12 +366,14 @@
       </div>
 
       <p id="mp-status" class="text-[11px] text-sky-200 mt-3 min-h-[1rem]"></p>
+      <div id="mp-error" class="hidden w-full max-w-xs mt-2 rounded-lg border border-rose-500 bg-rose-950/80 p-2 text-[11px] text-rose-200"></div>
+      <button id="mp-copylog" class="w-full max-w-xs mt-2 py-1.5 rounded-lg bg-slate-800 text-slate-300 font-bold text-[10px] uppercase">Copy debug log</button>
       <button id="mp-back" class="w-full max-w-xs mt-2 py-2 rounded-xl bg-slate-700 text-slate-200 font-black text-xs uppercase">Back</button>
 
       <!-- camera scanner -->
       <div id="mp-scanner" class="hidden fixed inset-0 z-[60] bg-black flex flex-col items-center justify-center">
         <video id="mp-video" playsinline muted autoplay class="w-full max-w-md"></video>
-        <p class="text-white text-xs mt-2">Point the camera at the QR code</p>
+        <p id="mp-scan-status" class="text-white text-xs mt-2">Starting camera…</p>
         <button id="mp-scan-cancel" class="mt-3 px-6 py-2 rounded-xl bg-rose-600 text-white font-black text-xs uppercase">Cancel</button>
       </div>
     </div>
@@ -2746,6 +2766,7 @@
   </script>
   <script src="assets/lib/qrcode.js"></script>
   <script src="assets/lib/jsQR.js"></script>
+  <script src="assets/lib/peerjs.min.js"></script>
   <script src="mp.js"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

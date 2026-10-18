@@ -1,0 +1,2569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Royal Blight">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+  <title>Royal Blight: Tug of War MOBA</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="assets/tailwind.js"></script>
+  <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
+  <link href="assets/fonts/fonts.css" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      font-family: 'Fredoka', 'Inter', sans-serif;
+      background-color: #0b0f19;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      -webkit-touch-callout: none;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    canvas { touch-action: none; }
+    /* Toy-like Clash Royale tactile card styling */
+    .cr-card {
+      position: relative;
+      background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+      border: 2px solid #475569;
+      border-radius: 12px;
+      box-shadow: 0 4px 0 #0f172a, 0 6px 10px rgba(0,0,0,0.4);
+      transition: transform 0.08s ease, filter 0.15s ease, box-shadow 0.08s ease;
+      cursor: pointer;
+    }
+    .cr-card:active:not(.disabled) {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 #0f172a, 0 2px 4px rgba(0,0,0,0.4);
+    }
+    .cr-card.disabled {
+      opacity: 0.45;
+      filter: grayscale(85%);
+      pointer-events: none;
+      box-shadow: 0 2px 0 #0f172a;
+    }
+    .cr-gold-pill {
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid #eab308;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);
+    }
+    .cr-gold-badge {
+      background: linear-gradient(180deg, #facc15 0%, #ca8a04 100%);
+      color: #422006;
+      border: 1px solid #fef08a;
+      box-shadow: 0 2px 0 #713f12;
+    }
+    /* Ambient glow animations */
+    @keyframes pulse-node {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.4)); }
+      50% { transform: scale(1.04); filter: drop-shadow(0 0 10px rgba(250, 204, 21, 0.9)); }
+    }
+    .active-node-glow {
+      animation: pulse-node 1.8s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="w-screen h-screen flex justify-center items-center p-0 m-0 bg-slate-950">
+
+  <!-- Mobile Viewport Container (Locked to responsive phone aspect ratio) -->
+  <div id="game-app" class="relative w-full max-w-md h-full max-h-[940px] bg-slate-900 flex flex-col overflow-hidden shadow-2xl border-x border-slate-800">
+
+    <!-- TOP HEADER: Core Healths, Wave Timer & Controls -->
+    <header class="relative z-20 w-full bg-slate-900/95 border-b-2 border-slate-700/80 px-2.5 py-1.5 flex items-center justify-between shadow-md backdrop-blur-md">
+      <!-- Blue King Core Indicator -->
+      <div class="flex items-center space-x-1.5">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-b from-blue-500 to-blue-700 border-2 border-yellow-300 flex items-center justify-center shadow-md text-sm">
+          👑
+        </div>
+        <div class="flex flex-col">
+          <div class="flex items-center justify-between text-[10px] font-black text-blue-300 uppercase leading-none">
+            <span>King</span>
+            <span id="king-hp-num">2500</span>
+          </div>
+          <div class="w-16 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700 mt-0.5">
+            <div id="king-hp-bar" class="h-full bg-blue-500 transition-all duration-200" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wave Counter & Progress Bar -->
+      <div class="flex flex-col items-center">
+        <div class="flex items-center space-x-1">
+          <span class="text-xs font-black tracking-wider text-amber-400 uppercase">Wave <span id="wave-num">1</span></span>
+          <span id="speed-indicator" class="text-[9px] bg-amber-500/20 text-amber-300 font-extrabold px-1 rounded border border-amber-500/40">1x</span>
+        </div>
+        <div class="flex items-center space-x-1 mt-0.5">
+          <div class="w-20 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700">
+            <div id="wave-progress" class="h-full bg-amber-400 transition-all" style="width: 100%;"></div>
+          </div>
+          <span id="wave-seconds" class="text-[10px] font-black text-slate-300 w-5 text-right">15s</span>
+        </div>
+      </div>
+
+      <!-- Red Necromancer Core Indicator -->
+      <div class="flex items-center space-x-1.5">
+        <div class="flex flex-col items-end">
+          <div class="flex items-center justify-between text-[10px] font-black text-rose-300 uppercase leading-none w-full">
+            <span id="necro-hp-num">2500</span>
+            <span>Necro</span>
+          </div>
+          <div class="w-16 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700 mt-0.5">
+            <div id="necro-hp-bar" class="h-full bg-rose-500 transition-all duration-200" style="width: 100%;"></div>
+          </div>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-gradient-to-b from-purple-700 to-rose-900 border-2 border-purple-400 flex items-center justify-center shadow-md text-sm">
+          💀
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN WORLD CANVAS WRAPPER -->
+    <div id="canvas-wrapper" class="relative flex-1 w-full h-full overflow-hidden cursor-grab active:cursor-grabbing">
+      <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+
+      <!-- TUG-OF-WAR TENSION RAIL & SWITCHBOARD (Left Overlay) -->
+      <aside class="absolute left-2 top-3 bottom-3 w-14 z-10 flex flex-col items-center pointer-events-auto">
+        <!-- Quick Camera Snap Buttons -->
+        <div class="flex flex-col space-y-1 mb-1.5 w-full">
+          <button id="snap-far" class="w-full py-0.5 text-[9px] font-extrabold uppercase rounded bg-purple-950/90 hover:bg-purple-900 border border-purple-500/60 text-purple-200 shadow">
+            Far
+          </button>
+          <button id="snap-mid" class="w-full py-0.5 text-[9px] font-extrabold uppercase rounded bg-slate-800/90 hover:bg-slate-700 border border-slate-500/60 text-slate-200 shadow">
+            Mid
+          </button>
+          <button id="snap-home" class="w-full py-0.5 text-[9px] font-extrabold uppercase rounded bg-blue-950/90 hover:bg-blue-900 border border-blue-500/60 text-blue-200 shadow">
+            Home
+          </button>
+        </div>
+
+        <!-- The Vertical Tension Mini-Map Bar -->
+        <div id="tension-rail" class="relative flex-1 w-8 bg-slate-950/90 rounded-full border-2 border-slate-600 flex flex-col justify-between overflow-hidden shadow-2xl p-0.5">
+          <!-- Red Push Fill (Top) -->
+          <div id="rail-red" class="w-full bg-gradient-to-b from-rose-600 via-rose-500 to-amber-500 rounded-t-full transition-all duration-300" style="height: 50%;"></div>
+          <!-- Blue Push Fill (Bottom) -->
+          <div id="rail-blue" class="w-full bg-gradient-to-t from-blue-600 via-blue-500 to-teal-400 rounded-b-full transition-all duration-300" style="height: 50%;"></div>
+
+          <!-- Dynamic Clash Point Indicator Marker -->
+          <div id="clash-marker" class="absolute left-0 right-0 h-3 bg-yellow-300 border-y-2 border-slate-950 flex items-center justify-center shadow-lg transform -translate-y-1.5 pointer-events-none" style="top: 50%;">
+            <div class="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping"></div>
+          </div>
+
+          <!-- Real-Time Glyph Layer (Turrets, Brutes, Wizards, Archers, Workers) -->
+          <div id="rail-glyph-layer" class="absolute inset-0 pointer-events-none overflow-hidden">
+            <!-- Dynamic glyph icons injected via JS -->
+          </div>
+        </div>
+
+        <!-- Dynamic Mining Selectors on the Rail -->
+        <div class="flex flex-col space-y-1.5 mt-2 w-full">
+          <button id="node-far" class="w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-slate-800 border-2 border-slate-600 text-slate-300 transition-all shadow">
+            <span class="text-rose-400 leading-none">FAR</span>
+            <span class="text-[8px] text-amber-300 mt-0.5">60g</span>
+          </button>
+          <button id="node-mid" class="w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-slate-800 border-2 border-slate-600 text-slate-300 transition-all shadow">
+            <span class="text-amber-400 leading-none">MID</span>
+            <span class="text-[8px] text-amber-300 mt-0.5">25g</span>
+          </button>
+          <button id="node-safe" class="w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-blue-600 border-2 border-yellow-300 text-white transition-all shadow active-node-glow">
+            <span class="text-yellow-300 leading-none">SAFE</span>
+            <span class="text-[8px] text-yellow-100 mt-0.5">10g</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- FLOATING QUICK UTILITIES (Sound, Speed, Emergency Camera Ping) -->
+      <div class="absolute right-2 top-3 z-10 flex flex-col space-y-2 pointer-events-auto">
+        <button id="btn-sound" class="w-9 h-9 rounded-full bg-slate-900/90 border-2 border-slate-600 text-white flex items-center justify-center shadow-lg active:scale-95 text-sm">
+          🔊
+        </button>
+        <button id="btn-speed" class="w-9 h-9 rounded-full bg-slate-900/90 border-2 border-slate-600 text-amber-300 font-black flex items-center justify-center shadow-lg active:scale-95 text-xs">
+          1x
+        </button>
+        <div id="core-alarm" class="hidden w-9 h-9 rounded-full bg-rose-600 border-2 border-white text-white flex items-center justify-center shadow-lg animate-bounce text-sm cursor-pointer">
+          🚨
+        </div>
+      </div>
+
+      <!-- TURRET PLACEMENT BANNER PROMPT -->
+      <div id="turret-indicator-banner" class="hidden absolute top-3 left-1/2 transform -translate-x-1/2 bg-slate-900/95 border-2 border-amber-400 px-4 py-1.5 rounded-full z-20 text-center shadow-2xl">
+        <p class="text-xs text-amber-300 font-extrabold tracking-wide">Tap a glowing pad to construct Turret!</p>
+      </div>
+    </div>
+
+    <!-- BOTTOM ACTION CARD DOCK (Clash Royale Toy-like Presentation) -->
+    <footer class="relative z-20 w-full bg-gradient-to-t from-slate-950 via-slate-900 to-slate-900 border-t-2 border-slate-700 px-2 py-2 select-none">
+      <!-- Player Gold Counter and Income Rate -->
+      <div class="flex items-center justify-between px-1 mb-1.5">
+        <div class="flex items-center space-x-2 cr-gold-pill px-3 py-0.5 rounded-full">
+          <span class="text-sm">🪙</span>
+          <span id="gold-counter" class="text-amber-400 font-black text-sm tracking-wide">120</span>
+          <span class="text-[9px] text-amber-300/80 font-bold">(+3/s)</span>
+        </div>
+        <div class="text-[10px] text-slate-300 font-bold flex items-center space-x-2">
+          <span>Workers: <span id="worker-count-txt" class="text-yellow-400 font-black">1</span></span>
+          <span class="text-slate-600">|</span>
+          <span>Upgrades: <span id="upgrade-lvl-txt" class="text-emerald-400 font-black">+0%</span></span>
+        </div>
+      </div>
+
+      <!-- Responsive Action Cards Grid -->
+      <div class="grid grid-cols-6 gap-1 w-full">
+        <!-- 1. Worker (80g) -->
+        <button id="btn-buy-worker" class="cr-card flex flex-col items-center justify-between p-1">
+          <span class="text-[9px] font-black uppercase text-amber-200 tracking-tight">Worker</span>
+          <div class="text-base my-0.5">⛏️</div>
+          <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">80g</div>
+        </button>
+
+        <!-- 2. Archer Cadence (75g) -->
+        <button id="btn-buy-archer" class="cr-card flex flex-col items-center justify-between p-1">
+          <div class="flex items-center space-x-0.5">
+            <span class="text-[9px] font-black uppercase text-sky-200 tracking-tight">Archer</span>
+            <span id="badge-archer" class="hidden text-[8px] bg-sky-950 px-1 rounded-full text-sky-300 font-black">0</span>
+          </div>
+          <div class="text-base my-0.5">🏹</div>
+          <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">75g</div>
+        </button>
+
+        <!-- 3. Wizard Cadence (120g) -->
+        <button id="btn-buy-wizard" class="cr-card flex flex-col items-center justify-between p-1">
+          <div class="flex items-center space-x-0.5">
+            <span class="text-[9px] font-black uppercase text-indigo-200 tracking-tight">Wizard</span>
+            <span id="badge-wizard" class="hidden text-[8px] bg-purple-950 px-1 rounded-full text-purple-300 font-black">0</span>
+          </div>
+          <div class="text-base my-0.5">🔮</div>
+          <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">120g</div>
+        </button>
+
+        <!-- 4. Brute Cadence (150g) -->
+        <button id="btn-buy-brute" class="cr-card flex flex-col items-center justify-between p-1">
+          <div class="flex items-center space-x-0.5">
+            <span class="text-[9px] font-black uppercase text-emerald-200 tracking-tight">Brute</span>
+            <span id="badge-brute" class="hidden text-[8px] bg-emerald-950 px-1 rounded-full text-emerald-300 font-black">0</span>
+          </div>
+          <div class="text-base my-0.5">🛡️</div>
+          <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">150g</div>
+        </button>
+
+        <!-- 5. Turret Option C (250g) -->
+        <button id="btn-buy-turret" class="cr-card flex flex-col items-center justify-between p-1">
+          <span class="text-[9px] font-black uppercase text-orange-200 tracking-tight">Turret</span>
+          <div class="text-base my-0.5">⚡</div>
+          <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">250g</div>
+        </button>
+
+        <!-- 6. Army Upgrade (400g) -->
+        <button id="btn-buy-upgrade" class="cr-card flex flex-col items-center justify-between p-1">
+          <span class="text-[9px] font-black uppercase text-emerald-200 tracking-tight">+20% Up</span>
+          <div class="text-base my-0.5">⚔️</div>
+          <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">400g</div>
+        </button>
+      </div>
+    </footer>
+
+    <!-- START MENU -->
+    <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+      <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
+      <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War</p>
+      <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
+        <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-3">Play vs Computer</div>
+        <div class="grid grid-cols-3 gap-2">
+          <button data-diff="easy" class="diff-btn py-3 rounded-lg bg-emerald-600 text-white font-black text-xs uppercase active:scale-95">Easy</button>
+          <button data-diff="normal" class="diff-btn py-3 rounded-lg bg-amber-500 text-slate-950 font-black text-xs uppercase active:scale-95">Normal</button>
+          <button data-diff="hard" class="diff-btn py-3 rounded-lg bg-rose-600 text-white font-black text-xs uppercase active:scale-95">Hard</button>
+        </div>
+      </div>
+      <button id="btn-friend" disabled class="w-full max-w-xs py-3 rounded-xl bg-slate-700 text-slate-400 font-black text-xs uppercase tracking-wider opacity-60 cursor-not-allowed">
+        Play vs Friend <span class="normal-case font-bold">(coming soon)</span>
+      </button>
+    </div>
+
+    <!-- MATCH OVER MODAL -->
+    <div id="modal-gameover" class="hidden absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+      <div id="modal-icon" class="w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-3 border-4 border-yellow-400 shadow-2xl">
+        🏆
+      </div>
+      <h2 id="modal-heading" class="text-3xl font-black text-amber-400 uppercase tracking-wider mb-2">Victory!</h2>
+      <p id="modal-subtitle" class="text-slate-300 text-xs max-w-xs mb-5">You shattered the Necromancer's blighted crypt and cleansed the realm!</p>
+
+      <div class="bg-slate-800/90 rounded-xl p-4 w-full max-w-xs border border-slate-700 mb-5 text-xs text-slate-300 space-y-2">
+        <div class="flex justify-between">
+          <span>Waves Cleared:</span>
+          <span id="stat-waves" class="font-black text-white">0</span>
+        </div>
+        <div class="flex justify-between">
+          <span>Gold Mined:</span>
+          <span id="stat-gold" class="font-black text-amber-300">0g</span>
+        </div>
+        <div class="flex justify-between">
+          <span>Upgrades Unlocked:</span>
+          <span id="stat-upgrades" class="font-black text-emerald-400">+0%</span>
+        </div>
+      </div>
+
+      <button id="btn-restart" class="w-full max-w-xs py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-sm uppercase tracking-wider shadow-lg hover:brightness-110 active:scale-95 transition-all">
+        Play Again
+      </button>
+      <button id="btn-menu" class="w-full max-w-xs mt-2 py-2 rounded-xl bg-slate-700 text-slate-200 font-black text-xs uppercase tracking-wider active:scale-95">
+        Main Menu
+      </button>
+    </div>
+
+  </div>
+
+  <!-- COMPLETE ENGINE SCRIPT -->
+  <script>
+    /* ==========================================================================
+       ROYAL BLIGHT: TUG-OF-WAR ENGINE
+       Procedural Vector Graphics, 3-Track Formations & Web Audio Synthesis
+       ========================================================================== */
+
+    // --- PROCEDURAL SOUND SYNTHESIZER ---
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playSwordSlash() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(70, now + 0.1);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
+      }
+      playArrowShoot() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(200, now + 0.08);
+        gain.gain.setValueAtTime(0.09, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      }
+      playMagicBurst() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(480, now);
+        osc.frequency.exponentialRampToValueAtTime(960, now + 0.15);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.18);
+      }
+      playHammerSlam() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(35, now + 0.25);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      }
+      playShockwave() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(25, now + 0.45);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.45);
+      }
+      playCoin() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1046.5, now); // C6
+        osc.frequency.exponentialRampToValueAtTime(1318.5, now + 0.12); // E6
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      }
+      playHorn() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        [220, 277.2, 329.6].forEach((f, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(f, now + idx * 0.05);
+          gain.gain.setValueAtTime(0.08, now + idx * 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.05);
+          osc.stop(now + 0.55);
+        });
+      }
+    }
+
+    const sound = new SoundFX();
+
+    // --- GAME CONSTANTS & 3-SCREEN DIMENSIONS ---
+    const WORLD_W = 480;       // Logical game width
+    const WORLD_H = 2400;      // 3 distinct zones of 800px each:
+                               // Zone 3 (Far / Citadel): 0 - 800
+                               // Zone 2 (Mid / River): 800 - 1600
+                               // Zone 1 (Close / Bastion): 1600 - 2400
+    const VIEW_FAR_Y = 0;
+    const VIEW_MID_Y = 800;
+    const VIEW_HOME_Y = 1600;
+
+    // Two painted lanes in assets/arena_bg.png (measured from the art).
+    // Units leave their nexus through the central plaza, then follow their lane.
+    const LANE_LEFT_X = 104;   // left path centre (drifts ~+10px toward the bottom in the art)
+    const LANE_MID_X = 240;    // nexus / plaza centre
+    const LANE_RIGHT_X = 366;  // right path centre
+    const LANE_HALF_W = 22;    // units stay within +-this of the path centre
+    const PLAZA_TOP_Y = 165;   // above this: red plaza, walk to centre
+    const PLAZA_BOT_Y = 2045;  // below this: blue plaza, walk to centre
+    function laneCentreX(lane, y) {
+      if (lane === 'C' || y < PLAZA_TOP_Y || y > PLAZA_BOT_Y) return LANE_MID_X;
+      const drift = (y / WORLD_H) * 10 - 5;
+      return (lane === 'L' ? LANE_LEFT_X : LANE_RIGHT_X) + drift;
+    }
+    // Lane for the i-th unit of a group: alternates and rotates with the wave so both lanes get pressure.
+    function pickLane(i) { return ((i + state.waveCount) % 2 === 0) ? 'L' : 'R'; }
+
+    // --- VIEW / PERSPECTIVE ---
+    // bottomTeam = the army shown at the bottom of this screen (walks up, drawn from the back).
+    // Single-player: always 'blue'. For multiplayer each phone sets its own team here and the
+    // world is rendered rotated 180deg (see render() + screenToWorld()).
+    const VIEW = { bottomTeam: 'blue' };
+    const isFlipped = () => VIEW.bottomTeam !== 'blue';
+    const isBottomTeam = team => team === VIEW.bottomTeam;
+
+    // Mining Nodes Specifications
+    const NODES = {
+      SAFE: { x: 240, y: 1730, yield: 10, time: 5,  name: 'Safe Sapphire' },
+      MID:  { x: 240, y: 1200, yield: 25, time: 8,  name: 'Mid Gold' },
+      FAR:  { x: 240, y: 670,  yield: 60, time: 15, name: 'Far Amethyst' }
+    };
+
+    // Economy Constants
+    const WAVE_INTERVAL = 15; // 15 seconds per wave
+    const BASE_PASSIVE_INCOME = 3.0; // 3 gold per second
+
+    // --- GAME STATE ---
+    const state = {
+      gameTime: 0,
+      timeSpeed: 1,
+      gameOver: false,
+      winner: null,
+      started: false,       // false until a mode is picked in the start menu
+      mode: 'cpu',          // 'cpu' | 'friend' (future)
+      difficulty: 'normal', // 'easy' | 'normal' | 'hard'
+
+      // Smooth Camera
+      cameraY: VIEW_HOME_Y,
+      targetCameraY: VIEW_HOME_Y,
+      isDragging: false,
+      dragStartY: 0,
+      cameraStartY: 0,
+
+      // Economy
+      blueGold: 120,
+      redGold: 120,
+      totalBlueGoldMined: 0,
+      waveTimer: WAVE_INTERVAL,
+      waveCount: 1,
+
+      // Permanent Cadence Unlocks (Test B)
+      blueCadence: { archers: 0, wizards: 0, brutes: 0 },
+      redCadence: { archers: 0, wizards: 0, brutes: 0 },
+
+      // Global Stat Upgrades (+20% HP and Damage per level)
+      blueUpgradeLevel: 0,
+      redUpgradeLevel: 0,
+
+      // Active Worker Node Target
+      playerNode: 'SAFE',
+      aiNode: 'SAFE',
+
+      // Turret Construction Mode
+      placingTurret: false,
+
+      // Entities
+      units: [],
+      projectiles: [],
+      floatingTexts: [],
+      particles: [],
+
+      // 4 Fixed Turret Pads (2 Blue, 2 Red)
+      turretPads: [
+        // Centred between the two lanes so range (170) covers both paths
+        { id: 'b_inner', team: 'blue', x: 240, y: 1960, turret: null },
+        { id: 'b_outer', team: 'blue', x: 240, y: 1480, turret: null },
+        { id: 'r_inner', team: 'red', x: 240, y: 440, turret: null },
+        { id: 'r_outer', team: 'red', x: 240, y: 920, turret: null }
+      ],
+
+      // Fortress Bastions
+      cores: {
+        blue: { team: 'blue', x: 240, y: 2280, hp: 2500, maxHp: 2500, range: 140, atk: 50, cooldown: 0, flash: 0 },
+        red:  { team: 'red',  x: 240, y: 150,  hp: 2500, maxHp: 2500, range: 140, atk: 50, cooldown: 0, flash: 0 }
+      }
+    };
+
+    // --- CANVAS RESIZING ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const wrapper = document.getElementById('canvas-wrapper');
+
+    let scale = 1;
+    let viewportH = 800;
+
+    function resizeCanvas() {
+      const rect = wrapper.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+
+      scale = canvas.width / WORLD_W;
+      viewportH = canvas.height / scale;
+
+      clampCamera();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function clampCamera() {
+      const maxCam = Math.max(0, WORLD_H - viewportH);
+      state.cameraY = Math.max(0, Math.min(maxCam, state.cameraY));
+      state.targetCameraY = Math.max(0, Math.min(maxCam, state.targetCameraY));
+    }
+
+    // --- OPTIONAL SPRITE LOADER ---
+    // Drop PNGs into assets/ to replace procedural art. Missing files fall back silently.
+    // Units look up "<key>_<team>.png" first, then "<key>.png" (key: knight, skeleton, archer, wizard, brute, worker).
+    const SPRITES = {};
+    const SPRITE_FAILED = new Set();
+    function loadSprite(name) {
+      if (name in SPRITES) return SPRITES[name];
+      const img = new Image();
+      SPRITES[name] = null;
+      img.onload = () => { SPRITES[name] = img; };
+      img.onerror = () => { SPRITES[name] = null; SPRITE_FAILED.add(name); };
+      img.src = 'assets/' + name + '.png';
+      return null;
+    }
+    function spriteKey(u) {
+      if (u.type === 'pawn') return u.team === 'blue' ? 'knight' : 'skeleton';
+      return u.type;
+    }
+    // Facing: the army at the bottom of this screen walks away from the camera, so it is
+    // drawn from the back ("<key>_<team>_back.png"); the opposing army walks toward the
+    // camera and uses the front view. Falls back to the front view, then to "<key>.png".
+    function getUnitSprite(u) {
+      const k = spriteKey(u);
+      const front = loadSprite(k + '_' + u.team) || (SPRITE_FAILED.has(k + '_' + u.team) ? loadSprite(k) : null);
+      if (isBottomTeam(u.team)) return loadSprite(k + '_' + u.team + '_back') || front;
+      return front;
+    }
+    ['knight','skeleton','archer','wizard','brute','worker'].forEach(k => {
+      // knight = King-only, skeleton = Necromancer-only; generic "<key>.png" is loaded lazily as a fallback
+      const teams = k === 'knight' ? ['blue'] : k === 'skeleton' ? ['red'] : ['blue', 'red'];
+      teams.forEach(t => { loadSprite(k + '_' + t); loadSprite(k + '_' + t + '_back'); });
+    });
+    loadSprite('arena_bg');
+    loadSprite('nexus_king');        // blue nexus
+    loadSprite('nexus_necromancer'); // red nexus
+
+    // --- UNIT CLASS DEFINITION ---
+    class Unit {
+      constructor(opts) {
+        this.id = Math.random().toString(36).substr(2, 9);
+        this.type = opts.type; // 'pawn', 'archer', 'wizard', 'brute', 'worker'
+        this.team = opts.team; // 'blue' or 'red'
+        this.x = opts.x;
+        this.y = opts.y;
+        this.lane = opts.lane || 'C'; // 'L' | 'R' | 'C'
+        this.laneOffset = (Math.random() - 0.5) * 16; // spread within the path
+        this.radius = opts.radius || 15;
+        this.speed = opts.speed || 52;
+        this.maxHp = opts.hp || 160;
+        this.hp = this.maxHp;
+        this.lagHp = this.maxHp;
+        this.atk = opts.atk || 18;
+        this.range = opts.range || 32;
+        this.attackInterval = opts.interval || 1.0;
+        // Damage-type resistances, e.g. { ranged: 0.35, magic: 0.35 } (fraction blocked)
+        this.resist = opts.resist || {};
+        this.attackCooldown = Math.random() * 0.4;
+        this.attackAnimTimer = 0;
+        this.flash = 0;
+        this.dead = false;
+
+        // Visual Walk Cycle & Waddle
+        this.walkAnim = Math.random() * 10;
+
+        // Worker Specific Variables
+        this.workerState = 'TRAVEL'; // 'TRAVEL', 'MINING', 'RETURNING', 'FLEEING', 'RECOVERING'
+        this.targetNodeKey = opts.targetNodeKey || 'SAFE';
+        this.carriedGold = 0;
+        this.miningProgress = 0;
+        this.miningDuration = 5;
+        this.recoveryTimer = 0;
+      }
+
+      get effectiveAtk() {
+        const mult = (this.team === 'blue') 
+          ? (1 + state.blueUpgradeLevel * 0.2) 
+          : (1 + state.redUpgradeLevel * 0.2);
+        return Math.round(this.atk * mult);
+      }
+
+      get effectiveMaxHp() {
+        const mult = (this.team === 'blue') 
+          ? (1 + state.blueUpgradeLevel * 0.2) 
+          : (1 + state.redUpgradeLevel * 0.2);
+        return Math.round(this.maxHp * mult);
+      }
+    }
+
+    // --- TURRET CLASS (Option C Mechanics) ---
+    class Turret {
+      constructor(pad) {
+        this.pad = pad;
+        this.team = pad.team;
+        this.x = pad.x;
+        this.y = pad.y;
+        this.radius = 24;
+        this.maxHp = 750;
+        this.hp = this.maxHp;
+        this.lagHp = this.maxHp;
+        this.range = 170;
+        this.attackInterval = 1.25;
+        this.cooldown = 0.5;
+        this.charge = 0; // 0 to 4 notches (5th triggers radial shockwave)
+        this.flash = 0;
+        this.rotation = 0;
+        this.dead = false;
+      }
+    }
+
+    // --- INITIALIZATION ---
+    function initGame() {
+      state.units = [];
+      state.projectiles = [];
+      state.floatingTexts = [];
+      state.particles = [];
+      state.blueGold = 120;
+      state.redGold = 120;
+      state.totalBlueGoldMined = 0;
+      state.waveTimer = WAVE_INTERVAL;
+      state.waveCount = 1;
+      state.blueUpgradeLevel = 0;
+      state.redUpgradeLevel = 0;
+      state.gameOver = false;
+      state.winner = null;
+      state.blueCadence = { archers: 0, wizards: 0, brutes: 0 };
+      state.redCadence = { archers: 0, wizards: 0, brutes: 0 };
+
+      // Reset Cores
+      state.cores.blue.hp = state.cores.blue.maxHp;
+      state.cores.red.hp = state.cores.red.maxHp;
+
+      aiTimer = 2.0;
+      // Reset Turret Pads
+      state.turretPads.forEach(pad => pad.turret = null);
+
+      // Spawn starting workers
+      spawnWorker('blue', 'SAFE');
+      spawnWorker('red', 'SAFE');
+
+      // First grace wave immediately
+      triggerWave();
+
+      updateHUD();
+      resizeCanvas();
+    }
+
+    function spawnWorker(team, nodeKey) {
+      const baseNode = (team === 'blue') ? state.cores.blue : state.cores.red;
+      const worker = new Unit({
+        type: 'worker',
+        team: team,
+        x: baseNode.x + (team === 'blue' ? -45 : 45),
+        y: baseNode.y,
+        hp: 130,
+        speed: 68,
+        range: 0,
+        atk: 0,
+        targetNodeKey: nodeKey
+      });
+      state.units.push(worker);
+    }
+
+    // --- WAVE SPAWNING & CADENCE LOGIC (Test B) ---
+    function triggerWave() {
+      sound.playHorn();
+
+      // Grace waves: Wave 1 & 2 are strictly 3 baseline pawns per team
+      
+
+      // 1. Baseline Melee Pawns (Knights vs Skeletons)
+      for (let i = 0; i < 3; i++) {
+        const lane = (i === 2) ? (state.waveCount % 2 ? 'L' : 'R') : (i === 0 ? 'L' : 'R');
+        // Blue Knight
+        state.units.push(new Unit({
+          type: 'pawn',
+          team: 'blue',
+          x: LANE_MID_X + (lane === 'L' ? -14 : 14),
+          y: 2180 - (i % 2 === 1 ? 25 : 0),
+          lane: lane,
+          hp: 170,
+          atk: 20,
+          speed: 52,
+          range: 30,
+          interval: 1.0
+        }));
+        // Red Skeleton
+        state.units.push(new Unit({
+          type: 'pawn',
+          team: 'red',
+          x: LANE_MID_X + (lane === 'L' ? -14 : 14),
+          y: 220 + (i % 2 === 1 ? 25 : 0),
+          lane: lane,
+          hp: 170,
+          atk: 20,
+          speed: 52,
+          range: 30,
+          interval: 1.0
+        }));
+      }
+
+      // Special Cadence Units spawn starting Wave 3+
+      if (state.waveCount >= 3) {
+        // 2. Archer Cadence (Joins every 2nd wave: Wave 4, 6, 8...)
+        if (state.waveCount % 2 === 0) {
+          for (let i = 0; i < state.blueCadence.archers; i++) {
+            const lane = pickLane(i);
+            state.units.push(new Unit({
+              type: 'archer',
+              team: 'blue',
+              x: LANE_MID_X + (lane === 'L' ? -14 : 14),
+              y: 2240 + (i * 20),
+              lane: lane,
+              hp: 115,
+              atk: 26,
+              speed: 48,
+              range: 140, // Stays back!
+              interval: 1.4 // BALANCE: was 1.2 (~17% slower fire rate)
+            }));
+          }
+          for (let i = 0; i < state.redCadence.archers; i++) {
+            const lane = pickLane(i);
+            state.units.push(new Unit({
+              type: 'archer',
+              team: 'red',
+              x: LANE_MID_X + (lane === 'L' ? -14 : 14),
+              y: 160 - (i * 20),
+              lane: lane,
+              hp: 115,
+              atk: 26,
+              speed: 48,
+              range: 140,
+              interval: 1.4 // BALANCE: was 1.2
+            }));
+          }
+        }
+
+        // 3. Wizard Cadence (Joins every 3rd wave: Wave 3, 6, 9...)
+        if (state.waveCount % 3 === 0) {
+          for (let i = 0; i < state.blueCadence.wizards; i++) {
+            const lane = pickLane(i + 1);
+            state.units.push(new Unit({
+              type: 'wizard',
+              team: 'blue',
+              x: LANE_MID_X + (lane === 'L' ? -14 : 14),
+              y: 2270 + (i * 20),
+              lane: lane,
+              hp: 140,
+              atk: 40, // BALANCE: was 36
+              speed: 48, // BALANCE: was 44
+              range: 110,
+              interval: 1.6,
+              resist: { ranged: 0.35 } // BALANCE: 35% ranged (arrow) resistance
+            }));
+          }
+          for (let i = 0; i < state.redCadence.wizards; i++) {
+            const lane = pickLane(i + 1);
+            state.units.push(new Unit({
+              type: 'wizard',
+              team: 'red',
+              x: LANE_MID_X + (lane === 'L' ? -14 : 14),
+              y: 130 - (i * 20),
+              lane: lane,
+              hp: 140,
+              atk: 40, // BALANCE: was 36
+              speed: 48, // BALANCE: was 44
+              range: 110,
+              interval: 1.6,
+              resist: { ranged: 0.35 } // BALANCE: 35% ranged (arrow) resistance
+            }));
+          }
+        }
+
+        // 4. Brute Cadence (Joins every 4th wave: Wave 4, 8, 12...)
+        if (state.waveCount % 4 === 0) {
+          for (let i = 0; i < state.blueCadence.brutes; i++) {
+            state.units.push(new Unit({
+              type: 'brute',
+              team: 'blue',
+              x: LANE_MID_X,
+              y: 2190,
+              lane: pickLane(i),
+              hp: 480,
+              atk: 38,
+              speed: 35,
+              range: 36,
+              radius: 20,
+              interval: 1.5,
+              resist: { magic: 0.35 } // BALANCE: 35% magic resistance
+            }));
+          }
+          for (let i = 0; i < state.redCadence.brutes; i++) {
+            state.units.push(new Unit({
+              type: 'brute',
+              team: 'red',
+              x: LANE_MID_X,
+              y: 210,
+              lane: pickLane(i),
+              hp: 480,
+              atk: 38,
+              speed: 35,
+              range: 36,
+              radius: 20,
+              interval: 1.5,
+              resist: { magic: 0.35 } // BALANCE: 35% magic resistance
+            }));
+          }
+        }
+      }
+
+      addFloatingText(240, state.cameraY + (viewportH / 2), `WAVE ${state.waveCount}!`, '#f59e0b', 24);
+    }
+
+    // --- GAME ENGINE UPDATE TICK ---
+    function update(dt) {
+      if (state.gameOver || !state.started) return;
+
+      state.gameTime += dt;
+
+      // 1. Passive Gold Accumulation
+      state.blueGold += BASE_PASSIVE_INCOME * dt;
+      state.redGold += BASE_PASSIVE_INCOME * dt * (state.mode === 'cpu' ? aiCfg().income : 1);
+
+      // 2. Wave Countdown
+      state.waveTimer -= dt;
+      if (state.waveTimer <= 0) {
+        state.waveCount++;
+        state.waveTimer = WAVE_INTERVAL;
+        triggerWave();
+      }
+
+      // 3. Smooth Camera Lerp
+      state.cameraY += (state.targetCameraY - state.cameraY) * (9 * dt);
+      clampCamera();
+
+      // 4. Opponent Strategic AI
+      updateAI(dt);
+
+      // 5. Turrets Option C Logic
+      updateTurrets(dt);
+
+      // 6. Base Fortresses Auto-Zap
+      updateCores(dt);
+
+      // 7. Unit Physics, Anti-Clumping & Combat
+      updateUnits(dt);
+
+      // 8. Projectiles Movement & Collisions
+      updateProjectiles(dt);
+
+      // 9. Floating Text & Visual Juice Particles
+      updateEffects(dt);
+
+      // 10. Win/Loss Evaluation
+      checkGameOver();
+
+      // 11. Synchronize UI Elements & Left Telemetry Rail
+      updateHUD();
+      updateMiniMap();
+    }
+
+    // --- ANTI-CLUMPING & UNIT COMBAT TICK ---
+    function updateUnits(dt) {
+      // Step A: Boids-like Lateral Separation to prevent stacking
+      for (let i = 0; i < state.units.length; i++) {
+        const u1 = state.units[i];
+        if (u1.dead || u1.type === 'worker') continue;
+
+        for (let j = i + 1; j < state.units.length; j++) {
+          const u2 = state.units[j];
+          if (u2.dead || u2.type === 'worker') continue;
+
+          if (u1.team === u2.team) {
+            const dx = u2.x - u1.x;
+            const dy = u2.y - u1.y;
+            const dist = Math.hypot(dx, dy);
+            const minDist = (u1.radius + u2.radius) + 6;
+
+            if (dist < minDist && dist > 0.1) {
+              const push = ((minDist - dist) / minDist) * 35 * dt;
+              const angle = Math.atan2(dy, dx);
+              // Push mainly along lateral X axis to preserve lane flow
+              u1.x -= Math.cos(angle) * push;
+              u2.x += Math.cos(angle) * push;
+
+              // Clamp inside the unit's painted path
+              clampToLane(u1); clampToLane(u2);
+            }
+          }
+        }
+      }
+
+      // Step B: Unit Actions & State Machine
+      for (let i = state.units.length - 1; i >= 0; i--) {
+        const u = state.units[i];
+
+        if (u.dead) {
+          state.units.splice(i, 1);
+          continue;
+        }
+
+        if (u.flash > 0) u.flash -= dt;
+        if (u.attackCooldown > 0) u.attackCooldown -= dt;
+        if (u.attackAnimTimer > 0) u.attackAnimTimer -= dt;
+        u.walkAnim += dt * 8;
+
+        // Health bar lag catchup
+        if (u.lagHp > u.hp) {
+          u.lagHp -= (u.lagHp - u.hp) * 5 * dt;
+        }
+
+        // Worker Logic
+        if (u.type === 'worker') {
+          updateWorker(u, dt);
+          continue;
+        }
+
+        // Combat Minion Logic
+        updateCombatMinion(u, dt);
+      }
+    }
+
+    function clampToLane(u) {
+      const c = laneCentreX(u.lane, u.y);
+      const half = (c === LANE_MID_X) ? 70 : LANE_HALF_W;
+      // Only keep units that are already on their path from being pushed off it
+      // (units still crossing the plaza toward their lane are left alone).
+      if (Math.abs(u.x - c) > half + 6) return;
+      u.x = Math.max(c - half, Math.min(c + half, u.x));
+    }
+
+    function updateWorker(w, dt) {
+      const activeNodeKey = (w.team === 'blue') ? state.playerNode : state.aiNode;
+      const targetNode = NODES[activeNodeKey];
+      const homeBase = (w.team === 'blue') ? state.cores.blue : state.cores.red;
+
+      // 1. FLEEING State: Worker was struck! Returns empty-handed with +30% speed burst
+      if (w.workerState === 'FLEEING') {
+        const dx = homeBase.x - w.x;
+        const dy = homeBase.y - w.y;
+        const dist = Math.hypot(dx, dy);
+        const fleeSpeed = w.speed * 1.30;
+
+        if (dist < 32) {
+          w.workerState = 'RECOVERING';
+          w.recoveryTimer = 4.0; // 4 second safety rest
+          addFloatingText(w.x, w.y - 10, 'Resting...', '#38bdf8', 12);
+        } else {
+          w.x += (dx / dist) * fleeSpeed * dt;
+          w.y += (dy / dist) * fleeSpeed * dt;
+        }
+        return;
+      }
+
+      // 2. RECOVERING State
+      if (w.workerState === 'RECOVERING') {
+        w.recoveryTimer -= dt;
+        if (w.recoveryTimer <= 0) {
+          w.workerState = 'TRAVEL';
+        }
+        return;
+      }
+
+      // 3. TRAVEL to Assigned Node
+      if (w.workerState === 'TRAVEL') {
+        const dx = targetNode.x - w.x;
+        const dy = targetNode.y - w.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 18) {
+          w.workerState = 'MINING';
+          w.miningProgress = 0;
+          w.miningDuration = targetNode.time;
+        } else {
+          w.x += (dx / dist) * w.speed * dt;
+          w.y += (dy / dist) * w.speed * dt;
+        }
+      }
+
+      // 4. MINING State
+      else if (w.workerState === 'MINING') {
+        w.miningProgress += dt;
+        if (Math.random() < 0.1) {
+          createSparks(w.x, w.y, '#f59e0b', 3);
+        }
+        if (w.miningProgress >= w.miningDuration) {
+          w.carriedGold = targetNode.yield;
+          w.workerState = 'RETURNING';
+        }
+      }
+
+      // 5. RETURNING to Base
+      else if (w.workerState === 'RETURNING') {
+        const dx = homeBase.x - w.x;
+        const dy = homeBase.y - w.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 38) {
+          if (w.team === 'blue') {
+            state.blueGold += w.carriedGold;
+            state.totalBlueGoldMined += w.carriedGold;
+            sound.playCoin();
+            addFloatingText(w.x, w.y - 14, `+${w.carriedGold}g`, '#facc15', 16);
+          } else {
+            state.redGold += w.carriedGold;
+          }
+          w.carriedGold = 0;
+          w.workerState = 'TRAVEL';
+        } else {
+          w.x += (dx / dist) * w.speed * dt;
+          w.y += (dy / dist) * w.speed * dt;
+        }
+      }
+    }
+
+    function updateCombatMinion(u, dt) {
+      // Find nearest enemy unit or turret within aggro threshold
+      let target = findNearestTarget(u.x, u.y, u.range + 90, u.team);
+
+      // Check opposing core if within range
+      if (!target) {
+        const enemyCore = (u.team === 'blue') ? state.cores.red : state.cores.blue;
+        if (Math.hypot(enemyCore.x - u.x, enemyCore.y - u.y) <= u.range + 35) {
+          target = enemyCore;
+        }
+      }
+
+      if (target) {
+        const dx = target.x - u.x;
+        const dy = target.y - u.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist <= u.range) {
+          // In combat range: Halt and attack
+          if (u.attackCooldown <= 0) {
+            triggerAttack(u, target);
+            u.attackCooldown = u.attackInterval;
+            u.attackAnimTimer = 0.22;
+          }
+        } else {
+          // Close in to attack range
+          u.x += (dx / dist) * u.speed * dt;
+          u.y += (dy / dist) * u.speed * dt;
+        }
+      } else {
+        // March down lane towards enemy citadel
+        const marchDir = (u.team === 'blue') ? -1 : 1;
+        u.y += marchDir * u.speed * dt;
+
+        // Softly anchor back towards assigned track to prevent drifting
+        u.x += (laneCentreX(u.lane, u.y) + u.laneOffset - u.x) * 2.5 * dt;
+      }
+    }
+
+    function triggerAttack(u, target) {
+      u.flash = 0.12;
+
+      if (u.type === 'pawn') {
+        sound.playSwordSlash();
+        dealDamage(target, u.effectiveAtk, u, 'physical');
+        createSparks(target.x, target.y, '#e2e8f0', 4);
+      } else if (u.type === 'brute') {
+        sound.playHammerSlam();
+        dealDamage(target, u.effectiveAtk, u, 'physical');
+        createSparks(target.x, target.y, '#f59e0b', 8);
+      } else if (u.type === 'archer') {
+        sound.playArrowShoot();
+        state.projectiles.push({
+          type: 'arrow',
+          team: u.team,
+          x: u.x,
+          y: u.y,
+          target: target,
+          targetX: target.x,
+          targetY: target.y,
+          damage: u.effectiveAtk,
+          damageType: 'ranged',
+          speed: 400
+        });
+      } else if (u.type === 'wizard') {
+        sound.playMagicBurst();
+        state.projectiles.push({
+          type: 'fireball',
+          team: u.team,
+          x: u.x,
+          y: u.y,
+          target: target,
+          targetX: target.x,
+          targetY: target.y,
+          damage: u.effectiveAtk,
+          damageType: 'magic',
+          splashRadius: 72, // BALANCE: was 55 (+31%)
+          speed: 300
+        });
+      }
+    }
+
+    // Damage types: 'physical' (melee), 'ranged' (arrows), 'magic' (wizard fireballs).
+    // Untyped damage (turrets, cores, shockwave) ignores resistances, as before.
+    function dealDamage(target, dmg, source, dmgType) {
+      if (dmgType && target.resist && target.resist[dmgType]) {
+        dmg = Math.max(1, Math.round(dmg * (1 - target.resist[dmgType])));
+      }
+      target.hp -= dmg;
+      target.flash = 0.2;
+      addFloatingText(target.x, target.y - 10, `-${dmg}`, '#ef4444', 13);
+
+      // Worker Interception: Drop payload & trigger flee speed boost
+      if (target.type === 'worker' && target.workerState !== 'FLEEING') {
+        target.workerState = 'FLEEING';
+        if (target.carriedGold > 0) {
+          addFloatingText(target.x, target.y - 24, 'DROPPED!', '#e11d48', 14);
+          target.carriedGold = 0;
+        }
+      }
+
+      if (target.hp <= 0) {
+        target.dead = true;
+        createDeathBones(target.x, target.y);
+      }
+    }
+
+    // --- TURRET OPTION C LOGIC & SHOCKWAVE ---
+    function updateTurrets(dt) {
+      state.turretPads.forEach(pad => {
+        const turret = pad.turret;
+        if (!turret || turret.dead) return;
+
+        turret.rotation += 0.8 * dt;
+        if (turret.flash > 0) turret.flash -= dt;
+        if (turret.cooldown > 0) turret.cooldown -= dt;
+
+        if (turret.lagHp > turret.hp) {
+          turret.lagHp -= (turret.lagHp - turret.hp) * 5 * dt;
+        }
+
+        const enemy = findNearestTarget(turret.x, turret.y, turret.range, turret.team);
+        if (enemy && turret.cooldown <= 0) {
+          if (turret.charge >= 4) {
+            // 5th SHOT: RADIAL SHOCKWAVE!
+            triggerTurretShockwave(turret);
+            turret.charge = 0;
+            turret.cooldown = turret.attackInterval * 1.3;
+          } else {
+            // Standard Single-Target Arcane Bolt
+            fireTurretBolt(turret, enemy);
+            turret.charge++;
+            turret.cooldown = turret.attackInterval;
+          }
+        }
+      });
+    }
+
+    function fireTurretBolt(turret, target) {
+      sound.playSwordSlash();
+      state.projectiles.push({
+        type: 'turret_bolt',
+        team: turret.team,
+        x: turret.x,
+        y: turret.y,
+        target: target,
+        targetX: target.x,
+        targetY: target.y,
+        damage: 48,
+        speed: 430
+      });
+    }
+
+    function triggerTurretShockwave(turret) {
+      sound.playShockwave();
+      turret.flash = 0.35;
+
+      // Visual ground shockwave particle ring
+      state.particles.push({
+        type: 'shockwave',
+        team: turret.team,
+        x: turret.x,
+        y: turret.y,
+        radius: 12,
+        maxRadius: 135,
+        life: 0.45,
+        maxLife: 0.45
+      });
+
+      // Knockback & damage all enemies in radius
+      const blastRadius = 135;
+      state.units.forEach(u => {
+        if (!u.dead && u.team !== turret.team) {
+          const dx = u.x - turret.x;
+          const dy = u.y - turret.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < blastRadius) {
+            dealDamage(u, 95, turret);
+            // Lateral & vertical knockback
+            const angle = Math.atan2(dy, dx);
+            u.x += Math.cos(angle) * 45;
+            u.y += Math.sin(angle) * 45;
+            u.x = Math.max(165, Math.min(315, u.x));
+            addFloatingText(u.x, u.y - 12, 'SHOCKWAVE!', '#fbbf24', 15);
+          }
+        }
+      });
+    }
+
+    // --- BASE DEFENSIVE ZAP (King & Necromancer) ---
+    function updateCores(dt) {
+      ['blue', 'red'].forEach(team => {
+        const core = state.cores[team];
+        if (core.flash > 0) core.flash -= dt;
+        if (core.cooldown > 0) core.cooldown -= dt;
+
+        if (core.cooldown <= 0) {
+          const target = findNearestTarget(core.x, core.y, core.range, core.team);
+          if (target) {
+            core.cooldown = 1.2;
+            core.flash = 0.2;
+            sound.playMagicBurst();
+            state.projectiles.push({
+              type: 'core_bolt',
+              team: core.team,
+              x: core.x,
+              y: core.y,
+              target: target,
+              targetX: target.x,
+              targetY: target.y,
+              damage: core.atk,
+              speed: 380
+            });
+          }
+        }
+      });
+    }
+
+    // --- PROJECTILES TICK ---
+    function updateProjectiles(dt) {
+      for (let i = state.projectiles.length - 1; i >= 0; i--) {
+        const p = state.projectiles[i];
+        const tx = (p.target && !p.target.dead) ? p.target.x : p.targetX;
+        const ty = (p.target && !p.target.dead) ? p.target.y : p.targetY;
+
+        const dx = tx - p.x;
+        const dy = ty - p.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 18) {
+          if (p.splashRadius) {
+            // Splash damage
+            createSparks(p.x, p.y, (p.team === 'blue' ? '#38bdf8' : '#c084fc'), 10);
+            state.units.forEach(u => {
+              if (!u.dead && u.team !== p.team) {
+                if (Math.hypot(u.x - p.x, u.y - p.y) <= p.splashRadius) {
+                  dealDamage(u, p.damage, null, p.damageType);
+                }
+              }
+            });
+          } else if (p.target && !p.target.dead) {
+            dealDamage(p.target, p.damage, null, p.damageType);
+          }
+          state.projectiles.splice(i, 1);
+        } else {
+          p.x += (dx / dist) * p.speed * dt;
+          p.y += (dy / dist) * p.speed * dt;
+        }
+      }
+    }
+
+    // --- TARGET UTILITIES ---
+    function findNearestTarget(x, y, maxRange, team) {
+      let nearest = null;
+      let minDist = maxRange;
+
+      // 1. Check enemy units
+      state.units.forEach(u => {
+        if (!u.dead && u.team !== team) {
+          const d = Math.hypot(u.x - x, u.y - y);
+          if (d < minDist) {
+            minDist = d;
+            nearest = u;
+          }
+        }
+      });
+
+      // 2. Check enemy turrets
+      state.turretPads.forEach(pad => {
+        if (pad.turret && !pad.turret.dead && pad.turret.team !== team) {
+          const d = Math.hypot(pad.turret.x - x, pad.turret.y - y);
+          if (d < minDist) {
+            minDist = d;
+            nearest = pad.turret;
+          }
+        }
+      });
+
+      return nearest;
+    }
+
+    // --- EFFECTS & PARTICLES TICK ---
+    function addFloatingText(x, y, text, color, size = 14) {
+      state.floatingTexts.push({
+        x: x + (Math.random() * 20 - 10),
+        y: y,
+        text: text,
+        color: color,
+        size: size,
+        life: 0.85,
+        maxLife: 0.85
+      });
+    }
+
+    function createSparks(x, y, color, count = 4) {
+      for (let i = 0; i < count; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = Math.random() * 80 + 30;
+        state.particles.push({
+          x: x,
+          y: y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          color: color,
+          radius: Math.random() * 2.5 + 1.5,
+          life: 0.35,
+          maxLife: 0.35
+        });
+      }
+    }
+
+    function createDeathBones(x, y) {
+      for (let i = 0; i < 5; i++) {
+        state.particles.push({
+          x: x,
+          y: y,
+          vx: (Math.random() - 0.5) * 70,
+          vy: (Math.random() - 0.5) * 70,
+          color: '#cbd5e1',
+          radius: 3,
+          life: 0.55,
+          maxLife: 0.55
+        });
+      }
+    }
+
+    function updateEffects(dt) {
+      for (let i = state.floatingTexts.length - 1; i >= 0; i--) {
+        const t = state.floatingTexts[i];
+        t.life -= dt;
+        t.y -= 25 * dt;
+        if (t.life <= 0) state.floatingTexts.splice(i, 1);
+      }
+      for (let i = state.particles.length - 1; i >= 0; i--) {
+        const p = state.particles[i];
+        p.life -= dt;
+        if (p.type === 'shockwave') {
+          p.radius += (p.maxRadius - p.radius) * 10 * dt;
+        } else {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+        }
+        if (p.life <= 0) state.particles.splice(i, 1);
+      }
+    }
+
+    // --- OPPONENT AI (Red Necromancer) ---
+    // The red side uses exactly the same economy and shop as the player (workers, cadence
+    // cards, turrets, upgrades). Difficulty changes reaction time, income, how well it
+    // counter-picks and how greedy its economy is.
+    const AI_LEVELS = {
+      easy:   { think: [3.2, 4.8], income: 0.85, maxWorkers: 1, counter: 0.25, mistake: 0.35, turretThreat: 3, nodeSmart: false },
+      normal: { think: [2.0, 3.0], income: 1.00, maxWorkers: 2, counter: 0.65, mistake: 0.10, turretThreat: 2, nodeSmart: true },
+      hard:   { think: [1.0, 1.6], income: 1.12, maxWorkers: 4, counter: 0.95, mistake: 0.00, turretThreat: 1, nodeSmart: true }
+    };
+    let aiTimer = 2.0;
+    function aiCfg() { return AI_LEVELS[state.difficulty] || AI_LEVELS.normal; }
+    const padFree = p => !p.turret || p.turret.dead;
+
+    function aiBuy(kind) {
+      const cost = { worker: 80, archers: 75, wizards: 120, brutes: 150, turret: 250, upgrade: 400 }[kind];
+      if (state.redGold < cost) return false;
+      if (kind === 'worker') {
+        spawnWorker('red', state.aiNode);
+      } else if (kind === 'turret') {
+        // Build the pad closest to where blue units currently are
+        const pads = state.turretPads.filter(p => p.team === 'red' && padFree(p));
+        if (!pads.length) return false;
+        const front = calculateBattlelineY();
+        pads.sort((p1, p2) => Math.abs(p1.y - front) - Math.abs(p2.y - front));
+        pads[0].turret = new Turret(pads[0]);
+      } else if (kind === 'upgrade') {
+        state.redUpgradeLevel++;
+      } else {
+        state.redCadence[kind]++;
+      }
+      state.redGold -= cost;
+      return true;
+    }
+
+    function updateAI(dt) {
+      if (state.mode !== 'cpu') return;
+      aiTimer -= dt;
+      if (aiTimer > 0) return;
+      const cfg = aiCfg();
+      aiTimer = cfg.think[0] + Math.random() * (cfg.think[1] - cfg.think[0]);
+
+      const blueArmy = state.units.filter(u => !u.dead && u.team === 'blue' && u.type !== 'worker');
+      const threat = blueArmy.filter(u => u.y < 1200).length + (state.cores.red.hp < state.cores.red.maxHp ? 2 : 0);
+      const clashY = calculateBattlelineY();
+      const redWorkers = state.units.filter(u => !u.dead && u.team === 'red' && u.type === 'worker').length;
+
+      // 1. Mining node (NODES are named from blue's view: FAR is red's safe node)
+      if (cfg.nodeSmart) {
+        if (clashY > 1500 && threat === 0) state.aiNode = 'MID';      // pushing: claim the river
+        else state.aiNode = 'FAR';                                     // otherwise mine at home
+        if (state.difficulty === 'hard' && clashY > 1750 && threat === 0) state.aiNode = 'SAFE';
+      } else {
+        state.aiNode = Math.random() < 0.5 ? 'FAR' : 'MID';
+      }
+      state.units.forEach(u => {
+        if (u.type === 'worker' && u.team === 'red' && u.workerState === 'TRAVEL') u.targetNodeKey = state.aiNode;
+      });
+
+      if (Math.random() < cfg.mistake) return; // easy AI sometimes just idles
+
+      // 2. Defend: turret when the blue army is in red territory
+      if (threat >= cfg.turretThreat && aiBuy('turret')) return;
+
+      // 3. Economy early on
+      if (redWorkers < cfg.maxWorkers && state.gameTime > 8 && threat < 2 && aiBuy('worker')) return;
+
+      // 4. Upgrades: keep pace with the player (hard AI also uses spare gold)
+      if (state.redUpgradeLevel < state.blueUpgradeLevel || (state.difficulty === 'hard' && state.redGold > 650)) {
+        if (aiBuy('upgrade')) return;
+        if (state.difficulty !== 'easy') return; // save up for it
+      }
+
+      // 5. Army: counter-pick the player's cadence mix.
+      //    wizards resist arrows -> beat archers; brutes resist magic -> beat wizards;
+      //    archers (cheap DPS from range) -> beat slow brutes.
+      const bc = state.blueCadence, rc = state.redCadence;
+      let pick;
+      if (Math.random() < cfg.counter) {
+        const scores = {
+          wizards: bc.archers * 1.2 - rc.wizards * 0.8 + 0.5,
+          brutes:  bc.wizards * 1.2 - rc.brutes * 0.9 + 0.4,
+          archers: bc.brutes * 1.2 - rc.archers * 0.6 + 0.6
+        };
+        pick = Object.keys(scores).sort((x, y) => scores[y] - scores[x])[0];
+      } else {
+        pick = ['archers', 'wizards', 'brutes'][Math.floor(Math.random() * 3)];
+      }
+      aiBuy(pick);
+    }
+
+    // --- TUG OF WAR BATTLELINE MATH ---
+    function calculateBattlelineY() {
+      const combatUnits = state.units.filter(u => u.type !== 'worker');
+      if (combatUnits.length === 0) return 1200; // River center
+      let sumY = 0;
+      combatUnits.forEach(u => sumY += u.y);
+      return sumY / combatUnits.length;
+    }
+
+    // --- PROCEDURAL VECTOR RENDER PIPELINE ("CLASH ROYALE" STYLE) ---
+    function render() {
+      ctx.save();
+      ctx.scale(scale, scale);
+      ctx.translate(0, -state.cameraY);
+      if (isFlipped()) { ctx.translate(WORLD_W, WORLD_H); ctx.rotate(Math.PI); }
+
+      // 1. Draw 3-Zone Environment: Cobblestone Road, River, Grass & Wildflowers
+      drawEnvironment();
+
+      // 2. Draw 3 Mining Nodes (Sapphire, Gold, Amethyst)
+      drawNodes();
+
+      // 3. Draw Turret Pads & Turrets
+      drawTurretPads();
+
+      // 4. Draw Citadels (King Citadel & Necromancer Citadel)
+      drawCitadels();
+
+      // 5. Draw Units (Vector Anatomies, Weapons, Plumes, Skeletons)
+      drawUnits();
+
+      // 6. Draw Projectiles
+      drawProjectiles();
+
+      // 7. Draw Visual FX & Particles
+      drawEffects();
+
+      ctx.restore();
+    }
+
+    function drawEnvironment() {
+      const bg = SPRITES['arena_bg'];
+      if (bg) { ctx.drawImage(bg, 0, 0, WORLD_W, WORLD_H); return; }
+      // Zone 3: Blighted Necromancer Realm (0 - 800)
+      const gradNecro = ctx.createLinearGradient(0, 0, 0, 800);
+      gradNecro.addColorStop(0, '#1c102b');
+      gradNecro.addColorStop(1, '#2c193e');
+      ctx.fillStyle = gradNecro;
+      ctx.fillRect(0, 0, WORLD_W, 800);
+
+      // Zone 2: Contested Mid & River Crossing (800 - 1600)
+      const gradMid = ctx.createLinearGradient(0, 800, 0, 1600);
+      gradMid.addColorStop(0, '#2d3748');
+      gradMid.addColorStop(0.46, '#1e293b');
+      gradMid.addColorStop(0.5, '#0284c7');  // River water
+      gradMid.addColorStop(0.54, '#1e293b');
+      gradMid.addColorStop(1, '#1e3a29');
+      ctx.fillStyle = gradMid;
+      ctx.fillRect(0, 800, WORLD_W, 800);
+
+      // Zone 1: Lush Royal Bastion (1600 - 2400)
+      const gradKing = ctx.createLinearGradient(0, 1600, 0, 2400);
+      gradKing.addColorStop(0, '#166534');
+      gradKing.addColorStop(0.5, '#15803d');
+      gradKing.addColorStop(1, '#14532d');
+      ctx.fillStyle = gradKing;
+      ctx.fillRect(0, 1600, WORLD_W, 800);
+
+      // Center River Flow Lines
+      ctx.fillStyle = '#0369a1';
+      ctx.fillRect(0, 1170, WORLD_W, 60);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let y = 1180; y <= 1220; y += 15) {
+        ctx.moveTo(10, y);
+        ctx.lineTo(WORLD_W - 10, y);
+      }
+      ctx.stroke();
+
+      // Two cobblestone lanes + plazas (mirrors the painted arena art)
+      const roads = [[LANE_LEFT_X, PLAZA_TOP_Y, PLAZA_BOT_Y], [LANE_RIGHT_X, PLAZA_TOP_Y, PLAZA_BOT_Y]];
+      ctx.fillStyle = '#475569';
+      roads.forEach(([x, y0, y1]) => ctx.fillRect(x - 24, y0, 48, y1 - y0));
+      ctx.fillRect(LANE_LEFT_X - 24, PLAZA_TOP_Y - 40, LANE_RIGHT_X - LANE_LEFT_X + 48, 48);
+      ctx.fillRect(LANE_LEFT_X - 24, PLAZA_BOT_Y - 8, LANE_RIGHT_X - LANE_LEFT_X + 48, 48);
+      ctx.fillStyle = '#78350f';
+      roads.forEach(([x]) => ctx.fillRect(x - 34, 1160, 68, 80));
+    }
+
+    function drawNodes() {
+      // 1. Safe Node (Sapphire Crystal)
+      drawCrystalNode(NODES.SAFE, '#38bdf8', 'SAFE (10g / 5s)');
+      // 2. Mid Node (Amber Gold)
+      drawCrystalNode(NODES.MID, '#facc15', 'MID (25g / 8s)');
+      // 3. Far Node (Amethyst Crystal)
+      drawCrystalNode(NODES.FAR, '#c084fc', 'FAR (60g / 15s)');
+    }
+
+    function drawCrystalNode(node, color, label) {
+      ctx.save();
+      // Ground shadow & ambient glow
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(node.x, node.y + 14, 26, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Glowing multi-faceted crystals
+      ctx.fillStyle = color;
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2.5;
+
+      // Central crystal
+      ctx.beginPath();
+      ctx.moveTo(node.x, node.y - 24);
+      ctx.lineTo(node.x + 14, node.y + 10);
+      ctx.lineTo(node.x, node.y + 16);
+      ctx.lineTo(node.x - 14, node.y + 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Flanking small crystal
+      ctx.beginPath();
+      ctx.moveTo(node.x + 12, node.y - 12);
+      ctx.lineTo(node.x + 24, node.y + 8);
+      ctx.lineTo(node.x + 8, node.y + 12);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Specular highlight
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(node.x - 2, node.y - 6, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Label plaque
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.fillRect(node.x - 48, node.y + 20, 96, 16);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(node.x - 48, node.y + 20, 96, 16);
+
+      ctx.fillStyle = color;
+      ctx.font = 'bold 9px Fredoka, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, node.x, node.y + 32);
+      ctx.restore();
+    }
+
+    function drawTurretPads() {
+      state.turretPads.forEach(pad => {
+        ctx.save();
+        // Stone foundation circle
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.arc(pad.x, pad.y, 30, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = (pad.team === 'blue') ? '#3b82f6' : '#e11d48';
+        ctx.stroke();
+
+        // Highlight pad if in placement mode
+        if (state.placingTurret && padFree(pad) && pad.team === 'blue') {
+          ctx.strokeStyle = '#facc15';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(pad.x, pad.y, 36, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(250, 204, 21, 0.25)';
+          ctx.fill();
+        }
+
+        // Draw Turret or Empty Label
+        if (pad.turret && !pad.turret.dead) {
+          drawTurret(pad.turret);
+        } else {
+          ctx.fillStyle = '#64748b';
+          ctx.font = 'bold 9px Fredoka, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('PAD', pad.x, pad.y + 4);
+        }
+        ctx.restore();
+      });
+    }
+
+    function drawTurret(t) {
+      ctx.save();
+      // Drop shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(t.x, t.y + 10, 26, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Stone Tower Base
+      ctx.fillStyle = (t.flash > 0) ? '#ffffff' : (t.team === 'blue' ? '#1e3a8a' : '#881337');
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // OPTION C: 5-NOTCH RUNE CHARGE DIAL
+      for (let i = 0; i < 5; i++) {
+        const ang = (i / 5) * Math.PI * 2 + t.rotation;
+        const px = t.x + Math.cos(ang) * 15;
+        const py = t.y + Math.sin(ang) * 15;
+        ctx.fillStyle = (i < t.charge) ? '#fbbf24' : '#475569';
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // Levitating Arcane Crystal on Top
+      ctx.fillStyle = (t.charge >= 4) ? '#f59e0b' : '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Health Bar
+      drawHealthBar(t.x, t.y - 32, 44, 5, t.hp, t.lagHp, t.maxHp);
+      ctx.restore();
+    }
+
+    // Nexus sprites (front-view art, bottom-anchored). Falls back to the procedural castles.
+    const NEXUS_SIZE = 200;
+    function drawNexusSprite(core, img, barColor) {
+      const S = NEXUS_SIZE;
+      ctx.save();
+      ctx.translate(core.x, core.y);
+      if (isFlipped()) ctx.rotate(Math.PI);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.ellipse(0, 48, S * 0.42, S * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+      if (core.flash > 0) ctx.filter = 'brightness(1.8)';
+      ctx.drawImage(img, -S / 2, 60 - S, S, S);
+      ctx.filter = 'none';
+      ctx.restore();
+      // Health bar: just beyond the sprite, on the side facing the battlefield (world centre)
+      const minY = isFlipped() ? core.y - 60 : core.y + 60 - S;
+      const maxY = minY + S;
+      const barY = core.y > WORLD_H / 2 ? minY - 10 : maxY + 10;
+      drawHealthBar(core.x, Math.max(6, Math.min(WORLD_H - 10, barY)), 110, 8, core.hp, core.hp, core.maxHp, barColor);
+    }
+
+    function drawCitadels() {
+      const kingImg = SPRITES['nexus_king'], necroImg = SPRITES['nexus_necromancer'];
+      if (kingImg && necroImg) {
+        drawNexusSprite(state.cores.blue, kingImg, '#3b82f6');
+        drawNexusSprite(state.cores.red, necroImg, '#e11d48');
+        return;
+      }
+      // 1. King Citadel (Bottom Base)
+      const king = state.cores.blue;
+      ctx.save();
+      ctx.fillStyle = (king.flash > 0) ? '#ffffff' : '#1e3a8a';
+      ctx.strokeStyle = '#facc15';
+      ctx.lineWidth = 4;
+      ctx.fillRect(king.x - 60, king.y - 45, 120, 80);
+      ctx.strokeRect(king.x - 60, king.y - 45, 120, 80);
+
+      // Castle Battlements
+      ctx.fillStyle = '#3b82f6';
+      for (let x = king.x - 55; x < king.x + 55; x += 25) {
+        ctx.fillRect(x, king.y - 58, 16, 14);
+      }
+
+      // Seated King with lightning scepter
+      ctx.font = '26px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('👑', king.x, king.y + 4);
+
+      drawHealthBar(king.x, king.y - 66, 100, 7, king.hp, king.hp, king.maxHp, '#3b82f6');
+      ctx.restore();
+
+      // 2. Necromancer Citadel (Top Base)
+      const necro = state.cores.red;
+      ctx.save();
+      ctx.fillStyle = (necro.flash > 0) ? '#ffffff' : '#3b0764';
+      ctx.strokeStyle = '#c084fc';
+      ctx.lineWidth = 4;
+      ctx.fillRect(necro.x - 60, necro.y - 35, 120, 80);
+      ctx.strokeRect(necro.x - 60, necro.y - 35, 120, 80);
+
+      // Spiky bone parapets
+      ctx.fillStyle = '#6b21a8';
+      for (let x = necro.x - 55; x < necro.x + 55; x += 25) {
+        ctx.beginPath();
+        ctx.moveTo(x, necro.y - 35);
+        ctx.lineTo(x + 8, necro.y - 50);
+        ctx.lineTo(x + 16, necro.y - 35);
+        ctx.fill();
+      }
+
+      // Seated Necromancer
+      ctx.font = '26px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('💀', necro.x, necro.y + 14);
+
+      drawHealthBar(necro.x, necro.y + 58, 100, 7, necro.hp, necro.hp, necro.maxHp, '#e11d48');
+      ctx.restore();
+    }
+
+    function drawUnits() {
+      state.units.forEach(u => {
+        ctx.save();
+        // Dynamic drop shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath();
+        ctx.ellipse(u.x, u.y + (u.radius * 0.8), u.radius * 0.9, u.radius * 0.45, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Sinusoidal waddle and bob
+        const bob = Math.sin(u.walkAnim) * 2.2;
+        const tilt = Math.cos(u.walkAnim) * 0.08;
+
+        ctx.translate(u.x, u.y + bob);
+        if (isFlipped()) ctx.rotate(Math.PI); // keep sprites upright on a flipped board
+        ctx.rotate(tilt);
+
+        if (u.flash > 0) {
+          // White flash-on-hit
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(0, 0, u.radius, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          // Sprite if provided in assets/, else detailed procedural rendering
+          const spr = getUnitSprite(u);
+          if (spr) {
+            const size = u.radius * 2.8;
+            ctx.drawImage(spr, -size / 2, -size * 0.6, size, size);
+          } else {
+            drawCharacterVector(u);
+          }
+        }
+
+        ctx.restore();
+
+        // Delayed Floating Health Bars
+        if (u.type !== 'worker' || u.hp < u.effectiveMaxHp) {
+          drawHealthBar(u.x, u.y - u.radius - 12, u.radius * 2, 4, u.hp, u.lagHp, u.effectiveMaxHp);
+        }
+      });
+    }
+
+    // --- DETAILED CLASH ROYALE CHARACTER DRAW ROUTINES ---
+    function drawCharacterVector(u) {
+      const isBlue = (u.team === 'blue');
+
+      // 1. KNIGHT (Blue Melee)
+      if (u.type === 'pawn' && isBlue) {
+        // Steel Kettle/Bucket Helmet
+        ctx.fillStyle = '#94a3b8';
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Dark eye slit
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(-6, -2, 12, 3);
+
+        // Royal Blue Feather Plume
+        ctx.fillStyle = '#2563eb';
+        ctx.beginPath();
+        ctx.moveTo(0, -14);
+        ctx.quadraticCurveTo(-10, -26, -4, -28);
+        ctx.quadraticCurveTo(2, -22, 0, -14);
+        ctx.fill();
+
+        // Round Wooden Shield with Iron Banding
+        ctx.fillStyle = '#78350f';
+        ctx.beginPath();
+        ctx.arc(-11, 4, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Gleaming Iron Broadsword
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(8, -10, 4, 18);
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(6, 4, 8, 3); // Gold hilt
+
+        // Slashing swoosh trail
+        if (u.attackAnimTimer > 0) {
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.7)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(0, 0, 24, -Math.PI / 2, Math.PI / 4);
+          ctx.stroke();
+        }
+      }
+
+      // 2. SKELETON (Red Melee)
+      else if (u.type === 'pawn' && !isBlue) {
+        // Bone-white skull
+        ctx.fillStyle = '#f8fafc';
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Glowing red eye sockets
+        ctx.fillStyle = '#e11d48';
+        ctx.beginPath();
+        ctx.arc(-4, -1, 2.5, 0, Math.PI * 2);
+        ctx.arc(4, -1, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cracked iron buckler
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.arc(-10, 4, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Rusty curved scythe/blade
+        ctx.strokeStyle = '#b45309';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(8, 8);
+        ctx.quadraticCurveTo(14, -6, 20, -12);
+        ctx.stroke();
+
+        // Slashing swoosh trail
+        if (u.attackAnimTimer > 0) {
+          ctx.strokeStyle = 'rgba(244, 63, 94, 0.7)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(0, 0, 22, -Math.PI / 4, Math.PI / 2);
+          ctx.stroke();
+        }
+      }
+
+      // 3. ARCHER (Blue & Red)
+      else if (u.type === 'archer') {
+        // Hooded Cowl
+        ctx.fillStyle = isBlue ? '#0284c7' : '#7e22ce';
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, -2, 13, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Face in shadow
+        ctx.fillStyle = '#fed7aa';
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Recurve Wooden Bow
+        ctx.strokeStyle = '#92400e';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(8, 2, 12, -Math.PI / 3, Math.PI / 3);
+        ctx.stroke();
+      }
+
+      // 4. WIZARD (Blue & Red)
+      else if (u.type === 'wizard') {
+        // Flowing Robe and Pointed Hood
+        ctx.fillStyle = isBlue ? '#312e81' : '#581c87';
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, -18);
+        ctx.lineTo(12, 12);
+        ctx.lineTo(-12, 12);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Mystic Staff with glowing orb
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(10, -14);
+        ctx.lineTo(10, 14);
+        ctx.stroke();
+
+        // Glowing crystal orb
+        ctx.fillStyle = isBlue ? '#38bdf8' : '#e879f9';
+        ctx.beginPath();
+        ctx.arc(10, -14, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 5. BRUTE (Massive Armored Tank)
+      else if (u.type === 'brute') {
+        // Massive Bulking Silhouette
+        ctx.fillStyle = isBlue ? '#1e3a8a' : '#4a044e';
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, u.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Heavy Iron Pauldrons
+        ctx.fillStyle = isBlue ? '#94a3b8' : '#71717a';
+        ctx.fillRect(-18, -12, 10, 12);
+        ctx.fillRect(8, -12, 10, 12);
+
+        // Colossal War Hammer / Bone Mace
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(10, -18, 12, 14);
+        ctx.strokeStyle = '#000000';
+        ctx.strokeRect(10, -18, 12, 14);
+      }
+
+      // 6. WORKER (Peasant / Bony Minion)
+      else if (u.type === 'worker') {
+        ctx.fillStyle = isBlue ? '#b45309' : '#78350f';
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Mining Pickaxe
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(-6, -10);
+        ctx.lineTo(8, 8);
+        ctx.stroke();
+
+        // Status Indicators
+        if (wStateIsFleeing(u)) {
+          ctx.font = '14px sans-serif';
+          ctx.fillText('💦', -6, -14);
+        } else if (u.carriedGold > 0) {
+          ctx.fillStyle = '#facc15';
+          ctx.font = 'bold 9px Fredoka, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`+${u.carriedGold}g`, 0, -14);
+        }
+      }
+    }
+
+    function wStateIsFleeing(u) {
+      return u.type === 'worker' && u.workerState === 'FLEEING';
+    }
+
+    function drawHealthBar(x, y, w, h, hp, lagHp, maxHp, customColor) {
+      const pct = Math.max(0, Math.min(1, hp / maxHp));
+      const lagPct = Math.max(0, Math.min(1, lagHp / maxHp));
+
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(x - w / 2, y, w, h);
+
+      // Red Delayed Catchup Damage
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(x - w / 2, y, w * lagPct, h);
+
+      // Foreground Active Bar
+      ctx.fillStyle = customColor || '#22c55e';
+      ctx.fillRect(x - w / 2, y, w * pct, h);
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - w / 2, y, w, h);
+    }
+
+    function drawProjectiles() {
+      state.projectiles.forEach(p => {
+        ctx.save();
+        if (p.type === 'arrow') {
+          // Ballistic arcing arrow rotated to vector
+          const ang = Math.atan2(p.targetY - p.y, p.targetX - p.x);
+          ctx.translate(p.x, p.y);
+          ctx.rotate(ang);
+          ctx.strokeStyle = '#e2e8f0';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(-8, 0);
+          ctx.lineTo(8, 0);
+          ctx.stroke();
+          // Feather fletching
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillRect(-8, -2, 3, 4);
+        } else if (p.type === 'fireball') {
+          ctx.fillStyle = (p.team === 'blue') ? '#38bdf8' : '#c084fc';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (p.type === 'turret_bolt' || p.type === 'core_bolt') {
+          ctx.fillStyle = (p.team === 'blue') ? '#60a5fa' : '#f43f5e';
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      });
+    }
+
+    function drawEffects() {
+      // Particles
+      state.particles.forEach(p => {
+        ctx.save();
+        if (p.type === 'shockwave') {
+          const alpha = p.life / p.maxLife;
+          ctx.strokeStyle = (p.team === 'blue') 
+            ? `rgba(96, 165, 250, ${alpha})` 
+            : `rgba(244, 63, 94, ${alpha})`;
+          ctx.lineWidth = 8 * alpha;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      });
+
+      // Floating Numbers
+      state.floatingTexts.forEach(t => {
+        ctx.save();
+        ctx.font = `800 ${t.size}px Fredoka, sans-serif`;
+        ctx.fillStyle = t.color;
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.85)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(t.text, t.x, t.y);
+        ctx.restore();
+      });
+    }
+
+    // --- TUG OF WAR TENSION RAIL & SWITCHBOARD (LEFT) ---
+    const railClashKnob = document.getElementById('clash-marker');
+    const railRed = document.getElementById('rail-red');
+    const railBlue = document.getElementById('rail-blue');
+    const railGlyphs = document.getElementById('rail-glyph-layer');
+
+    function updateMiniMap() {
+      // 1. Sliding Battleline Knob
+      const clashY = calculateBattlelineY();
+      const normY = clashY / WORLD_H;
+      railClashKnob.style.top = `${normY * 100}%`;
+
+      // 2. Mass Balance Ratio
+      let blueMass = state.cores.blue.hp;
+      let redMass = state.cores.red.hp;
+      state.units.forEach(u => {
+        if (!u.dead && u.type !== 'worker') {
+          if (u.team === 'blue') blueMass += u.hp;
+          else redMass += u.hp;
+        }
+      });
+      const total = blueMass + redMass || 1;
+      railBlue.style.height = `${(blueMass / total) * 100}%`;
+      railRed.style.height = `${(redMass / total) * 100}%`;
+
+      // 3. Render Glyphs (Turrets, Brutes, Wizards, Archers, Workers)
+      let html = '';
+      state.turretPads.forEach(pad => {
+        if (pad.turret && !pad.turret.dead) {
+          const topPct = (pad.y / WORLD_H) * 100;
+          const col = (pad.team === 'blue') ? '#3b82f6' : '#ef4444';
+          html += `<div class="absolute w-2 h-2 transform -translate-x-1/2 -translate-y-1/2 rotate-45 border border-black" style="left: 50%; top: ${topPct}%; background-color: ${col};"></div>`;
+        }
+      });
+
+      state.units.forEach(u => {
+        if (u.dead) return;
+        const topPct = (u.y / WORLD_H) * 100;
+        const col = (u.team === 'blue') ? '#60a5fa' : '#f87171';
+
+        if (u.type === 'brute') {
+          html += `<div class="absolute w-2.5 h-2.5 transform -translate-x-1/2 -translate-y-1/2 border border-black" style="left: 50%; top: ${topPct}%; background-color: ${col};"></div>`;
+        } else if (u.type === 'wizard') {
+          html += `<div class="absolute w-2 h-2 rounded-full transform -translate-x-1/2 -translate-y-1/2" style="left: 50%; top: ${topPct}%; background-color: #fbbf24;"></div>`;
+        } else if (u.type === 'archer') {
+          html += `<div class="absolute w-1.5 h-1.5 transform -translate-x-1/2 -translate-y-1/2" style="left: 50%; top: ${topPct}%; background-color: ${col};"></div>`;
+        } else if (u.type === 'worker' && u.team === 'blue') {
+          html += `<div class="absolute w-2.5 h-2.5 rounded-full border border-yellow-300 shadow transform -translate-x-1/2 -translate-y-1/2 animate-ping" style="left: 50%; top: ${topPct}%; background-color: #f59e0b;"></div>`;
+        }
+      });
+
+      railGlyphs.innerHTML = html;
+
+      // Emergency Core alarm if base under direct attack
+      const alarm = document.getElementById('core-alarm');
+      if (state.cores.blue.hp < state.cores.blue.maxHp && state.cameraY < 1200) {
+        alarm.classList.remove('hidden');
+      } else {
+        alarm.classList.add('hidden');
+      }
+    }
+
+    // --- HUD & CARD DOCK SYNCHRONIZATION ---
+    function updateHUD() {
+      // Cores HP
+      const kingPct = (state.cores.blue.hp / state.cores.blue.maxHp) * 100;
+      const necroPct = (state.cores.red.hp / state.cores.red.maxHp) * 100;
+      document.getElementById('king-hp-bar').style.width = `${kingPct}%`;
+      document.getElementById('necro-hp-bar').style.width = `${necroPct}%`;
+      document.getElementById('king-hp-num').textContent = Math.max(0, Math.ceil(state.cores.blue.hp));
+      document.getElementById('necro-hp-num').textContent = Math.max(0, Math.ceil(state.cores.red.hp));
+
+      // Wave Counter
+      document.getElementById('wave-num').textContent = state.waveCount;
+      document.getElementById('wave-progress').style.width = `${(state.waveTimer / WAVE_INTERVAL) * 100}%`;
+      document.getElementById('wave-seconds').textContent = `${Math.ceil(state.waveTimer)}s`;
+
+      // Gold
+      document.getElementById('gold-counter').textContent = Math.floor(state.blueGold);
+
+      // Card Dock Availability
+      updateCard('btn-buy-worker', state.blueGold >= 80);
+      updateCard('btn-buy-archer', state.blueGold >= 75);
+      updateCard('btn-buy-wizard', state.blueGold >= 120);
+      updateCard('btn-buy-brute', state.blueGold >= 150);
+
+      const hasEmptyPad = state.turretPads.some(p => p.team === 'blue' && padFree(p));
+      updateCard('btn-buy-turret', state.blueGold >= 250 && hasEmptyPad);
+      updateCard('btn-buy-upgrade', state.blueGold >= 400);
+
+      // Badges
+      syncBadge('badge-archer', state.blueCadence.archers);
+      syncBadge('badge-wizard', state.blueCadence.wizards);
+      syncBadge('badge-brute', state.blueCadence.brutes);
+
+      // Stats
+      const activeWorkers = state.units.filter(u => u.type === 'worker' && u.team === 'blue').length;
+      document.getElementById('worker-count-txt').textContent = activeWorkers;
+      document.getElementById('upgrade-lvl-txt').textContent = `+${state.blueUpgradeLevel * 20}%`;
+    }
+
+    function updateCard(id, active) {
+      const el = document.getElementById(id);
+      if (active) el.classList.remove('disabled');
+      else el.classList.add('disabled');
+    }
+
+    function syncBadge(id, count) {
+      const el = document.getElementById(id);
+      if (count > 0) {
+        el.textContent = count;
+        el.classList.remove('hidden');
+      } else {
+        el.classList.add('hidden');
+      }
+    }
+
+    // --- GAME OVER SCREEN ---
+    function checkGameOver() {
+      if (state.cores.red.hp <= 0) {
+        showGameOver(true);
+      } else if (state.cores.blue.hp <= 0) {
+        showGameOver(false);
+      }
+    }
+
+    function showGameOver(isVictory) {
+      state.gameOver = true;
+      const modal = document.getElementById('modal-gameover');
+      const heading = document.getElementById('modal-heading');
+      const subtitle = document.getElementById('modal-subtitle');
+      const icon = document.getElementById('modal-icon');
+
+      if (isVictory) {
+        icon.textContent = '🏆';
+        icon.className = 'w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-3 border-4 border-yellow-400 bg-amber-500 shadow-2xl';
+        heading.textContent = 'VICTORY!';
+        heading.className = 'text-3xl font-black text-amber-400 uppercase tracking-wider mb-2';
+        subtitle.textContent = "You routed the undead host and secured the realm!";
+      } else {
+        icon.textContent = '💀';
+        icon.className = 'w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-3 border-4 border-rose-500 bg-slate-800 shadow-2xl';
+        heading.textContent = 'DEFEAT!';
+        heading.className = 'text-3xl font-black text-rose-500 uppercase tracking-wider mb-2';
+        subtitle.textContent = "The skeleton legion overran your throne...";
+      }
+
+      document.getElementById('stat-waves').textContent = state.waveCount;
+      document.getElementById('stat-gold').textContent = `${state.totalBlueGoldMined}g`;
+      document.getElementById('stat-upgrades').textContent = `+${state.blueUpgradeLevel * 20}%`;
+
+      modal.classList.remove('hidden');
+    }
+
+    // --- EVENT LISTENERS & TOUCH CONTROLS ---
+    window.addEventListener('click', () => sound.init(), { once: true });
+    window.addEventListener('touchstart', () => sound.init(), { once: true });
+
+    // Camera Snaps
+    document.getElementById('snap-far').addEventListener('click', () => { state.targetCameraY = VIEW_FAR_Y; });
+    document.getElementById('snap-mid').addEventListener('click', () => { state.targetCameraY = VIEW_MID_Y; });
+    document.getElementById('snap-home').addEventListener('click', () => { state.targetCameraY = VIEW_HOME_Y; });
+    document.getElementById('core-alarm').addEventListener('click', () => { state.targetCameraY = VIEW_HOME_Y; });
+
+    // Mining Node Switchboard
+    function setMiningNode(key) {
+      state.playerNode = key;
+      sound.playCoin();
+
+      const btnSafe = document.getElementById('node-safe');
+      const btnMid = document.getElementById('node-mid');
+      const btnFar = document.getElementById('node-far');
+
+      [btnSafe, btnMid, btnFar].forEach(b => {
+        b.className = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-slate-800 border-2 border-slate-600 text-slate-300 transition-all shadow';
+      });
+
+      if (key === 'SAFE') {
+        btnSafe.className = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-blue-600 border-2 border-yellow-300 text-white transition-all shadow active-node-glow';
+      } else if (key === 'MID') {
+        btnMid.className = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-blue-600 border-2 border-yellow-300 text-white transition-all shadow active-node-glow';
+      } else if (key === 'FAR') {
+        btnFar.className = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-blue-600 border-2 border-yellow-300 text-white transition-all shadow active-node-glow';
+      }
+
+      // Re-route active workers
+      state.units.forEach(u => {
+        if (u.type === 'worker' && u.team === 'blue' && u.workerState !== 'FLEEING') {
+          u.targetNodeKey = key;
+          if (u.workerState === 'MINING') u.workerState = 'TRAVEL';
+        }
+      });
+    }
+
+    document.getElementById('node-safe').addEventListener('click', () => setMiningNode('SAFE'));
+    document.getElementById('node-mid').addEventListener('click', () => setMiningNode('MID'));
+    document.getElementById('node-far').addEventListener('click', () => setMiningNode('FAR'));
+
+    // Action Cards
+    document.getElementById('btn-buy-worker').addEventListener('click', () => {
+      if (state.blueGold >= 80) {
+        state.blueGold -= 80;
+        sound.playCoin();
+        spawnWorker('blue', state.playerNode);
+        updateHUD();
+      }
+    });
+
+    document.getElementById('btn-buy-archer').addEventListener('click', () => {
+      if (state.blueGold >= 75) {
+        state.blueGold -= 75;
+        state.blueCadence.archers++;
+        sound.playArrowShoot();
+        addFloatingText(120, state.cameraY + 200, '+1 ARCHER CADENCE!', '#38bdf8', 16);
+        updateHUD();
+      }
+    });
+
+    document.getElementById('btn-buy-wizard').addEventListener('click', () => {
+      if (state.blueGold >= 120) {
+        state.blueGold -= 120;
+        state.blueCadence.wizards++;
+        sound.playMagicBurst();
+        addFloatingText(120, state.cameraY + 200, '+1 WIZARD CADENCE!', '#c084fc', 16);
+        updateHUD();
+      }
+    });
+
+    document.getElementById('btn-buy-brute').addEventListener('click', () => {
+      if (state.blueGold >= 150) {
+        state.blueGold -= 150;
+        state.blueCadence.brutes++;
+        sound.playHammerSlam();
+        addFloatingText(120, state.cameraY + 200, '+1 BRUTE CADENCE!', '#34d399', 16);
+        updateHUD();
+      }
+    });
+
+    // Turret Placement Mode
+    const turretBanner = document.getElementById('turret-indicator-banner');
+    document.getElementById('btn-buy-turret').addEventListener('click', () => {
+      const emptyPads = state.turretPads.filter(p => p.team === 'blue' && padFree(p));
+      if (emptyPads.length === 0 || state.blueGold < 250) return;
+
+      if (emptyPads.length === 1) {
+        constructTurret(emptyPads[0]);
+      } else {
+        state.placingTurret = !state.placingTurret;
+        turretBanner.classList.toggle('hidden', !state.placingTurret);
+      }
+    });
+
+    function constructTurret(pad) {
+      if (state.blueGold >= 250 && padFree(pad)) {
+        state.blueGold -= 250;
+        sound.playHammerSlam();
+        pad.turret = new Turret(pad);
+        state.placingTurret = false;
+        turretBanner.classList.add('hidden');
+        addFloatingText(pad.x, pad.y - 20, 'TURRET CONSTRUCTED!', '#f59e0b', 16);
+        updateHUD();
+      }
+    }
+
+    // Army Upgrades (+20%)
+    document.getElementById('btn-buy-upgrade').addEventListener('click', () => {
+      if (state.blueGold >= 400) {
+        state.blueGold -= 400;
+        state.blueUpgradeLevel++;
+        sound.playHorn();
+        addFloatingText(240, state.cameraY + 260, `ARMY UPGRADE +${state.blueUpgradeLevel * 20}%!`, '#22c55e', 20);
+        updateHUD();
+      }
+    });
+
+    // Board-space -> world-space (undo the 180deg flip when the red army is at the bottom)
+    function screenToWorld(x, y) {
+      return isFlipped() ? { x: WORLD_W - x, y: WORLD_H - y } : { x, y };
+    }
+
+    // Canvas Pointer Touch & Drag
+    canvas.addEventListener('pointerdown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const { x: clickX, y: clickY } = screenToWorld((e.clientX - rect.left) / scale, ((e.clientY - rect.top) / scale) + state.cameraY);
+
+      if (state.placingTurret) {
+        const hitPad = state.turretPads.find(p => {
+          return p.team === 'blue' && padFree(p) && Math.hypot(p.x - clickX, p.y - clickY) < 42;
+        });
+        if (hitPad) {
+          constructTurret(hitPad);
+          return;
+        }
+      }
+
+      state.isDragging = true;
+      state.dragStartY = e.clientY;
+      state.cameraStartY = state.cameraY;
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!state.isDragging) return;
+      const dy = (e.clientY - state.dragStartY) / scale;
+      state.targetCameraY = state.cameraStartY - dy;
+      clampCamera();
+    });
+
+    window.addEventListener('pointerup', () => {
+      state.isDragging = false;
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      state.targetCameraY += e.deltaY * 0.8;
+      clampCamera();
+    }, { passive: true });
+
+    // Sound & Speed Toggles
+    document.getElementById('btn-sound').addEventListener('click', () => {
+      sound.muted = !sound.muted;
+      document.getElementById('btn-sound').textContent = sound.muted ? '🔇' : '🔊';
+    });
+
+    document.getElementById('btn-speed').addEventListener('click', () => {
+      if (state.timeSpeed === 1) {
+        state.timeSpeed = 2;
+        document.getElementById('btn-speed').textContent = '2x';
+        document.getElementById('speed-indicator').textContent = '2x';
+      } else {
+        state.timeSpeed = 1;
+        document.getElementById('btn-speed').textContent = '1x';
+        document.getElementById('speed-indicator').textContent = '1x';
+      }
+    });
+
+    document.getElementById('btn-restart').addEventListener('click', () => {
+      document.getElementById('modal-gameover').classList.add('hidden');
+      initGame();
+    });
+
+    // Start menu
+    function startGame(difficulty) {
+      state.mode = 'cpu';
+      state.difficulty = difficulty;
+      document.getElementById('modal-menu').classList.add('hidden');
+      document.getElementById('modal-gameover').classList.add('hidden');
+      initGame();
+      state.started = true;
+    }
+    document.querySelectorAll('.diff-btn').forEach(b => b.addEventListener('click', () => startGame(b.dataset.diff)));
+    document.getElementById('btn-menu').addEventListener('click', () => {
+      document.getElementById('modal-gameover').classList.add('hidden');
+      state.started = false;
+      initGame();
+      document.getElementById('modal-menu').classList.remove('hidden');
+    });
+
+    // --- MAIN TICK LOOP ---
+    let lastTime = performance.now();
+    function tick(currentTime) {
+      const dt = Math.min(0.1, (currentTime - lastTime) / 1000) * state.timeSpeed;
+      lastTime = currentTime;
+
+      update(dt);
+      render();
+
+      requestAnimationFrame(tick);
+    }
+
+    window.onload = function() {
+      initGame();
+      requestAnimationFrame(tick);
+    };
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>

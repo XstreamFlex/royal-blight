@@ -844,7 +844,8 @@
     // --- WAVE SPAWNING & CADENCE LOGIC (Test B) ---
     // Unit stats: spec values with Ian's BALANCE OVERRIDES applied.
     const UNIT_STATS = {
-      pawn:   { hp: 140, speed: 45, atk: 18, range: 24,  interval: 1.1 },
+      pawn:   { hp: 140, speed: 45, atk: 18, range: 24,  interval: 1.1,
+                resist: { magic: 0.2 } },                                   // BALANCE v8: 20% vs wizard fireballs
       archer: { hp: 90,  speed: 42, atk: 22, range: 140, interval: 1.5 },   // BALANCE: 1.3s -> 1.5s
       wizard: { hp: 175, speed: 44, atk: 38, range: 125, interval: 1.4,     // BALANCE: dmg 34->38, speed 40->44
                 splash: 85,                                                 // BALANCE: blast 65 -> 85px

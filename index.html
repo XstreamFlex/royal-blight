@@ -705,6 +705,7 @@
       teams.forEach(t => { loadSprite(k + '_' + t); loadSprite(k + '_' + t + '_back'); });
     });
     loadSprite('arena_bg');
+    ['turret_blue', 'turret_red', 'turret_pad', 'mine_safe', 'mine_mid', 'mine_far'].forEach(loadSprite);
     loadSprite('nexus_king');        // blue nexus (front)
     loadSprite('nexus_king_back');   // blue nexus seen from behind (faces its troops)
     loadSprite('nexus_necromancer'); // red nexus
@@ -847,9 +848,9 @@
       archer: { hp: 90,  speed: 42, atk: 22, range: 140, interval: 1.5 },   // BALANCE: 1.3s -> 1.5s
       wizard: { hp: 175, speed: 44, atk: 38, range: 125, interval: 1.4,     // BALANCE: dmg 34->38, speed 40->44
                 splash: 85,                                                 // BALANCE: blast 65 -> 85px
-                resist: { ranged: 0.5, turret: 0.3 } },                     // 50% arrows; BALANCE: +30% turret bolts
-      brute:  { hp: 420, speed: 34, atk: 28, range: 26,  interval: 1.5, radius: 20,
-                resist: { magic: 0.35 } }                                   // BALANCE: 35% vs wizard fireballs
+                resist: { ranged: 0.5, turret: 0.3, physical: -1.0 } },     // 50% arrows, 30% turret bolts; BALANCE v7: takes 2x melee
+      brute:  { hp: 462, speed: 34, atk: 28, range: 26,  interval: 1.5, radius: 20,
+                resist: { magic: 0.70 } }                                   // BALANCE v7: 70% vs wizard fireballs, HP 462
     };
     function spawnUnit(type, team, lane, back) {
       const st = UNIT_STATS[type];
@@ -859,7 +860,7 @@
       state.units.push(new Unit(Object.assign({ type, team, lane, x: laneCentreX(lane), y }, st)));
     }
 
-    // Waves every 15s: 2 free pawns per team on the flank tracks; purchased cadence joins
+    // Waves every 15s: 4 free pawns per team on the flank tracks; purchased cadence joins
     // permanently: archers every 2nd wave, wizards every 3rd, brutes every 4th (centre track).
     function triggerWave() {
       sound.playHorn();
@@ -867,6 +868,8 @@
         const cad = (team === 'blue') ? state.blueCadence : state.redCadence;
         spawnUnit('pawn', team, 'L', 0);
         spawnUnit('pawn', team, 'R', 0);
+        spawnUnit('pawn', team, 'L', 20);   // v7: 4 free pawns (2 front, 2 behind on the flank tracks)
+        spawnUnit('pawn', team, 'R', 20);
         if (state.waveCount % 4 === 0) for (let i = 0; i < cad.brutes; i++) spawnUnit('brute', team, 'C', -10 - i * 24);
         if (state.waveCount % 2 === 0) for (let i = 0; i < cad.archers; i++) spawnUnit('archer', team, ['L', 'R', 'C'][i % 3], 40 + Math.floor(i / 3) * 22);
         if (state.waveCount % 3 === 0) for (let i = 0; i < cad.wizards; i++) spawnUnit('wizard', team, ['C', 'L', 'R'][i % 3], 58 + Math.floor(i / 3) * 22);
@@ -1167,9 +1170,12 @@
     // Untyped damage (turrets, cores, shockwave) ignores resistances, as before.
     function dealDamage(target, dmg, source, dmgType) {
       if (dmgType && target.resist && target.resist[dmgType]) {
-        const pct = Math.round(target.resist[dmgType] * 100);
-        dmg = Math.max(1, Math.round(dmg * (1 - target.resist[dmgType])));
-        if (Math.random() < 0.5) addFloatingText(target.x, target.y - 26, `-${pct}% RESIST`, '#a5b4fc', 11);
+        const r = target.resist[dmgType];
+        dmg = Math.max(1, Math.round(dmg * (1 - r)));
+        if (Math.random() < 0.5) {
+          if (r < 0) addFloatingText(target.x, target.y - 26, `x${(1 - r).toFixed(0)} WEAK`, '#fb923c', 11);
+          else addFloatingText(target.x, target.y - 26, `-${Math.round(r * 100)}% RESIST`, '#a5b4fc', 11);
+        }
       }
       target.hp -= dmg;
       target.flash = 0.08; // spec: 80ms white hit flash
@@ -1518,18 +1524,21 @@
 
       // 5. Army drafting (spec heuristics):
       //    - player archers > AI wizards -> draft a wizard (wizards resist arrows 50%)
-      //    - brutes from wave 3+ (counter player wizards: 35% magic resist)
+      //    - brutes from wave 3+ (counter player wizards: 70% magic resist, wizards take 2x melee)
       //    - archers capped at 2
       const bc = state.blueCadence, rc = state.redCadence;
       const counter = Math.random() < cfg.counter;
       let pick = null;
-      if (counter && bc.archers > rc.wizards) pick = 'wizards';
-      else if (counter && bc.wizards > rc.brutes) pick = 'brutes';
+      // v7 balance: brutes hard-counter wizards (70% magic resist, wizards take 2x melee),
+      // so answer enemy wizards with brutes first, and don't feed wizards into a brute-heavy army.
+      if (counter && bc.wizards > rc.brutes) pick = 'brutes';
+      else if (counter && bc.archers > rc.wizards && bc.brutes <= rc.brutes) pick = 'wizards';
       else if (counter && bc.brutes > rc.archers && rc.archers < 2) pick = 'archers';
       else {
         const opts = [];
         if (rc.archers < 2) opts.push('archers');
-        opts.push('wizards', 'brutes');
+        if (bc.brutes < 2 || rc.wizards < 1) opts.push('wizards');   // wizards melt to brute walls now
+        opts.push('brutes');
         pick = opts.sort((a, b) => rc[a] - rc[b])[0];   // keep the mix balanced
         if (!counter && state.difficulty === 'easy') pick = opts[Math.floor(Math.random() * opts.length)];
       }
@@ -1611,6 +1620,14 @@
       ctx.restore();
     }
 
+    // Draw a sprite centred on (x, y + dy), kept upright when the board is flipped for the guest.
+    function drawUprightSprite(img, x, y, w, h, dy) {
+      ctx.save(); ctx.translate(x, y);
+      if (isFlipped()) ctx.rotate(Math.PI);
+      ctx.drawImage(img, -w / 2, dy - h / 2, w, h);
+      ctx.restore();
+    }
+
     function drawNodes() {
       // Each team's SAFE / MID / FAR crystals (blue on the left flank, red on the right)
       ['blue', 'red'].forEach(team => ['SAFE', 'MID', 'FAR'].forEach(k => {
@@ -1620,6 +1637,8 @@
     }
 
     function drawCrystalNode(node, color, label) {
+      const img = SPRITES['mine_' + String(node.key || label.split(' ')[0]).toLowerCase()];
+      if (img) { drawMineSprite(node, img, color, label); return; }
       ctx.save();
       // Ground shadow & ambient glow
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -1672,9 +1691,38 @@
       ctx.restore();
     }
 
+    function drawMineSprite(node, img, color, label) {
+      const t = performance.now() / 1000;
+      const pulse = 0.5 + 0.5 * Math.sin(t * 2.2 + node.x * 0.05 + node.y * 0.01);
+      ctx.save();
+      // Ground shadow + soft tier-coloured glow that breathes
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.ellipse(node.x, node.y + 14, 26, 10, 0, 0, Math.PI * 2); ctx.fill();
+      const g = ctx.createRadialGradient(node.x, node.y, 4, node.x, node.y, 40 + pulse * 6);
+      g.addColorStop(0, color + '88'); g.addColorStop(1, color + '00');
+      ctx.globalAlpha = 0.45 + 0.35 * pulse; ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(node.x, node.y, 46, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      drawUprightSprite(img, node.x, node.y, 62, 62, -6);
+      // Yield plaque
+      const ly = node.team === 'red' ? node.y - 50 : node.y + 22;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)'; ctx.fillRect(node.x - 36, ly, 72, 14);
+      ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(node.x - 36, ly, 72, 14);
+      ctx.fillStyle = color; ctx.font = 'bold 8px Fredoka, sans-serif'; ctx.textAlign = 'center';
+      fillTextUpright(label, node.x, ly + 7);
+      ctx.restore();
+    }
+
     function drawTurretPads() {
       state.turretPads.forEach(pad => {
         ctx.save();
+        const padImg = SPRITES['turret_pad'];
+        if (padImg) {
+          drawUprightSprite(padImg, pad.x, pad.y, 70, 70, 0);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = (pad.team === 'blue') ? 'rgba(59,130,246,0.8)' : 'rgba(225,29,72,0.8)';
+          ctx.beginPath(); ctx.arc(pad.x, pad.y, 31, 0, Math.PI * 2); ctx.stroke();
+        } else {
         // Stone foundation circle
         ctx.fillStyle = '#1e293b';
         ctx.beginPath();
@@ -1683,6 +1731,7 @@
         ctx.lineWidth = 3;
         ctx.strokeStyle = (pad.team === 'blue') ? '#3b82f6' : '#e11d48';
         ctx.stroke();
+        }
 
         // Highlight pad if in placement mode
         if (state.placingTurret && padFree(pad) && pad.team === myTeam()) {
@@ -1699,7 +1748,7 @@
         // Draw Turret or Empty Label
         if (pad.turret && !pad.turret.dead) {
           drawTurret(pad.turret);
-        } else {
+        } else if (!padImg) {
           ctx.fillStyle = '#64748b';
           ctx.font = 'bold 9px Fredoka, sans-serif';
           ctx.textAlign = 'center';
@@ -1717,6 +1766,22 @@
       ctx.ellipse(t.x, t.y + 10, 26, 12, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      const timg = SPRITES['turret_' + t.team];
+      if (timg) {
+        if (t.flash > 0) ctx.filter = 'brightness(1.8)';
+        drawUprightSprite(timg, t.x, t.y, 78, 78, -22);
+        ctx.filter = 'none';
+        // Rune charge ring around the base
+        for (let i = 0; i < 5; i++) {
+          const ang = (i / 5) * Math.PI * 2 + t.rotation;
+          ctx.fillStyle = (i < t.charge) ? '#fbbf24' : '#475569';
+          ctx.beginPath(); ctx.arc(t.x + Math.cos(ang) * 26, t.y + 6 + Math.sin(ang) * 11, 3, 0, Math.PI * 2);
+          ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke();
+        }
+        drawHealthBar(t.x, t.y - (isFlipped() ? -40 : 66), 44, 5, t.hp, t.lagHp, t.maxHp);
+        ctx.restore();
+        return;
+      }
       // Stone Tower Base
       ctx.fillStyle = (t.flash > 0) ? '#ffffff' : (t.team === 'blue' ? '#1e3a8a' : '#881337');
       ctx.strokeStyle = '#0f172a';
@@ -2183,6 +2248,78 @@
     const railBlue = document.getElementById('rail-blue');
     const railGlyphs = document.getElementById('rail-glyph-layer');
 
+    // --- RAIL RUNES: vector glyphs on a small canvas inside the rail ---
+    let railCanvas = null, railCtx = null;
+    function drawRailRunes() {
+      if (!railCanvas) {
+        railCanvas = document.createElement('canvas');
+        railCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
+        railGlyphs.innerHTML = ''; railGlyphs.appendChild(railCanvas);
+        railCtx = railCanvas.getContext('2d');
+      }
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const W = railGlyphs.clientWidth, H = railGlyphs.clientHeight;
+      if (!W || !H) return;
+      if (railCanvas.width !== Math.round(W * dpr) || railCanvas.height !== Math.round(H * dpr)) {
+        railCanvas.width = Math.round(W * dpr); railCanvas.height = Math.round(H * dpr);
+      }
+      // The rail element is CSS-flipped for the guest; counter-flip the canvas so runes stay upright
+      const flip = isFlipped();
+      railCanvas.style.transform = flip ? 'scaleY(-1)' : '';
+      const c = railCtx;
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      c.clearRect(0, 0, W, H);
+      const yOf = wy => { const n = wy / WORLD_H; return (flip ? 1 - n : n) * H; };
+      const cx = W / 2;
+      // My units a touch left, enemy a touch right, so the two armies don't overlap at the clash
+      const xOf = team => cx + (team === myTeam() ? -4 : 4);
+      const colOf = team => team === 'blue' ? '#7dd3fc' : '#fb7185';
+      c.lineCap = 'round'; c.lineJoin = 'round';
+      const order = { pawn: 0, worker: 1, archer: 2, wizard: 3, brute: 4 };
+      const list = state.units.filter(u => !u.dead).sort((p, q) => (order[p.type] || 0) - (order[q.type] || 0));
+      list.forEach(u => {
+        const x = xOf(u.team), y = yOf(u.y), col = colOf(u.team);
+        if (u.type === 'pawn') {
+          c.fillStyle = 'rgba(2,6,23,0.85)'; c.fillRect(x - 3, y - 1.5, 6, 3); c.fillStyle = col; c.fillRect(x - 2.2, y - 0.75, 4.4, 1.5); // tick
+        } else if (u.type === 'worker') {
+          c.beginPath(); c.arc(x, y, 3.4, 0, Math.PI * 2); c.fillStyle = 'rgba(2,6,23,0.85)'; c.fill();
+          c.strokeStyle = '#fcd34d'; c.lineWidth = 1.1; c.fillStyle = col;
+          c.beginPath(); c.arc(x, y, 2.2, 0, Math.PI * 2); c.fill(); c.stroke();
+        } else drawRune(c, u.type, x, y, col, u.team !== myTeam());
+      });
+      state.turretPads.forEach(pad => {
+        if (pad.turret && !pad.turret.dead) drawRune(c, 'turret', cx, yOf(pad.y), colOf(pad.team));
+      });
+    }
+    function drawRune(c, kind, x, y, col, enemy) {
+      c.save();
+      c.translate(x, y);
+      // Dark badge so the rune reads on top of the bright tug-of-war fill
+      c.beginPath(); c.arc(0, 0, kind === 'turret' ? 8 : 7, 0, Math.PI * 2);
+      c.fillStyle = 'rgba(2,6,23,0.82)'; c.fill();
+      c.strokeStyle = col; c.lineWidth = 0.8; c.stroke();
+      if (enemy && kind === 'archer') c.scale(1, -1);   // arrows point at the opposing side
+      c.scale(kind === 'turret' ? 0.9 : 0.95, kind === 'turret' ? 0.9 : 0.95);
+      c.beginPath();
+      if (kind === 'archer') {          // arrow rune: shaft + head, pointing toward the enemy
+        c.moveTo(0, 4.5); c.lineTo(0, -4.5); c.moveTo(-3, -1.5); c.lineTo(0, -4.5); c.lineTo(3, -1.5);
+        c.moveTo(-2, 4.5); c.lineTo(0, 2.5); c.lineTo(2, 4.5);
+      } else if (kind === 'wizard') {   // diamond rune with a centre stroke
+        c.moveTo(0, -5); c.lineTo(4, 0); c.lineTo(0, 5); c.lineTo(-4, 0); c.closePath();
+        c.moveTo(0, -2); c.lineTo(0, 2);
+      } else if (kind === 'brute') {    // shield rune
+        c.moveTo(-4.5, -4.5); c.lineTo(4.5, -4.5); c.lineTo(4.5, 0); c.quadraticCurveTo(4, 4, 0, 5.5);
+        c.quadraticCurveTo(-4, 4, -4.5, 0); c.closePath(); c.moveTo(0, -4.5); c.lineTo(0, 5);
+      } else {                          // turret: eye-tower rune
+        c.moveTo(-5.5, 6); c.lineTo(5.5, 6); c.moveTo(-3.5, 6); c.lineTo(-3.5, -6); c.lineTo(3.5, -6); c.lineTo(3.5, 6);
+        c.moveTo(-2.2, -1); c.quadraticCurveTo(0, -3.4, 2.2, -1); c.quadraticCurveTo(0, 1.4, -2.2, -1);
+      }
+      c.shadowColor = col; c.shadowBlur = 4;
+            c.strokeStyle = col; c.lineWidth = 1.5; c.stroke();
+      c.shadowBlur = 0; c.strokeStyle = '#ffffff'; c.globalAlpha = 0.55; c.lineWidth = 0.6; c.stroke();
+      c.restore();
+    }
+
     function updateMiniMap() {
       // 1. Sliding Battleline Knob
       const clashY = calculateBattlelineY();
@@ -2202,33 +2339,8 @@
       railBlue.style.height = `${(blueMass / total) * 100}%`;
       railRed.style.height = `${(redMass / total) * 100}%`;
 
-      // 3. Render Glyphs (Turrets, Brutes, Wizards, Archers, Workers)
-      let html = '';
-      state.turretPads.forEach(pad => {
-        if (pad.turret && !pad.turret.dead) {
-          const topPct = (pad.y / WORLD_H) * 100;
-          const col = (pad.team === 'blue') ? '#3b82f6' : '#ef4444';
-          html += `<div class="absolute w-2 h-2 transform -translate-x-1/2 -translate-y-1/2 rotate-45 border border-black" style="left: 50%; top: ${topPct}%; background-color: ${col};"></div>`;
-        }
-      });
-
-      state.units.forEach(u => {
-        if (u.dead) return;
-        const topPct = (u.y / WORLD_H) * 100;
-        const col = (u.team === 'blue') ? '#60a5fa' : '#f87171';
-
-        if (u.type === 'brute') {
-          html += `<div class="absolute w-2.5 h-2.5 transform -translate-x-1/2 -translate-y-1/2 border border-black" style="left: 50%; top: ${topPct}%; background-color: ${col};"></div>`;
-        } else if (u.type === 'wizard') {
-          html += `<div class="absolute w-2 h-2 rounded-full transform -translate-x-1/2 -translate-y-1/2" style="left: 50%; top: ${topPct}%; background-color: #fbbf24;"></div>`;
-        } else if (u.type === 'archer') {
-          html += `<div class="absolute w-1.5 h-1.5 transform -translate-x-1/2 -translate-y-1/2" style="left: 50%; top: ${topPct}%; background-color: ${col};"></div>`;
-        } else if (u.type === 'worker' && u.team === 'blue') {
-          html += `<div class="absolute w-2.5 h-2.5 rounded-full border border-yellow-300 shadow transform -translate-x-1/2 -translate-y-1/2 animate-ping" style="left: 50%; top: ${topPct}%; background-color: #f59e0b;"></div>`;
-        }
-      });
-
-      railGlyphs.innerHTML = html;
+      // 3. Rune glyphs (canvas vector runes, team-coloured, glowing)
+      drawRailRunes();
 
       // Emergency Core alarm if base under direct attack
       const alarm = document.getElementById('core-alarm');

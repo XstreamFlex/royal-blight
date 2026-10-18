@@ -304,9 +304,66 @@
           <button data-diff="hard" class="diff-btn py-3 rounded-lg bg-rose-600 text-white font-black text-xs uppercase active:scale-95">Hard</button>
         </div>
       </div>
-      <button id="btn-friend" disabled class="w-full max-w-xs py-3 rounded-xl bg-slate-700 text-slate-400 font-black text-xs uppercase tracking-wider opacity-60 cursor-not-allowed">
-        Play vs Friend <span class="normal-case font-bold">(coming soon)</span>
+      <button id="btn-friend" class="w-full max-w-xs py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 text-white font-black text-xs uppercase tracking-wider shadow-lg active:scale-95">
+        Play vs Friend <span class="normal-case font-bold">(2 phones)</span>
       </button>
+    </div>
+
+    <!-- PLAY VS FRIEND (WebRTC + QR pairing) -->
+    <div id="modal-mp" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-start overflow-y-auto p-4 text-center">
+      <h2 class="text-2xl font-black text-sky-300 uppercase tracking-wider mt-2">Play vs Friend</h2>
+      <p class="text-[11px] text-slate-300 max-w-xs mt-1 mb-3">Both phones on the <b>same Wi-Fi</b> or one phone's <b>Personal Hotspot</b>. No internet needed. Keep this screen open on both phones while pairing.</p>
+
+      <div id="mp-step-choose" class="w-full max-w-xs space-y-2">
+        <button id="mp-host" class="w-full py-3 rounded-xl bg-blue-600 text-white font-black text-sm uppercase active:scale-95">👑 Host game <span class="normal-case text-[10px] font-bold">(you are the King)</span></button>
+        <button id="mp-join" class="w-full py-3 rounded-xl bg-purple-700 text-white font-black text-sm uppercase active:scale-95">💀 Join game <span class="normal-case text-[10px] font-bold">(you are the Necromancer)</span></button>
+      </div>
+
+      <div id="mp-step-host" class="hidden w-full max-w-xs space-y-2">
+        <div class="text-xs font-black text-amber-300 uppercase">1. Friend scans this invite</div>
+        <div id="mp-host-qr" class="bg-white rounded-xl p-2 mx-auto w-60 h-60 flex items-center justify-center text-slate-500 text-xs">Creating invite…</div>
+        <div class="flex space-x-1">
+          <textarea id="mp-host-code" readonly class="flex-1 h-12 text-[9px] bg-slate-800 text-slate-200 rounded p-1 font-mono"></textarea>
+          <button data-copy="mp-host-code" class="mp-copy px-2 rounded bg-slate-600 text-white text-[10px] font-black">Copy</button>
+        </div>
+        <div class="text-xs font-black text-amber-300 uppercase pt-2">2. Scan your friend's answer</div>
+        <button data-scan="mp-answer-in" class="mp-scan w-full py-2 rounded-lg bg-emerald-600 text-white font-black text-xs uppercase">📷 Scan answer QR</button>
+        <textarea id="mp-answer-in" placeholder="…or paste the answer code here" class="w-full h-12 text-[9px] bg-slate-800 text-slate-200 rounded p-1 font-mono"></textarea>
+        <button id="mp-connect" class="w-full py-2 rounded-lg bg-amber-500 text-slate-950 font-black text-xs uppercase">Connect</button>
+      </div>
+
+      <div id="mp-step-guest" class="hidden w-full max-w-xs space-y-2">
+        <div class="text-xs font-black text-amber-300 uppercase">1. Scan the host's invite</div>
+        <button data-scan="mp-offer-in" class="mp-scan w-full py-2 rounded-lg bg-emerald-600 text-white font-black text-xs uppercase">📷 Scan invite QR</button>
+        <textarea id="mp-offer-in" placeholder="…or paste the invite code here" class="w-full h-12 text-[9px] bg-slate-800 text-slate-200 rounded p-1 font-mono"></textarea>
+        <button id="mp-guest-go" class="w-full py-2 rounded-lg bg-amber-500 text-slate-950 font-black text-xs uppercase">Create answer</button>
+        <div id="mp-guest-answer" class="hidden space-y-2">
+          <div class="text-xs font-black text-amber-300 uppercase pt-2">2. Host scans this answer</div>
+          <div id="mp-guest-qr" class="bg-white rounded-xl p-2 mx-auto w-60 h-60 flex items-center justify-center text-slate-500 text-xs">…</div>
+          <div class="flex space-x-1">
+            <textarea id="mp-guest-code" readonly class="flex-1 h-12 text-[9px] bg-slate-800 text-slate-200 rounded p-1 font-mono"></textarea>
+            <button data-copy="mp-guest-code" class="mp-copy px-2 rounded bg-slate-600 text-white text-[10px] font-black">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <p id="mp-status" class="text-[11px] text-sky-200 mt-3 min-h-[1rem]"></p>
+      <button id="mp-back" class="w-full max-w-xs mt-2 py-2 rounded-xl bg-slate-700 text-slate-200 font-black text-xs uppercase">Back</button>
+
+      <!-- camera scanner -->
+      <div id="mp-scanner" class="hidden fixed inset-0 z-[60] bg-black flex flex-col items-center justify-center">
+        <video id="mp-video" playsinline muted autoplay class="w-full max-w-md"></video>
+        <p class="text-white text-xs mt-2">Point the camera at the QR code</p>
+        <button id="mp-scan-cancel" class="mt-3 px-6 py-2 rounded-xl bg-rose-600 text-white font-black text-xs uppercase">Cancel</button>
+      </div>
+    </div>
+
+    <!-- MULTIPLAYER CONNECTION LOST -->
+    <div id="modal-mpdrop" class="hidden absolute inset-0 z-[55] bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+      <div class="text-4xl mb-2">📡</div>
+      <h2 class="text-2xl font-black text-rose-400 uppercase mb-2">Connection lost</h2>
+      <p id="mpdrop-msg" class="text-slate-300 text-xs max-w-xs mb-4">The other phone disconnected. The match is paused.</p>
+      <button id="mpdrop-menu" class="w-full max-w-xs py-3 rounded-xl bg-amber-500 text-slate-950 font-black text-sm uppercase">Main Menu</button>
     </div>
 
     <!-- MATCH OVER MODAL -->
@@ -498,6 +555,12 @@
     const VIEW = { bottomTeam: 'blue' };
     const isFlipped = () => VIEW.bottomTeam !== 'blue';
     const isBottomTeam = team => team === VIEW.bottomTeam;
+    // "My team" = the army this device controls (always the one at the bottom of the screen)
+    const myTeam = () => VIEW.bottomTeam;
+    const enemyTeam = () => (VIEW.bottomTeam === 'blue' ? 'red' : 'blue');
+    const myGold = () => (myTeam() === 'blue' ? state.blueGold : state.redGold);
+    const myCadence = () => (myTeam() === 'blue' ? state.blueCadence : state.redCadence);
+    const myNode = () => (myTeam() === 'blue' ? state.playerNode : state.aiNode);
 
     // Mining Nodes (spec): each team has its own SAFE / MID / FAR node on its flank.
     const NODE_TYPES = {
@@ -523,7 +586,8 @@
       gameOver: false,
       winner: null,
       started: false,       // false until a mode is picked in the start menu
-      mode: 'cpu',          // 'cpu' | 'friend' (future)
+      paused: false,        // multiplayer: paused on disconnect
+      mode: 'cpu',          // 'cpu' | 'host' | 'guest'
       difficulty: 'normal', // 'easy' | 'normal' | 'hard'
 
       // Smooth Camera
@@ -645,10 +709,11 @@
     loadSprite('nexus_king_back');   // blue nexus seen from behind (faces its troops)
     loadSprite('nexus_necromancer'); // red nexus
 
+    let UNIT_UID = 0;
     // --- UNIT CLASS DEFINITION ---
     class Unit {
       constructor(opts) {
-        this.id = Math.random().toString(36).substr(2, 9);
+        this.id = ++UNIT_UID; // small integer ids keep network snapshots compact
         this.type = opts.type; // 'pawn', 'archer', 'wizard', 'brute', 'worker'
         this.team = opts.team; // 'blue' or 'red'
         this.x = opts.x;
@@ -726,8 +791,8 @@
       state.projectiles = [];
       state.floatingTexts = [];
       state.particles = [];
-      state.blueGold = 120;
-      state.redGold = 120;
+      state.blueGold = 100;
+      state.redGold = 100;
       state.totalBlueGoldMined = 0;
       state.waveTimer = WAVE_INTERVAL;
       state.waveCount = 1;
@@ -806,12 +871,12 @@
         if (state.waveCount % 2 === 0) for (let i = 0; i < cad.archers; i++) spawnUnit('archer', team, ['L', 'R', 'C'][i % 3], 40 + Math.floor(i / 3) * 22);
         if (state.waveCount % 3 === 0) for (let i = 0; i < cad.wizards; i++) spawnUnit('wizard', team, ['C', 'L', 'R'][i % 3], 58 + Math.floor(i / 3) * 22);
       });
-      addFloatingText(LANE_X, state.cameraY + (viewportH / 2), `WAVE ${state.waveCount}!`, '#f59e0b', 24);
+      notify(null, `WAVE ${state.waveCount}!`, '#f59e0b', 24);
     }
 
     // --- GAME ENGINE UPDATE TICK ---
     function update(dt) {
-      if (state.gameOver || !state.started) return;
+      if (state.gameOver || !state.started || state.paused) return;
 
       state.gameTime += dt;
 
@@ -1003,11 +1068,11 @@
           if (w.team === 'blue') {
             state.blueGold += w.carriedGold;
             state.totalBlueGoldMined += w.carriedGold;
-            sound.playCoin();
-            addFloatingText(w.x, w.y - 14, `+${w.carriedGold}g`, '#facc15', 16);
           } else {
             state.redGold += w.carriedGold;
           }
+          if (w.team === myTeam()) sound.playCoin();
+          if (w.team === myTeam() || state.mode === 'host') addFloatingText(w.x, w.y - 14, `+${w.carriedGold}g`, '#facc15', 16, w.team === myTeam() && state.mode === 'host');
           w.carriedGold = 0;
           w.workerState = 'TRAVEL';
         } else {
@@ -1178,6 +1243,7 @@
       turret.flash = 0.35;
 
       // Visual ground shockwave particle ring
+      if (state.mode === 'host' && window.MP) MP.fx({ w: [turret.x, turret.y, turret.team] });
       state.particles.push({
         type: 'shockwave',
         team: turret.team,
@@ -1306,7 +1372,8 @@
     }
 
     // --- EFFECTS & PARTICLES TICK ---
-    function addFloatingText(x, y, text, color, size = 14) {
+    function addFloatingText(x, y, text, color, size = 14, localOnly = false) {
+      if (state.mode === 'host' && !localOnly && window.MP) MP.fx({ f: [Math.round(x), Math.round(y), text, color, size] });
       state.floatingTexts.push({
         x: x + (Math.random() * 20 - 10),
         y: y,
@@ -1316,6 +1383,16 @@
         life: 0.85,
         maxLife: 0.85
       });
+    }
+
+    // Screen-anchored message for one team (or everyone when team === null), shown near the
+    // top-middle of that player's own view. Forwarded to the guest in multiplayer.
+    function notify(team, text, color, size = 16) {
+      if (team === null || team === myTeam()) {
+        const p = screenToWorld(WORLD_W / 2, state.cameraY + viewportH * 0.35);
+        addFloatingText(p.x, p.y, text, color, size, true);
+      }
+      if (state.mode === 'host' && (team === null || team === 'red') && window.MP) MP.fx({ n: [text, color, size] });
     }
 
     function createSparks(x, y, color, count = 4) {
@@ -1354,7 +1431,7 @@
       for (let i = state.floatingTexts.length - 1; i >= 0; i--) {
         const t = state.floatingTexts[i];
         t.life -= dt;
-        t.y -= 25 * dt;
+        t.y -= (isFlipped() ? -25 : 25) * dt; // always drifts up the screen
         if (t.life <= 0) state.floatingTexts.splice(i, 1);
       }
       for (let i = state.particles.length - 1; i >= 0; i--) {
@@ -1524,6 +1601,16 @@
       }
     }
 
+    // Text that stays readable when the board is rotated 180deg for the red player
+    function fillTextUpright(text, x, y) {
+      ctx.save();
+      ctx.textBaseline = 'middle';
+      ctx.translate(x, y);
+      if (isFlipped()) ctx.rotate(Math.PI);
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    }
+
     function drawNodes() {
       // Each team's SAFE / MID / FAR crystals (blue on the left flank, red on the right)
       ['blue', 'red'].forEach(team => ['SAFE', 'MID', 'FAR'].forEach(k => {
@@ -1581,7 +1668,7 @@
       ctx.fillStyle = color;
       ctx.font = 'bold 8px Fredoka, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(label, node.x, ly + 10);
+      fillTextUpright(label, node.x, ly + 7);
       ctx.restore();
     }
 
@@ -1598,7 +1685,7 @@
         ctx.stroke();
 
         // Highlight pad if in placement mode
-        if (state.placingTurret && padFree(pad) && pad.team === 'blue') {
+        if (state.placingTurret && padFree(pad) && pad.team === myTeam()) {
           const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180);
           ctx.strokeStyle = '#facc15';
           ctx.lineWidth = 3 + pulse * 3;
@@ -1616,7 +1703,7 @@
           ctx.fillStyle = '#64748b';
           ctx.font = 'bold 9px Fredoka, sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText('PAD', pad.x, pad.y + 4);
+          fillTextUpright('PAD', pad.x, pad.y);
         }
         ctx.restore();
       });
@@ -2085,7 +2172,7 @@
         ctx.textAlign = 'center';
         ctx.shadowColor = 'rgba(0,0,0,0.85)';
         ctx.shadowBlur = 4;
-        ctx.fillText(t.text, t.x, t.y);
+        fillTextUpright(t.text, t.x, t.y);
         ctx.restore();
       });
     }
@@ -2145,7 +2232,7 @@
 
       // Emergency Core alarm if base under direct attack
       const alarm = document.getElementById('core-alarm');
-      if (state.cores.blue.hp < state.cores.blue.maxHp && state.cameraY < VIEW_MID_Y + 200) {
+      if (state.cores[myTeam()].hp < state.cores[myTeam()].maxHp && state.cameraY < VIEW_MID_Y + 200) {
         alarm.classList.remove('hidden');
       } else {
         alarm.classList.add('hidden');
@@ -2168,26 +2255,26 @@
       document.getElementById('wave-seconds').textContent = `${Math.ceil(state.waveTimer)}s`;
 
       // Gold + match clock (MM:SS)
-      document.getElementById('gold-counter').textContent = Math.floor(state.blueGold);
+      document.getElementById('gold-counter').textContent = Math.floor(myGold());
       const t = Math.floor(state.gameTime);
       document.getElementById('match-clock').textContent = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 
       // Card Dock Availability
-      updateCard('btn-buy-worker', state.blueGold >= 80);
-      updateCard('btn-buy-archer', state.blueGold >= 75);
-      updateCard('btn-buy-wizard', state.blueGold >= 95);
-      updateCard('btn-buy-brute', state.blueGold >= 150);
+      updateCard('btn-buy-worker', myGold() >= 80);
+      updateCard('btn-buy-archer', myGold() >= 75);
+      updateCard('btn-buy-wizard', myGold() >= 95);
+      updateCard('btn-buy-brute', myGold() >= 150);
 
-      const hasEmptyPad = state.turretPads.some(p => p.team === 'blue' && padFree(p));
-      updateCard('btn-buy-turret', state.blueGold >= 250 && hasEmptyPad);
+      const hasEmptyPad = state.turretPads.some(p => p.team === myTeam() && padFree(p));
+      updateCard('btn-buy-turret', myGold() >= 250 && hasEmptyPad);
       
       // Badges
-      syncBadge('badge-archer', state.blueCadence.archers);
-      syncBadge('badge-wizard', state.blueCadence.wizards);
-      syncBadge('badge-brute', state.blueCadence.brutes);
+      syncBadge('badge-archer', myCadence().archers);
+      syncBadge('badge-wizard', myCadence().wizards);
+      syncBadge('badge-brute', myCadence().brutes);
 
       // Stats
-      const activeWorkers = state.units.filter(u => u.type === 'worker' && u.team === 'blue').length;
+      const activeWorkers = state.units.filter(u => u.type === 'worker' && u.team === myTeam()).length;
       document.getElementById('worker-count-txt').textContent = activeWorkers;
       
     }
@@ -2211,11 +2298,9 @@
 
     // --- GAME OVER SCREEN ---
     function checkGameOver() {
-      if (state.cores.red.hp <= 0) {
-        showGameOver(true);
-      } else if (state.cores.blue.hp <= 0) {
-        showGameOver(false);
-      }
+      if (state.gameOver) return;
+      const winner = state.cores.red.hp <= 0 ? 'blue' : state.cores.blue.hp <= 0 ? 'red' : null;
+      if (winner) { state.winner = winner; showGameOver(winner === myTeam()); }
     }
 
     function showGameOver(isVictory) {
@@ -2230,17 +2315,17 @@
         icon.className = 'w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-3 border-4 border-yellow-400 bg-amber-500 shadow-2xl';
         heading.textContent = 'VICTORY!';
         heading.className = 'text-3xl font-black text-amber-400 uppercase tracking-wider mb-2';
-        subtitle.textContent = "You routed the undead host and secured the realm!";
+        subtitle.textContent = myTeam() === 'blue' ? "You routed the undead host and secured the realm!" : "The King has fallen. The blight spreads!";
       } else {
         icon.textContent = '💀';
         icon.className = 'w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-3 border-4 border-rose-500 bg-slate-800 shadow-2xl';
         heading.textContent = 'DEFEAT!';
         heading.className = 'text-3xl font-black text-rose-500 uppercase tracking-wider mb-2';
-        subtitle.textContent = "The skeleton legion overran your throne...";
+        subtitle.textContent = myTeam() === 'blue' ? "The skeleton legion overran your throne..." : "The King's army shattered your crypt...";
       }
 
       document.getElementById('stat-waves').textContent = state.waveCount;
-      document.getElementById('stat-gold').textContent = `${state.totalBlueGoldMined}g`;
+      document.getElementById('stat-gold').textContent = myTeam() === 'blue' ? `${state.totalBlueGoldMined}g` : '—';
       document.getElementById('stat-upgrades').textContent = `+${state.blueUpgradeLevel * 20}%`;
 
       modal.classList.remove('hidden');
@@ -2256,34 +2341,72 @@
     document.getElementById('snap-home').addEventListener('click', () => { state.targetCameraY = VIEW_HOME_Y; });
     document.getElementById('core-alarm').addEventListener('click', () => { state.targetCameraY = VIEW_HOME_Y; });
 
-    // Mining Node Switchboard
-    function setMiningNode(key, silent) {
-      state.playerNode = key;
-      if (!silent) sound.playCoin();
+    // --- COMMANDS: every purchase/order goes through applyCommand(team, cmd) so the same code
+    // serves the local player, the AI and (in multiplayer) the guest's network inputs. ---
+    const COSTS = { worker: 80, archers: 75, wizards: 95, brutes: 150, turret: 250 };
+    const CADENCE_INFO = {
+      archers: ['+1 ARCHER CADENCE!', '#38bdf8'],
+      wizards: ['+1 WIZARD CADENCE!', '#c084fc'],
+      brutes:  ['+1 BRUTE CADENCE!',  '#34d399']
+    };
+    function purchaseSound(k) {
+      ({ worker: () => sound.playCoin(), archers: () => sound.playArrowShoot(), wizards: () => sound.playMagicBurst(),
+         brutes: () => sound.playHammerSlam(), turret: () => sound.playHammerSlam(), node: () => sound.playCoin() }[k] || (() => {}))();
+    }
+    function applyCommand(team, c) {
+      if (!c || state.gameOver || !state.started || state.paused) return false;
+      const gk = team === 'blue' ? 'blueGold' : 'redGold';
+      if (c.k === 'node') {
+        if (!NODE_TYPES[c.v]) return false;
+        if (team === 'blue') state.playerNode = c.v; else state.aiNode = c.v;
+        state.units.forEach(u => {
+          if (u.type === 'worker' && u.team === team && u.workerState !== 'FLEEING' && u.workerState !== 'RECOVERING') {
+            u.targetNodeKey = c.v;
+            if (u.workerState === 'MINING') u.workerState = 'TRAVEL';
+          }
+        });
+        return true;
+      }
+      const cost = COSTS[c.k];
+      if (cost === undefined || state[gk] < cost) return false;
+      if (c.k === 'worker') {
+        spawnWorker(team, team === 'blue' ? state.playerNode : state.aiNode);
+      } else if (c.k === 'turret') {
+        const pad = state.turretPads.find(p => p.id === c.v && p.team === team);
+        if (!pad || !padFree(pad)) return false;
+        pad.turret = new Turret(pad);
+        addFloatingText(pad.x, pad.y - 20, 'TURRET CONSTRUCTED!', '#f59e0b', 16);
+      } else if (CADENCE_INFO[c.k]) {
+        (team === 'blue' ? state.blueCadence : state.redCadence)[c.k]++;
+        notify(team, CADENCE_INFO[c.k][0], CADENCE_INFO[c.k][1]);
+      } else return false;
+      state[gk] -= cost;
+      if (team === myTeam()) purchaseSound(c.k);
+      updateHUD();
+      return true;
+    }
+    // Local input -> apply directly (host / vs computer) or send to the host (guest)
+    function issue(c) {
+      if (state.mode === 'guest') {
+        if (c.k !== 'node' && myGold() < (COSTS[c.k] || 0)) return false;
+        purchaseSound(c.k);
+        if (window.MP) MP.send({ k: 'cmd', c });
+        return true;
+      }
+      return applyCommand(myTeam(), c);
+    }
 
+    // Mining Node Switchboard (always shows / controls my team's workers)
+    function setMiningNode(key, silent) {
       const btnSafe = document.getElementById('node-safe');
       const btnMid = document.getElementById('node-mid');
       const btnFar = document.getElementById('node-far');
-
-      [btnSafe, btnMid, btnFar].forEach(b => {
-        b.className = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-slate-800 border-2 border-slate-600 text-slate-300 transition-all shadow';
-      });
-
-      if (key === 'SAFE') {
-        btnSafe.className = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-blue-600 border-2 border-yellow-300 text-white transition-all shadow active-node-glow';
-      } else if (key === 'MID') {
-        btnMid.className = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-blue-600 border-2 border-yellow-300 text-white transition-all shadow active-node-glow';
-      } else if (key === 'FAR') {
-        btnFar.className = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-blue-600 border-2 border-yellow-300 text-white transition-all shadow active-node-glow';
-      }
-
-      // Re-route active workers
-      state.units.forEach(u => {
-        if (u.type === 'worker' && u.team === 'blue' && u.workerState !== 'FLEEING' && u.workerState !== 'RECOVERING') {
-          u.targetNodeKey = key;
-          if (u.workerState === 'MINING') u.workerState = 'TRAVEL';
-        }
-      });
+      const off = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-slate-800 border-2 border-slate-600 text-slate-300 transition-all shadow';
+      const on = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-blue-600 border-2 border-yellow-300 text-white transition-all shadow active-node-glow';
+      btnSafe.className = key === 'SAFE' ? on : off;
+      btnMid.className = key === 'MID' ? on : off;
+      btnFar.className = key === 'FAR' ? on : off;
+      if (!silent) issue({ k: 'node', v: key });
     }
 
     document.getElementById('node-safe').addEventListener('click', () => setMiningNode('SAFE'));
@@ -2291,44 +2414,10 @@
     document.getElementById('node-far').addEventListener('click', () => setMiningNode('FAR'));
 
     // Action Cards
-    document.getElementById('btn-buy-worker').addEventListener('click', () => {
-      if (state.blueGold >= 80) {
-        state.blueGold -= 80;
-        sound.playCoin();
-        spawnWorker('blue', state.playerNode);
-        updateHUD();
-      }
-    });
-
-    document.getElementById('btn-buy-archer').addEventListener('click', () => {
-      if (state.blueGold >= 75) {
-        state.blueGold -= 75;
-        state.blueCadence.archers++;
-        sound.playArrowShoot();
-        addFloatingText(120, state.cameraY + 200, '+1 ARCHER CADENCE!', '#38bdf8', 16);
-        updateHUD();
-      }
-    });
-
-    document.getElementById('btn-buy-wizard').addEventListener('click', () => {
-      if (state.blueGold >= 95) {
-        state.blueGold -= 95;
-        state.blueCadence.wizards++;
-        sound.playMagicBurst();
-        addFloatingText(120, state.cameraY + 200, '+1 WIZARD CADENCE!', '#c084fc', 16);
-        updateHUD();
-      }
-    });
-
-    document.getElementById('btn-buy-brute').addEventListener('click', () => {
-      if (state.blueGold >= 150) {
-        state.blueGold -= 150;
-        state.blueCadence.brutes++;
-        sound.playHammerSlam();
-        addFloatingText(120, state.cameraY + 200, '+1 BRUTE CADENCE!', '#34d399', 16);
-        updateHUD();
-      }
-    });
+    document.getElementById('btn-buy-worker').addEventListener('click', () => issue({ k: 'worker' }));
+    document.getElementById('btn-buy-archer').addEventListener('click', () => issue({ k: 'archers' }));
+    document.getElementById('btn-buy-wizard').addEventListener('click', () => issue({ k: 'wizards' }));
+    document.getElementById('btn-buy-brute').addEventListener('click', () => issue({ k: 'brutes' }));
 
     // Turret Placement Mode
     // Tap the Turret card -> camera pans to your nearest free pad, free pads pulse, tap one to build.
@@ -2355,23 +2444,18 @@
     }
     document.getElementById('btn-buy-turret').addEventListener('click', () => {
       if (state.placingTurret) { setPlacing(false); return; }
-      const emptyPads = state.turretPads.filter(p => p.team === 'blue' && padFree(p));
-      if (emptyPads.length === 0 || state.blueGold < 250) return;
+      const emptyPads = state.turretPads.filter(p => p.team === myTeam() && padFree(p));
+      if (emptyPads.length === 0 || myGold() < 250) return;
       setPlacing(true);
     });
     document.getElementById('btn-cancel-turret').addEventListener('click', (e) => { e.stopPropagation(); setPlacing(false); });
 
     function constructTurret(pad) {
-      if (state.blueGold >= 250 && padFree(pad)) {
-        state.blueGold -= 250;
-        sound.playHammerSlam();
-        pad.turret = new Turret(pad);
+      if (myGold() >= 250 && padFree(pad) && issue({ k: 'turret', v: pad.id })) {
         setPlacing(false);
-        addFloatingText(pad.x, pad.y - 20, 'TURRET CONSTRUCTED!', '#f59e0b', 16);
-        updateHUD();
         return true;
       }
-      if (state.blueGold < 250) addFloatingText(pad.x, pad.y - 20, 'NEED 250g', '#ef4444', 14);
+      if (myGold() < 250) addFloatingText(pad.x, pad.y - 20, 'NEED 250g', '#ef4444', 14, true);
       return false;
     }
 
@@ -2412,7 +2496,7 @@
       if (Math.hypot(e.clientX - t.x, e.clientY - t.y) > 14) return; // it was a drag
       const w = clientToWorld(e.clientX, e.clientY);
       const hit = state.turretPads
-        .filter(p => p.team === 'blue' && padFree(p))
+        .filter(p => p.team === myTeam() && padFree(p))
         .map(p => ({ p, d: Math.hypot(p.x - w.x, p.y - w.y) }))
         .filter(o => o.d <= PAD_HIT_RADIUS)
         .sort((a, b) => a.d - b.d)[0];
@@ -2433,6 +2517,7 @@
     });
 
     document.getElementById('btn-speed').addEventListener('click', () => {
+      if (state.mode !== 'cpu') return; // fixed speed in multiplayer
       if (state.timeSpeed === 1) {
         state.timeSpeed = 2;
         document.getElementById('btn-speed').textContent = '2x';
@@ -2445,25 +2530,49 @@
     });
 
     document.getElementById('btn-restart').addEventListener('click', () => {
+      if (state.mode !== 'cpu' && window.MP) { MP.rematch(); return; }
       document.getElementById('modal-gameover').classList.add('hidden');
       initGame();
     });
 
     // Start menu
-    function startGame(difficulty) {
-      state.mode = 'cpu';
-      state.difficulty = difficulty;
-      document.getElementById('modal-menu').classList.add('hidden');
-      document.getElementById('modal-gameover').classList.add('hidden');
+    // Starts a match. mode: 'cpu' | 'host' (blue, runs the simulation) | 'guest' (red, renders host snapshots)
+    function startMatch(mode, difficulty) {
+      state.mode = mode;
+      if (difficulty) state.difficulty = difficulty;
+      VIEW.bottomTeam = (mode === 'guest') ? 'red' : 'blue';
+      ['modal-menu', 'modal-gameover', 'modal-mp'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
+      state.timeSpeed = 1;
+      document.getElementById('btn-speed').textContent = '1x';
+      document.getElementById('speed-indicator').textContent = '1x';
+      UNIT_UID = 0;
       initGame();
+      if (mode === 'guest') { state.units = []; state.projectiles = []; }
+      state.paused = false;
       state.started = true;
+      state.cameraY = state.targetCameraY = VIEW_HOME_Y;
+      clampCamera();
+      setMiningNode('MID', true);
+      // Mini-map rail: my side always at the bottom
+      document.getElementById('tension-rail').style.transform = isFlipped() ? 'scaleY(-1)' : '';
+      const btnRestart = document.getElementById('btn-restart');
+      btnRestart.textContent = 'Play Again'; btnRestart.disabled = false;
+    }
+    function startGame(difficulty) { startMatch('cpu', difficulty); }
+    function backToMenu() {
+      ['modal-gameover', 'modal-mp', 'modal-mpdrop'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
+      state.started = false;
+      state.paused = false;
+      state.mode = 'cpu';
+      VIEW.bottomTeam = 'blue';
+      document.getElementById('tension-rail').style.transform = '';
+      initGame();
+      document.getElementById('modal-menu').classList.remove('hidden');
     }
     document.querySelectorAll('.diff-btn').forEach(b => b.addEventListener('click', () => startGame(b.dataset.diff)));
     document.getElementById('btn-menu').addEventListener('click', () => {
-      document.getElementById('modal-gameover').classList.add('hidden');
-      state.started = false;
-      initGame();
-      document.getElementById('modal-menu').classList.remove('hidden');
+      if (state.mode !== 'cpu' && window.MP) MP.leave();
+      backToMenu();
     });
 
     // --- SAVE HTML: download a single self-contained file (sprites, Tailwind and fonts inlined) ---
@@ -2509,7 +2618,9 @@
       const dt = Math.min(0.1, (currentTime - lastTime) / 1000) * state.timeSpeed;
       lastTime = currentTime;
 
-      update(dt);
+      if (state.mode === 'guest' && window.MP) MP.guestFrame(dt);  // guest only renders host snapshots
+      else update(dt);
+      if (state.mode === 'host' && window.MP) MP.hostTick(dt / state.timeSpeed);
       render();
 
       requestAnimationFrame(tick);
@@ -2520,6 +2631,9 @@
       requestAnimationFrame(tick);
     };
   </script>
+  <script src="assets/lib/qrcode.js"></script>
+  <script src="assets/lib/jsQR.js"></script>
+  <script src="mp.js"></script>
   <script>
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
       window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

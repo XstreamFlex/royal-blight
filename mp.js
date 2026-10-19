@@ -298,8 +298,8 @@ const MP = (() => {
   }
 
   // ---------- host: snapshots ----------
-  const UT = ['pawn', 'archer', 'wizard', 'brute', 'worker'];
-  const PT = ['arrow', 'fireball', 'turret_bolt', 'core_bolt'];
+  const UT = ['pawn', 'archer', 'wizard', 'brute', 'worker', 'cavalier', 'acolyte'];
+  const PT = ['arrow', 'fireball', 'turret_bolt', 'core_bolt', 'soulbolt'];
   const r1 = v => Math.round(v * 10) / 10;
   function fx(e) { if (state.mode === 'host' && open) { fxQueue.push(e); if (fxQueue.length > 120) fxQueue.shift(); } }
   function snapshot() {
@@ -310,7 +310,7 @@ const MP = (() => {
       c: [state.blueCadence, state.redCadence], n: [state.playerNode, state.aiNode],
       u: state.units.filter(u => !u.dead).map(u => [u.id, UT.indexOf(u.type), u.team === 'blue' ? 0 : 1,
         Math.round(u.x), Math.round(u.y), Math.ceil(u.hp), u.effectiveMaxHp, u.flash > 0 ? 1 : 0, u.radius,
-        u.type === 'worker' ? (u.workerState === 'FLEEING' ? 1 : 0) : 0, u.carriedGold || 0]),
+        u.type === 'worker' ? (u.workerState === 'FLEEING' ? 1 : 0) : u.type === 'cavalier' ? (u.chargeDir < 0 ? 1 : 0) : 0, u.carriedGold || 0]),
       p: state.projectiles.map(p => [PT.indexOf(p.type), p.team === 'blue' ? 0 : 1, Math.round(p.x), Math.round(p.y),
         Math.round(p.targetX || 0), Math.round(p.targetY || 0)]),
       co: [core(state.cores.blue), core(state.cores.red)],
@@ -353,7 +353,7 @@ const MP = (() => {
         id: u[0], type: UT[u[1]], team: u[2] ? 'red' : 'blue',
         x: p[3] + (u[3] - p[3]) * k, y: p[4] + (u[4] - p[4]) * k,
         hp: u[5], lagHp: u[5], effectiveMaxHp: u[6], maxHp: u[6], flash: u[7] ? 0.05 : 0, radius: u[8],
-        workerState: u[9] ? 'FLEEING' : 'TRAVEL', carriedGold: u[10], walkAnim: w, attackAnimTimer: 0, dead: false
+        workerState: u[9] ? 'FLEEING' : 'TRAVEL', chargeDir: u[9] ? -1 : 1, carriedGold: u[10], walkAnim: w, attackAnimTimer: 0, dead: false
       };
     });
     if (walk.size > 400) { const live = new Set(S.u.map(u => u[0])); [...walk.keys()].forEach(id => live.has(id) || walk.delete(id)); }

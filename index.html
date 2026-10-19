@@ -235,7 +235,7 @@
       </div>
 
       <!-- Responsive Action Cards Grid -->
-      <div class="grid grid-cols-6 gap-1 w-full">
+      <div class="grid grid-cols-7 gap-0.5 w-full">
         <!-- 1. Worker (80g) -->
         <button id="btn-buy-worker" class="cr-card flex flex-col items-center justify-between p-1">
           <span class="text-[9px] font-black uppercase text-amber-200 tracking-tight">Worker</span>
@@ -253,24 +253,24 @@
           <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">75g</div>
         </button>
 
-        <!-- 3. Wizard Cadence (95g) -->
+        <!-- 3. Wizard Cadence (150g) -->
         <button id="btn-buy-wizard" class="cr-card flex flex-col items-center justify-between p-1">
           <div class="flex items-center space-x-0.5">
             <span class="text-[9px] font-black uppercase text-indigo-200 tracking-tight">Wizard</span>
             <span id="badge-wizard" class="hidden text-[8px] bg-purple-950 px-1 rounded-full text-purple-300 font-black">0</span>
           </div>
           <div class="text-base my-0.5">🔮</div>
-          <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">95g</div>
+          <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">150g</div>
         </button>
 
-        <!-- 4. Brute Cadence (150g) -->
+        <!-- 4. Brute Cadence (110g) -->
         <button id="btn-buy-brute" class="cr-card flex flex-col items-center justify-between p-1">
           <div class="flex items-center space-x-0.5">
             <span class="text-[9px] font-black uppercase text-emerald-200 tracking-tight">Brute</span>
             <span id="badge-brute" class="hidden text-[8px] bg-emerald-950 px-1 rounded-full text-emerald-300 font-black">0</span>
           </div>
           <div class="text-base my-0.5">🛡️</div>
-          <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">150g</div>
+          <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">110g</div>
         </button>
 
         <!-- 5. Turret Option C (250g) -->
@@ -280,7 +280,14 @@
           <div class="cr-gold-badge px-1 py-0.2 rounded text-[9px] font-black w-full text-center">250g</div>
         </button>
 
-        <!-- 6. Wave card: number + 15s countdown -->
+        <!-- 6. Hero (350g, one-time; respawns every wave while dead) -->
+        <button id="btn-buy-hero" class="cr-card flex flex-col items-center justify-between p-1">
+          <span id="hero-name" class="text-[8px] font-black uppercase text-yellow-200 tracking-tighter">Hero</span>
+          <div id="hero-icon" class="text-base my-0.5">🐎</div>
+          <div id="hero-badge" class="cr-gold-badge px-0.5 py-0.2 rounded text-[8px] font-black w-full text-center leading-tight">350g</div>
+        </button>
+
+        <!-- 7. Wave card: number + 15s countdown -->
         <div id="wave-card" class="cr-card flex flex-col items-center justify-between p-1" style="cursor:default">
           <span class="text-[9px] font-black uppercase text-amber-300 tracking-tight">Wave <span id="wave-num">1</span></span>
           <span id="wave-seconds" class="text-sm font-black text-white leading-none my-0.5">15s</span>
@@ -716,7 +723,9 @@
     function getUnitSprite(u) {
       const k = spriteKey(u);
       const front = loadSprite(k + '_' + u.team) || (SPRITE_FAILED.has(k + '_' + u.team) ? loadSprite(k) : null);
-      if (isBottomTeam(u.team)) return loadSprite(k + '_' + u.team + '_back') || front;
+      let away = isBottomTeam(u.team);
+      if (u.type === 'cavalier' && u.chargeDir < 0) away = !away;   // riding back toward its own side
+      if (away) return loadSprite(k + '_' + u.team + '_back') || front;
       return front;
     }
     ['knight','skeleton','archer','wizard','brute','worker'].forEach(k => {
@@ -725,6 +734,7 @@
       teams.forEach(t => { loadSprite(k + '_' + t); loadSprite(k + '_' + t + '_back'); });
     });
     loadSprite('arena_bg');
+    loadSprite('cavalier_blue'); loadSprite('cavalier_blue_back'); loadSprite('acolyte_red'); loadSprite('acolyte_red_back');
     ['turret_blue', 'turret_red', 'turret_pad', 'mine_safe', 'mine_mid', 'mine_far'].forEach(loadSprite);
     loadSprite('nexus_king');        // blue nexus (front)
     loadSprite('nexus_king_back');   // blue nexus seen from behind (faces its troops)
@@ -815,20 +825,21 @@
       state.blueGold = 100;
       state.redGold = 100;
       state.totalBlueGoldMined = 0;
+      state.gameTime = 0;           // v10 fix: the match clock carried over into rematches
       state.waveTimer = WAVE_INTERVAL;
       state.waveCount = 1;
       state.blueUpgradeLevel = 0;
       state.redUpgradeLevel = 0;
       state.gameOver = false;
       state.winner = null;
-      state.blueCadence = { archers: 0, wizards: 0, brutes: 0 };
-      state.redCadence = { archers: 0, wizards: 0, brutes: 0 };
+      state.blueCadence = { archers: 0, wizards: 0, brutes: 0 , hero: 0 };
+      state.redCadence = { archers: 0, wizards: 0, brutes: 0 , hero: 0 };
 
       // Reset Cores
       state.cores.blue.hp = state.cores.blue.maxHp;
       state.cores.red.hp = state.cores.red.maxHp;
 
-      aiTimer = 2.0;
+      aiTimer = 2.0; aiGoal = null; aiTurretBuys = 0;
       // Reset Turret Pads
       state.turretPads.forEach(pad => pad.turret = null);
 
@@ -873,16 +884,34 @@
       brute:  { hp: 462, speed: 34, atk: 28, range: 26,  interval: 1.5, radius: 20,
                 resist: { magic: 0.70 } }                                   // BALANCE v7: 70% vs wizard fireballs, HP 462
     };
+    // HEROES (v10): one per army, bought once for 350g, respawns with every wave while dead.
+    //  Cavalier (King): mounted lance charger. Charges straight down the lane through enemies, hitting
+    //    each unit (and turret/nexus) on its path once per charge, never stopping; turns around after
+    //    chargeDist (or near enemy turret/nexus) with a short wind-up, rides back retreatDist, repeats.
+    //  Acolyte (Necromancer): single-target magic caster that switches target every shot; units it
+    //    hit within the last second rise as red skeletons (70% pawn HP), max raiseCap alive.
+    Object.assign(UNIT_STATS, {
+      cavalier: { hp: 620, speed: 40, atk: 46, range: 30, interval: 1.0, radius: 19,
+                  chargeSpeed: 170, chargeDist: 340, retreatDist: 200, windup: 0.55, hitRadius: 26,
+                  resist: { ranged: 0.25 } },                                  // plate barding vs arrows
+      acolyte:  { hp: 300, speed: 42, atk: 34, range: 135, interval: 1.0, radius: 15,
+                  raiseCap: 4, raiseHpPct: 0.7, raiseWindow: 1.0 }
+    });
+    const HERO_OF = { blue: 'cavalier', red: 'acolyte' };
     function spawnUnit(type, team, lane, back) {
       const st = UNIT_STATS[type];
       const base = state.cores[team];
       const dir = (team === 'blue') ? -1 : 1;           // march direction
       const y = base.y + dir * (70 - back);             // ranged units spawn further back (backline)
-      state.units.push(new Unit(Object.assign({ type, team, lane, x: laneCentreX(lane), y }, st)));
+      const u = new Unit(Object.assign({ type, team, lane, x: laneCentreX(lane), y }, st));
+      if (type === 'cavalier') { u.chargeState = 'windup'; u.chargeTimer = st.windup; u.chargeDir = 1; u.chargeLeft = st.chargeDist; u.hitSet = new Set(); }
+      state.units.push(u);
+      return u;
     }
+    const heroAlive = team => state.units.some(u => !u.dead && u.team === team && u.type === HERO_OF[team]);
 
     // Waves every 15s: 4 free pawns per team on the flank tracks; purchased cadence joins
-    // permanently: archers every 2nd wave, wizards every 3rd, brutes every 4th (centre track).
+    // permanently: archers every 2nd wave, wizards every 3rd, brutes every 3rd (v10; was 4th) (centre track).
     function triggerWave() {
       sound.playHorn();
       ['blue', 'red'].forEach(team => {
@@ -891,9 +920,10 @@
         spawnUnit('pawn', team, 'R', 0);
         spawnUnit('pawn', team, 'L', 20);   // v7: 4 free pawns (2 front, 2 behind on the flank tracks)
         spawnUnit('pawn', team, 'R', 20);
-        if (state.waveCount % 4 === 0) for (let i = 0; i < cad.brutes; i++) spawnUnit('brute', team, 'C', -10 - i * 24);
+        if (state.waveCount % 3 === 0) for (let i = 0; i < cad.brutes; i++) spawnUnit('brute', team, 'C', -10 - i * 24);
         if (state.waveCount % 2 === 0) for (let i = 0; i < cad.archers; i++) spawnUnit('archer', team, ['L', 'R', 'C'][i % 3], 40 + Math.floor(i / 3) * 22);
         if (state.waveCount % 3 === 0) for (let i = 0; i < cad.wizards; i++) spawnUnit('wizard', team, ['C', 'L', 'R'][i % 3], 58 + Math.floor(i / 3) * 22);
+        if (cad.hero && !heroAlive(team)) spawnUnit(HERO_OF[team], team, 'C', team === 'blue' ? 30 : 50);   // hero respawns every wave while dead
       });
       notify(null, `WAVE ${state.waveCount}!`, '#f59e0b', 24);
     }
@@ -1003,7 +1033,8 @@
         }
 
         // Combat Minion Logic
-        updateCombatMinion(u, dt);
+        if (u.type === 'cavalier') updateCavalier(u, dt);
+        else updateCombatMinion(u, dt);
       }
     }
 
@@ -1145,6 +1176,37 @@
       }
     }
 
+    // Cavalier state machine: windup -> charge (forward or back) -> windup -> ...
+    function updateCavalier(u, dt) {
+      const st = UNIT_STATS.cavalier;
+      const fwd = u.team === 'blue' ? -1 : 1;              // +chargeDir = toward the enemy nexus
+      u.x += (laneCentreX(u.lane) - u.x) * 3 * dt;         // hold the centre line
+      if (u.chargeState === 'windup') {
+        u.chargeTimer -= dt;
+        if (u.chargeTimer <= 0) { u.chargeState = 'charge'; u.hitSet.clear(); u.chargeLeft = u.chargeDir > 0 ? st.chargeDist : st.retreatDist; }
+        return;
+      }
+      const step = st.chargeSpeed * dt;
+      u.y += fwd * u.chargeDir * step;
+      u.chargeLeft -= step;
+      u.walkAnim += dt * 10;
+      // impact everything along the path once per charge
+      const hit = t => { if (!u.hitSet.has(t)) { u.hitSet.add(t); dealDamage(t, u.effectiveAtk, u, 'physical'); createSparks(t.x, t.y, '#fde68a', 7); } };
+      state.units.forEach(e => { if (!e.dead && e.team !== u.team && Math.hypot(e.x - u.x, e.y - u.y) <= st.hitRadius + e.radius) hit(e); });
+      let stop = false;
+      if (u.chargeDir > 0) {
+        state.turretPads.forEach(p => { const t = p.turret; if (t && !t.dead && t.team !== u.team && Math.hypot(t.x - u.x, t.y - u.y) < 60) { hit(t); stop = true; } });
+        const core = state.cores[u.team === 'blue' ? 'red' : 'blue'];
+        if (Math.abs(core.y - u.y) < 85) { hit(core); stop = true; }
+      } else {
+        const own = state.cores[u.team];
+        if (Math.abs(own.y - u.y) < 260) stop = true;      // don't ride back into its own gate
+      }
+      if (u.chargeLeft <= 0 || stop) {
+        u.chargeDir = -u.chargeDir; u.chargeState = 'windup'; u.chargeTimer = st.windup;
+      }
+    }
+
     function triggerAttack(u, target) {
       
       if (u.type === 'pawn') {
@@ -1167,8 +1229,20 @@
           targetY: target.y,
           damage: u.effectiveAtk,
           damageType: 'ranged',
-          speed: 400
+          speed: 400,
+          src: u
         });
+      } else if (u.type === 'acolyte') {
+        // never the same target twice in a row if another enemy is in range
+        if (target === u.lastTarget) {
+          let alt = null, best = u.range;
+          state.units.forEach(e => { if (!e.dead && e.team !== u.team && e !== target) { const d = Math.hypot(e.x - u.x, e.y - u.y); if (d <= best) { best = d; alt = e; } } });
+          if (alt) target = alt;
+        }
+        u.lastTarget = target;
+        sound.playMagicBurst();
+        state.projectiles.push({ type: 'soulbolt', team: u.team, x: u.x, y: u.y, target, targetX: target.x, targetY: target.y,
+          damage: u.effectiveAtk, damageType: 'magic', speed: 330, src: u, soul: true });
       } else if (u.type === 'wizard') {
         sound.playMagicBurst();
         state.projectiles.push({
@@ -1182,7 +1256,8 @@
           damage: u.effectiveAtk,
           damageType: 'magic',
           splashRadius: UNIT_STATS.wizard.splash,
-          speed: 300
+          speed: 300,
+          src: u
         });
       }
     }
@@ -1198,6 +1273,12 @@
           else addFloatingText(target.x, target.y - 26, `-${Math.round(r * 100)}% RESIST`, '#a5b4fc', 11);
         }
       }
+      if (source && target.hp > 0) {
+        const dealt = Math.min(dmg, target.hp);
+        const owner = source.raisedBy || source;            // raised skeletons credit their acolyte
+        owner.dmgDealt = (owner.dmgDealt || 0) + dealt;
+        if (window.dmgHook) window.dmgHook(owner, dealt, target);
+      }
       target.hp -= dmg;
       target.flash = 0.08; // spec: 80ms white hit flash
       addFloatingText(target.x, target.y - 10, `-${dmg}`, '#ef4444', 13);
@@ -1212,10 +1293,29 @@
         }
       }
 
-      if (target.hp <= 0) {
+      if (target.hp <= 0 && !target.dead) {
         target.dead = true;
         createDeathBones(target.x, target.y);
+        tryRaise(target);
       }
+    }
+
+    // Acolyte: a unit it hit within raiseWindow seconds of dying rises as a red skeleton pawn.
+    // Capped at raiseCap alive so a winning Necromancer can't snowball an endless horde.
+    function tryRaise(t) {
+      if (!(t instanceof Unit) || t.type === 'worker' || t.raisedBy || t.soulAt === undefined) return;
+      const ac = t.soulBy, st = UNIT_STATS.acolyte;
+      if (!ac || state.gameTime - t.soulAt > st.raiseWindow) return;
+      const alive = state.units.filter(u => !u.dead && u.raisedBy && u.team === ac.team).length;
+      if (alive >= st.raiseCap) return;
+      const lane = t.x < LANE_X - 18 ? 'L' : t.x > LANE_X + 18 ? 'R' : 'C';
+      const sk = new Unit(Object.assign({ type: 'pawn', team: ac.team, lane, x: t.x, y: t.y }, UNIT_STATS.pawn));
+      sk.maxHp = Math.round(UNIT_STATS.pawn.hp * st.raiseHpPct); sk.hp = sk.lagHp = sk.maxHp;
+      sk.raisedBy = ac;
+      state.units.push(sk);
+      createSparks(t.x, t.y, '#a3e635', 12);
+      addFloatingText(t.x, t.y - 20, 'RISEN!', '#a3e635', 13);
+      if (window.raiseHook) window.raiseHook(sk);
     }
 
     // --- TURRET OPTION C LOGIC & SHOCKWAVE ---
@@ -1335,6 +1435,7 @@
       });
     }
 
+    let SPLASH_STACK_WINDOW = 0.6, SPLASH_STACK_MULT = 0.35;
     // --- PROJECTILES TICK ---
     function updateProjectiles(dt) {
       for (let i = state.projectiles.length - 1; i >= 0; i--) {
@@ -1350,15 +1451,23 @@
           if (p.splashRadius) {
             // Splash damage
             createSparks(p.x, p.y, (p.team === 'blue' ? '#38bdf8' : '#c084fc'), 10);
+            // v10 anti-stacking: a unit already splashed in the last 0.4s takes 50% from further
+            // splash; the blast's primary target always takes full damage.
             state.units.forEach(u => {
               if (!u.dead && u.team !== p.team) {
                 if (Math.hypot(u.x - p.x, u.y - p.y) <= p.splashRadius) {
-                  dealDamage(u, p.damage, null, p.damageType);
+                  const primary = u === p.target;
+                  const recent = u.splashAt !== undefined && state.gameTime - u.splashAt < SPLASH_STACK_WINDOW;
+                  dealDamage(u, (!primary && recent) ? Math.round(p.damage * SPLASH_STACK_MULT) : p.damage, p.src, p.damageType);
+                  u.splashAt = state.gameTime;
                 }
               }
             });
+            // a turret / nexus as the primary target still takes the blast
+            if (p.target && !p.target.dead && !(p.target instanceof Unit)) dealDamage(p.target, p.damage, p.src, p.damageType);
           } else if (p.target && !p.target.dead) {
-            dealDamage(p.target, p.damage, null, p.damageType);
+            if (p.soul && p.target instanceof Unit) { p.target.soulAt = state.gameTime; p.target.soulBy = p.src; }
+            dealDamage(p.target, p.damage, p.src, p.damageType);
           }
           state.projectiles.splice(i, 1);
         } else {
@@ -1475,33 +1584,52 @@
     }
 
     // --- OPPONENT AI (Red Necromancer) ---
-    // The red side uses exactly the same economy and shop as the player (workers, cadence
-    // cards, turrets, upgrades). Difficulty changes reaction time, income, how well it
-    // counter-picks and how greedy its economy is.
+    // Same economy and shop as the player. Spends greedily on permanent cadence (it compounds every
+    // wave). Difficulty = reaction time, small income edge, counter accuracy, idle chance, worker count.
+    // v10 fixes for "Hard feels easiest": workers are actually re-targeted when the node changes
+    // (they used to keep their spawn node), the AI never mines FAR (deep in the player's half: workers
+    // died there), turrets only for a real push and capped per match (Hard used to buy one whenever a
+    // single blue pawn crossed the bridge), 3 workers max on Hard (4 starved its army), and the hero
+    // is bought once a real army exists (Hard banks for it).
     const AI_LEVELS = {
-      easy:   { think: [3.2, 4.8], income: 0.85, maxWorkers: 1, counter: 0.25, mistake: 0.35, turretThreat: 3, nodeSmart: false },
-      normal: { think: [2.0, 3.0], income: 1.00, maxWorkers: 2, counter: 0.65, mistake: 0.10, turretThreat: 2, nodeSmart: true },
-      hard:   { think: [1.0, 1.6], income: 1.12, maxWorkers: 4, counter: 0.95, mistake: 0.00, turretThreat: 1, nodeSmart: true }
+      easy:   { think: [3.2, 4.8], income: 0.85, maxWorkers: 1, counter: 0.25, mistake: 0.35, nodeSmart: false, turrets: 1, heroWave: 14, heroArmy: 6, bank: false },
+      normal: { think: [2.0, 3.0], income: 1.00, maxWorkers: 2, counter: 0.65, mistake: 0.10, nodeSmart: true,  turrets: 1, heroWave: 10, heroArmy: 5, bank: false },
+      hard:   { think: [1.0, 1.6], income: 1.12, maxWorkers: 4, counter: 0.95, mistake: 0.00, nodeSmart: true,  turrets: 2, heroWave: 10, heroArmy: 8, bank: true }
     };
-    let aiTimer = 2.0;
+    let aiTimer = 2.0, aiGoal = null, aiTurretBuys = 0;
     function aiCfg() { return AI_LEVELS[state.difficulty] || AI_LEVELS.normal; }
     const padFree = p => !p.turret || p.turret.dead;
 
     function aiBuy(kind) {
-      const cost = { worker: 80, archers: 75, wizards: 95, brutes: 150, turret: 250 }[kind];
+      const cost = COSTS[kind];
       if (state.redGold < cost) return false;
-      if (kind === 'worker') {
+      if (kind === 'hero') {
+        if (state.redCadence.hero) return false;
+        state.redCadence.hero = 1;
+      } else if (kind === 'worker') {
         spawnWorker('red', state.aiNode);
       } else if (kind === 'turret') {
         // spec: outer turret first, then inner
         const pad = ['r_outer', 'r_inner'].map(id => state.turretPads.find(p => p.id === id)).find(padFree);
         if (!pad) return false;
         pad.turret = new Turret(pad);
+        aiTurretBuys++;
       } else {
         state.redCadence[kind]++;
       }
       state.redGold -= cost;
+      if (window.aiBuyHook) window.aiBuyHook(kind);   // sim/telemetry hook
       return true;
+    }
+    function aiSetNode(node) {
+      if (node === state.aiNode) return;
+      state.aiNode = node;
+      state.units.forEach(u => {
+        if (u.type === 'worker' && u.team === 'red' && u.workerState !== 'FLEEING' && u.workerState !== 'RECOVERING') {
+          u.targetNodeKey = node;
+          if (u.workerState === 'MINING') u.workerState = 'TRAVEL';
+        }
+      });
     }
 
     function updateAI(dt) {
@@ -1515,24 +1643,17 @@
       const threat = blueArmy.filter(u => u.y < BRIDGE_Y).length + (state.cores.red.hp < state.cores.red.maxHp ? 2 : 0);
       const clashY = calculateBattlelineY();
       const redWorkers = state.units.filter(u => !u.dead && u.team === 'red' && u.type === 'worker').length;
+      const core = state.cores.red;
+      const deep = clashY < 700 || blueArmy.some(u => u.y - core.y < 420);   // a real push on the red nexus
 
-      // 1. Mining node (red's own nodes: SAFE near its citadel, FAR deep in blue territory)
-      let node;
-      if (!cfg.nodeSmart) node = Math.random() < 0.5 ? 'SAFE' : 'MID';
-      else if (threat >= 2 || clashY < 800) node = 'SAFE';           // pushed back: mine at home
-      else if (clashY > 1500 && state.difficulty === 'hard') node = 'FAR'; // winning big: greedy
-      else node = 'MID';
-      if (node !== state.aiNode) {
-        state.aiNode = node;
-        state.units.forEach(u => {
-          if (u.type === 'worker' && u.team === 'red' && u.workerState === 'MINING') u.workerState = 'TRAVEL';
-        });
-      }
+      // 1. Mining node (never FAR: it is on the player's half)
+      if (!cfg.nodeSmart) aiSetNode(Math.random() < 0.5 ? 'SAFE' : 'MID');
+      else aiSetNode(threat >= 2 || clashY < 800 ? 'SAFE' : 'MID');
 
       if (Math.random() < cfg.mistake) return; // easy AI sometimes just idles
 
-      // 2. Defend: outer turret when the blue army is in red territory (always allowed)
-      if (threat >= cfg.turretThreat && aiBuy('turret')) return;
+      // 2. Defend: a turret when really pushed (capped per match)
+      if (deep && aiTurretBuys < cfg.turrets && aiBuy('turret')) return;
 
       // 3. Warm-up (waves 1-2): save the economy, only a second worker
       if (state.waveCount <= 2) {
@@ -1540,32 +1661,36 @@
         return;
       }
 
-      // 4. Second (and on Hard more) worker when safe
+      // 4. More workers when safe
       if (redWorkers < cfg.maxWorkers && threat < 2 && aiBuy('worker')) return;
 
-      // 5. Army drafting (spec heuristics):
-      //    - player archers > AI wizards -> draft a wizard (wizards resist arrows 50%)
-      //    - brutes from wave 3+ (counter player wizards: 70% magic resist, wizards take 2x melee)
-      //    - archers capped at 2
       const bc = state.blueCadence, rc = state.redCadence;
+      // 5. Hero (Acolyte) once a real army exists; Hard banks for it, others buy when they happen to have 350g
+      if (!rc.hero && state.waveCount >= cfg.heroWave && rc.archers + rc.wizards + rc.brutes >= cfg.heroArmy && !deep) {
+        if (aiBuy('hero')) return;
+        if (cfg.bank) return;
+      }
+
+      // 6. Army drafting:
+      //    - player wizards > AI brutes -> brutes (70% magic resist, wizards take 2x melee)
+      //    - player archers > AI wizards -> wizards (wizards resist arrows 50%), unless the player is brute-heavy
+      //    - archers capped at 2
       const counter = Math.random() < cfg.counter;
       let pick = null;
-      // v7 balance: brutes hard-counter wizards (70% magic resist, wizards take 2x melee),
-      // so answer enemy wizards with brutes first, and don't feed wizards into a brute-heavy army.
       if (counter && bc.wizards > rc.brutes) pick = 'brutes';
       else if (counter && bc.archers > rc.wizards && bc.brutes <= rc.brutes) pick = 'wizards';
       else if (counter && bc.brutes > rc.archers && rc.archers < 2) pick = 'archers';
       else {
         const opts = [];
         if (rc.archers < 2) opts.push('archers');
-        if (bc.brutes < 2 || rc.wizards < 1) opts.push('wizards');   // wizards melt to brute walls now
+        if (bc.brutes < 2 || rc.wizards < 1) opts.push('wizards');
         opts.push('brutes');
         pick = opts.sort((a, b) => rc[a] - rc[b])[0];   // keep the mix balanced
         if (!counter && state.difficulty === 'easy') pick = opts[Math.floor(Math.random() * opts.length)];
       }
       if (aiBuy(pick)) return;
-      // 6. Late game: a second turret with spare gold
-      if (state.redGold > 400) aiBuy('turret');
+      // 7. Late game: a second turret with spare gold
+      if (state.redGold > 450 && aiTurretBuys < cfg.turrets) aiBuy('turret');
     }
 
     // --- TUG OF WAR BATTLELINE MATH ---
@@ -1937,6 +2062,11 @@
         ctx.ellipse(u.x, u.y + (u.radius * 0.8), u.radius * 0.9, u.radius * 0.45, 0, 0, Math.PI * 2);
         ctx.fill();
 
+        if (u.type === 'cavalier' || u.type === 'acolyte') {   // hero aura
+          const g = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+          ctx.strokeStyle = u.team === 'blue' ? `rgba(250,204,21,${0.45 + 0.4 * g})` : `rgba(163,230,53,${0.45 + 0.4 * g})`;
+          ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(u.x, u.y + u.radius * 0.8, u.radius * 1.2, u.radius * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+        }
         // Sinusoidal waddle and bob
         const bob = Math.sin(u.walkAnim) * 2.2;
         const tilt = Math.cos(u.walkAnim) * 0.08;
@@ -1955,7 +2085,8 @@
           // Sprite if provided in assets/, else detailed procedural rendering
           const spr = getUnitSprite(u);
           if (spr) {
-            const size = u.radius * 2.8;
+            const hero = u.type === 'cavalier' || u.type === 'acolyte';
+            const size = u.radius * (hero ? 3.4 : 2.8);
             ctx.drawImage(spr, -size / 2, -size * 0.6, size, size);
           } else {
             drawCharacterVector(u);
@@ -1974,6 +2105,28 @@
     // --- DETAILED CLASH ROYALE CHARACTER DRAW ROUTINES ---
     function drawCharacterVector(u) {
       const isBlue = (u.team === 'blue');
+      if (u.type === 'cavalier') {
+        // horse body + rider + lance pointing along the charge direction (screen up = away)
+        const up = (u.chargeDir || 1) * (isBottomTeam(u.team) ? -1 : 1);
+        ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 2.5;
+        ctx.fillStyle = '#78350f'; ctx.beginPath(); ctx.ellipse(0, 4, 13, 18, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(0, 4 + up * 18, 6, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();           // head
+        ctx.fillStyle = '#1d4ed8'; ctx.fillRect(-13, -2, 26, 9); ctx.strokeRect(-13, -2, 26, 9);                   // barding
+        ctx.fillStyle = '#cbd5e1'; ctx.beginPath(); ctx.arc(0, -4, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // rider helm
+        ctx.fillStyle = '#facc15'; ctx.fillRect(-2, -14, 4, 6);                                                   // plume
+        ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(8, 2); ctx.lineTo(8, up * 34); ctx.stroke();
+        ctx.fillStyle = '#e5e7eb'; ctx.beginPath(); ctx.moveTo(4, up * 30); ctx.lineTo(12, up * 30); ctx.lineTo(8, up * 42); ctx.fill();
+        return;
+      }
+      if (u.type === 'acolyte') {
+        ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 2.5;
+        ctx.fillStyle = '#14532d'; ctx.beginPath(); ctx.moveTo(-14, 16); ctx.lineTo(0, -14); ctx.lineTo(14, 16); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#e7e5e4'; ctx.beginPath(); ctx.arc(0, -6, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();     // skull
+        ctx.fillStyle = '#a3e635'; ctx.fillRect(-4, -8, 3, 3); ctx.fillRect(1, -8, 3, 3);                           // glowing eyes
+        ctx.strokeStyle = '#57534e'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(12, 14); ctx.lineTo(12, -18); ctx.stroke();
+        ctx.fillStyle = '#a3e635'; ctx.beginPath(); ctx.arc(12, -20, 4, 0, Math.PI * 2); ctx.fill();
+        return;
+      }
 
       // 1. KNIGHT (Blue Melee)
       if (u.type === 'pawn' && isBlue) {
@@ -2218,6 +2371,10 @@
           ctx.beginPath();
           ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
           ctx.fill();
+        } else if (p.type === 'soulbolt') {
+          ctx.fillStyle = '#a3e635'; ctx.shadowColor = '#a3e635'; ctx.shadowBlur = 10;
+          ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0; ctx.fillStyle = '#ecfccb'; ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI * 2); ctx.fill();
         } else if (p.type === 'turret_bolt' || p.type === 'core_bolt') {
           ctx.fillStyle = (p.team === 'blue') ? '#60a5fa' : '#f43f5e';
           ctx.beginPath();
@@ -2296,7 +2453,7 @@
       const xOf = team => cx + (team === myTeam() ? -4 : 4);
       const colOf = team => team === 'blue' ? '#7dd3fc' : '#fb7185';
       c.lineCap = 'round'; c.lineJoin = 'round';
-      const order = { pawn: 0, worker: 1, archer: 2, wizard: 3, brute: 4 };
+      const order = { pawn: 0, worker: 1, archer: 2, wizard: 3, brute: 4, cavalier: 5, acolyte: 5 };
       const list = state.units.filter(u => !u.dead).sort((p, q) => (order[p.type] || 0) - (order[q.type] || 0));
       list.forEach(u => {
         const x = xOf(u.team), y = yOf(u.y), col = colOf(u.team);
@@ -2316,7 +2473,7 @@
       c.save();
       c.translate(x, y);
       // Dark badge so the rune reads on top of the bright tug-of-war fill
-      c.beginPath(); c.arc(0, 0, kind === 'turret' ? 8 : 7, 0, Math.PI * 2);
+      c.beginPath(); c.arc(0, 0, kind === 'turret' || kind === 'cavalier' || kind === 'acolyte' ? 8 : 7, 0, Math.PI * 2);
       c.fillStyle = 'rgba(2,6,23,0.82)'; c.fill();
       c.strokeStyle = col; c.lineWidth = 0.8; c.stroke();
       if (enemy && kind === 'archer') c.scale(1, -1);   // arrows point at the opposing side
@@ -2331,6 +2488,12 @@
       } else if (kind === 'brute') {    // shield rune
         c.moveTo(-4.5, -4.5); c.lineTo(4.5, -4.5); c.lineTo(4.5, 0); c.quadraticCurveTo(4, 4, 0, 5.5);
         c.quadraticCurveTo(-4, 4, -4.5, 0); c.closePath(); c.moveTo(0, -4.5); c.lineTo(0, 5);
+      } else if (kind === 'cavalier') { // horse/lance rune: lance + pennant over a horse-shoe
+        c.moveTo(-4, 5); c.quadraticCurveTo(-5, -2, 0, -2); c.quadraticCurveTo(5, -2, 4, 5);
+        c.moveTo(0, 3); c.lineTo(0, -6.5); c.moveTo(0, -6.5); c.lineTo(3.5, -5); c.lineTo(0, -3.5);
+      } else if (kind === 'acolyte') {  // skull/eye rune
+        c.arc(0, -1, 4.5, Math.PI * 0.85, Math.PI * 2.15); c.lineTo(2.5, 5); c.lineTo(-2.5, 5); c.closePath();
+        c.moveTo(-2.4, -1); c.arc(-1.6, -1, 0.8, 0, Math.PI * 2); c.moveTo(2.4, -1); c.arc(1.6, -1, 0.8, 0, Math.PI * 2);
       } else {                          // turret: eye-tower rune
         c.moveTo(-5.5, 6); c.lineTo(5.5, 6); c.moveTo(-3.5, 6); c.lineTo(-3.5, -6); c.lineTo(3.5, -6); c.lineTo(3.5, 6);
         c.moveTo(-2.2, -1); c.quadraticCurveTo(0, -3.4, 2.2, -1); c.quadraticCurveTo(0, 1.4, -2.2, -1);
@@ -2395,8 +2558,18 @@
       // Card Dock Availability
       updateCard('btn-buy-worker', myGold() >= 80);
       updateCard('btn-buy-archer', myGold() >= 75);
-      updateCard('btn-buy-wizard', myGold() >= 95);
-      updateCard('btn-buy-brute', myGold() >= 150);
+      updateCard('btn-buy-wizard', myGold() >= COSTS.wizards);
+      updateCard('btn-buy-brute', myGold() >= COSTS.brutes);
+      {
+        const mine = myTeam(), cad = mine === 'blue' ? state.blueCadence : state.redCadence;
+        document.getElementById('hero-name').textContent = mine === 'blue' ? 'Cavalier' : 'Acolyte';
+        document.getElementById('hero-icon').textContent = mine === 'blue' ? '🐎' : '💀';
+        const badge = document.getElementById('hero-badge');
+        if (cad.hero) {
+          badge.textContent = heroAlive(mine) ? 'OWNED' : 'NEXT WAVE';
+          updateCard('btn-buy-hero', false);
+        } else { badge.textContent = COSTS.hero + 'g'; updateCard('btn-buy-hero', myGold() >= COSTS.hero); }
+      }
 
       const hasEmptyPad = state.turretPads.some(p => p.team === myTeam() && padFree(p));
       updateCard('btn-buy-turret', myGold() >= 250 && hasEmptyPad);
@@ -2476,7 +2649,7 @@
 
     // --- COMMANDS: every purchase/order goes through applyCommand(team, cmd) so the same code
     // serves the local player, the AI and (in multiplayer) the guest's network inputs. ---
-    const COSTS = { worker: 80, archers: 75, wizards: 95, brutes: 150, turret: 250 };
+    const COSTS = { worker: 80, archers: 75, wizards: 150, brutes: 110, turret: 250, hero: 350 };   // v10: wizard 150, brute 110, hero 350 (one-time)
     const CADENCE_INFO = {
       archers: ['+1 ARCHER CADENCE!', '#38bdf8'],
       wizards: ['+1 WIZARD CADENCE!', '#c084fc'],
@@ -2484,7 +2657,7 @@
     };
     function purchaseSound(k) {
       ({ worker: () => sound.playCoin(), archers: () => sound.playArrowShoot(), wizards: () => sound.playMagicBurst(),
-         brutes: () => sound.playHammerSlam(), turret: () => sound.playHammerSlam(), node: () => sound.playCoin() }[k] || (() => {}))();
+         brutes: () => sound.playHammerSlam(), turret: () => sound.playHammerSlam(), hero: () => sound.playHorn(), node: () => sound.playCoin() }[k] || (() => {}))();
     }
     function applyCommand(team, c) {
       if (!c || state.gameOver || !state.started || state.paused) return false;
@@ -2509,6 +2682,11 @@
         if (!pad || !padFree(pad)) return false;
         pad.turret = new Turret(pad);
         addFloatingText(pad.x, pad.y - 20, 'TURRET CONSTRUCTED!', '#f59e0b', 16);
+      } else if (c.k === 'hero') {
+        const cad = team === 'blue' ? state.blueCadence : state.redCadence;
+        if (cad.hero) return false;                         // one-time purchase, max one per side
+        cad.hero = 1;
+        notify(team, (team === 'blue' ? 'CAVALIER' : 'ACOLYTE') + ' JOINS NEXT WAVE!', '#facc15');
       } else if (CADENCE_INFO[c.k]) {
         (team === 'blue' ? state.blueCadence : state.redCadence)[c.k]++;
         notify(team, CADENCE_INFO[c.k][0], CADENCE_INFO[c.k][1]);
@@ -2551,6 +2729,7 @@
     document.getElementById('btn-buy-archer').addEventListener('click', () => issue({ k: 'archers' }));
     document.getElementById('btn-buy-wizard').addEventListener('click', () => issue({ k: 'wizards' }));
     document.getElementById('btn-buy-brute').addEventListener('click', () => issue({ k: 'brutes' }));
+    document.getElementById('btn-buy-hero').addEventListener('click', () => issue({ k: 'hero' }));
 
     // Turret Placement Mode
     // Tap the Turret card -> camera pans to your nearest free pad, free pads pulse, tap one to build.

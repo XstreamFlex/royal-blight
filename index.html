@@ -118,6 +118,7 @@
           <div class="w-16 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700 mt-0.5">
             <div id="king-hp-bar" class="h-full bg-blue-500 transition-all duration-200" style="width: 100%;"></div>
           </div>
+          <span id="score-blue" class="hidden text-[9px] font-black text-sky-200 leading-none mt-0.5">★ 0</span>
         </div>
       </div>
 
@@ -147,6 +148,7 @@
           <div class="w-16 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700 mt-0.5">
             <div id="necro-hp-bar" class="h-full bg-rose-500 transition-all duration-200" style="width: 100%;"></div>
           </div>
+          <span id="score-red" class="hidden text-[9px] font-black text-rose-200 leading-none mt-0.5">★ 0</span>
         </div>
         <div class="w-8 h-8 rounded-full bg-gradient-to-b from-purple-700 to-rose-900 border-2 border-purple-400 flex items-center justify-center shadow-md text-sm">
           💀
@@ -290,7 +292,8 @@
         <!-- 7. Wave card: number + 15s countdown -->
         <div id="wave-card" class="cr-card flex flex-col items-center justify-between p-1" style="cursor:default">
           <span class="text-[9px] font-black uppercase text-amber-300 tracking-tight">Wave <span id="wave-num">1</span></span>
-          <span id="wave-seconds" class="text-sm font-black text-white leading-none my-0.5">15s</span>
+          <span id="wave-seconds" class="text-sm font-black text-white leading-none">15s</span>
+          <span id="wave-next" class="text-[7px] font-bold text-slate-300 leading-none whitespace-nowrap overflow-hidden w-full text-center">next: pawns</span>
           <div class="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-700">
             <div id="wave-progress" class="h-full bg-amber-400 transition-all" style="width: 100%;"></div>
           </div>
@@ -304,35 +307,73 @@
       <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
       <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War</p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
-        <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-3">Play vs Computer</div>
+        <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <button data-army="blue" class="army-btn py-2 rounded-lg border-2 font-black text-[11px] uppercase active:scale-95">👑 King</button>
+          <button data-army="red" class="army-btn py-2 rounded-lg border-2 font-black text-[11px] uppercase active:scale-95">💀 Necromancer</button>
+        </div>
         <div class="grid grid-cols-3 gap-2">
           <button data-diff="easy" class="diff-btn py-3 rounded-lg bg-emerald-600 text-white font-black text-xs uppercase active:scale-95">Easy</button>
           <button data-diff="normal" class="diff-btn py-3 rounded-lg bg-amber-500 text-slate-950 font-black text-xs uppercase active:scale-95">Normal</button>
           <button data-diff="hard" class="diff-btn py-3 rounded-lg bg-rose-600 text-white font-black text-xs uppercase active:scale-95">Hard</button>
         </div>
       </div>
+      <button id="btn-settings" class="w-full max-w-xs mb-2 py-2 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase tracking-wider active:scale-95">⚙️ Game settings <span id="settings-summary" class="normal-case font-bold text-[10px] text-slate-300"></span></button>
       <button id="btn-friend" class="w-full max-w-xs py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 text-white font-black text-xs uppercase tracking-wider shadow-lg active:scale-95">
         Play vs Friend <span class="normal-case font-bold">(2 phones)</span>
       </button>
+    </div>
+
+    <!-- GAME SETTINGS -->
+    <div id="modal-settings" class="hidden absolute inset-0 z-[56] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+      <h2 class="text-2xl font-black text-amber-300 uppercase tracking-wider mb-3">Game settings</h2>
+      <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-3 border border-slate-700 space-y-3 text-left">
+        <div>
+          <div class="text-[11px] font-black text-slate-200 uppercase mb-1">Match mode</div>
+          <div class="grid grid-cols-2 gap-2">
+            <button data-mode="classic" class="mode-btn py-2 rounded-lg border-2 font-black text-[11px] uppercase">Classic<br><span class="normal-case font-bold text-[9px]">destroy the nexus</span></button>
+            <button data-mode="timed" class="mode-btn py-2 rounded-lg border-2 font-black text-[11px] uppercase">Timed<br><span class="normal-case font-bold text-[9px]">highest score wins</span></button>
+          </div>
+        </div>
+        <div id="set-len-row">
+          <div class="text-[11px] font-black text-slate-200 uppercase mb-1">Match length</div>
+          <div class="grid grid-cols-4 gap-1">
+            <button data-min="8" class="len-btn py-2 rounded-lg border-2 font-black text-xs">8m</button>
+            <button data-min="12" class="len-btn py-2 rounded-lg border-2 font-black text-xs">12m</button>
+            <button data-min="16" class="len-btn py-2 rounded-lg border-2 font-black text-xs">16m</button>
+            <button data-min="20" class="len-btn py-2 rounded-lg border-2 font-black text-xs">20m</button>
+          </div>
+        </div>
+        <p class="text-[10px] text-slate-300 leading-snug">Score = all gold collected (mining + passive) + 1 per point of damage to the enemy nexus. A destroyed nexus still wins at once. Escalation: from half time (Classic: from 8:00) passive income is +50% and nexus retaliation is halved. In Play vs Friend the host's settings are used.</p>
+      </div>
+      <button id="settings-done" class="w-full max-w-xs mt-4 py-3 rounded-xl bg-amber-500 text-slate-950 font-black text-sm uppercase">Done</button>
     </div>
 
     <!-- PLAY VS FRIEND (WebRTC + QR pairing) -->
     <div id="modal-mp" class="hidden absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-start overflow-y-auto p-4 text-center">
       <h2 class="text-2xl font-black text-sky-300 uppercase tracking-wider mt-2">Play vs Friend</h2>
       <div id="mp-step-choose" class="w-full max-w-xs space-y-2 mt-2">
+        <div class="rounded-xl border border-amber-500/50 bg-slate-900/70 p-2">
+          <div class="text-[10px] font-black text-amber-300 uppercase mb-1">If you host, you play</div>
+          <div class="grid grid-cols-2 gap-2">
+            <button data-army="blue" class="army-btn py-1.5 rounded-lg border-2 font-black text-[10px] uppercase">👑 King</button>
+            <button data-army="red" class="army-btn py-1.5 rounded-lg border-2 font-black text-[10px] uppercase">💀 Necromancer</button>
+          </div>
+          <div class="text-[9px] text-slate-400 mt-1">Your friend gets the other army. Match rules come from your Game settings.</div>
+        </div>
         <div class="rounded-xl border border-emerald-500/50 bg-emerald-950/40 p-2 space-y-2">
           <div class="text-xs font-black text-emerald-300 uppercase">📡 Nearby (QR, offline)</div>
           <p class="text-[10px] text-slate-300">Same Wi-Fi or one phone's Personal Hotspot. No internet needed. Allow camera access when asked.</p>
-          <button id="mp-host" class="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs uppercase active:scale-95">👑 Host <span class="normal-case text-[10px] font-bold">(King)</span></button>
-          <button id="mp-join" class="w-full py-2.5 rounded-xl bg-purple-700 text-white font-black text-xs uppercase active:scale-95">💀 Join <span class="normal-case text-[10px] font-bold">(Necromancer)</span></button>
+          <button id="mp-host" class="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs uppercase active:scale-95">📡 Host</button>
+          <button id="mp-join" class="w-full py-2.5 rounded-xl bg-purple-700 text-white font-black text-xs uppercase active:scale-95">🤝 Join</button>
         </div>
         <div class="rounded-xl border border-sky-500/50 bg-sky-950/40 p-2 space-y-2">
           <div class="text-xs font-black text-sky-300 uppercase">🌐 Online (room code)</div>
           <p class="text-[10px] text-slate-300">Both phones need internet (Wi-Fi or mobile data). Most reliable.</p>
-          <button id="mp-ohost" class="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs uppercase active:scale-95">👑 Create room <span class="normal-case text-[10px] font-bold">(King)</span></button>
+          <button id="mp-ohost" class="w-full py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs uppercase active:scale-95">🌐 Create room</button>
           <div class="flex space-x-1">
             <input id="mp-room-in" maxlength="6" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="CODE" class="w-24 text-center uppercase tracking-widest font-black text-sm bg-slate-800 text-white rounded-xl">
-            <button id="mp-ojoin" class="flex-1 py-2.5 rounded-xl bg-purple-700 text-white font-black text-xs uppercase active:scale-95">💀 Join room</button>
+            <button id="mp-ojoin" class="flex-1 py-2.5 rounded-xl bg-purple-700 text-white font-black text-xs uppercase active:scale-95">Join room</button>
           </div>
         </div>
       </div>
@@ -826,6 +867,7 @@
       state.redGold = 100;
       state.totalBlueGoldMined = 0;
       state.gameTime = 0;           // v10 fix: the match clock carried over into rematches
+      state.score = { blue: 0, red: 0 };
       state.waveTimer = WAVE_INTERVAL;
       state.waveCount = 1;
       state.blueUpgradeLevel = 0;
@@ -833,6 +875,8 @@
       state.gameOver = false;
       state.winner = null;
       state.blueCadence = { archers: 0, wizards: 0, brutes: 0 , hero: 0 };
+      state.orders = { blue: [], red: [] }; state.spawnQ = { blue: [], red: [] }; state.spawnT = { blue: 0, red: 0 }; state.spawnI = { blue: 0, red: 0 };
+      state.netNext = null;
       state.redCadence = { archers: 0, wizards: 0, brutes: 0 , hero: 0 };
 
       // Reset Cores
@@ -891,8 +935,8 @@
     //  Acolyte (Necromancer): single-target magic caster that switches target every shot; units it
     //    hit within the last second rise as red skeletons (70% pawn HP), max raiseCap alive.
     Object.assign(UNIT_STATS, {
-      cavalier: { hp: 620, speed: 40, atk: 46, range: 30, interval: 1.0, radius: 19,
-                  chargeSpeed: 170, chargeDist: 340, retreatDist: 200, windup: 0.55, hitRadius: 26,
+      cavalier: { hp: 600, speed: 40, atk: 21, range: 30, interval: 1.0, radius: 19,
+                  chargeSpeed: 150, chargeRange: 220, chargeMax: 300, overshoot: 60, windup: 1.8, hitRadius: 26,
                   resist: { ranged: 0.25 } },                                  // plate barding vs arrows
       acolyte:  { hp: 300, speed: 42, atk: 34, range: 135, interval: 1.0, radius: 15,
                   raiseCap: 4, raiseHpPct: 0.7, raiseWindow: 1.0 }
@@ -904,28 +948,66 @@
       const dir = (team === 'blue') ? -1 : 1;           // march direction
       const y = base.y + dir * (70 - back);             // ranged units spawn further back (backline)
       const u = new Unit(Object.assign({ type, team, lane, x: laneCentreX(lane), y }, st));
-      if (type === 'cavalier') { u.chargeState = 'windup'; u.chargeTimer = st.windup; u.chargeDir = 1; u.chargeLeft = st.chargeDist; u.hitSet = new Set(); }
+      if (type === 'cavalier') { u.chargeState = 'march'; u.chargeTimer = 0; u.chargeDir = 1; u.chargeLeft = 0; u.hitSet = new Set(); }
       state.units.push(u);
       return u;
     }
     const heroAlive = team => state.units.some(u => !u.dead && u.team === team && u.type === HERO_OF[team]);
 
-    // Waves every 15s: 4 free pawns per team on the flank tracks; purchased cadence joins
-    // permanently: archers every 2nd wave, wizards every 3rd, brutes every 3rd (v10; was 4th) (centre track).
+    // Waves every 15s: 4 free pawns per team. v11: every purchased card is its own order with its own
+    // timer: it first joins the wave AFTER the purchase, then every k waves from there (archer 2,
+    // wizard 3, brute 3), so purchases can be timed to land together.
+    // v11 spawn fix: every unit now leaves from its own nexus gate through a short release queue.
+    // (Before, brutes were laid out in a column 24px apart per brute growing FORWARD from the gate, so a
+    // big brute cadence materialised hundreds of px up the lane at once, and wizards spawned behind the nexus.)
+    const CADENCE_EVERY = { archers: 2, wizards: 3, brutes: 3 };
+    const ORDER_UNIT = { archers: 'archer', wizards: 'wizard', brutes: 'brute' };
+    function addOrder(team, k) {
+      state.orders[team].push({ k, next: state.waveCount + 1, every: CADENCE_EVERY[k] });
+    }
+    // Units of each card joining at wave w (for the HUD and the AI). Guest reads the host's numbers.
+    function spawnsAt(team, w) {
+      if (state.mode === 'guest' && state.netNext) return state.netNext[team === 'blue' ? 0 : 1];
+      const r = { archers: 0, wizards: 0, brutes: 0, hero: 0 };
+      state.orders[team].forEach(o => { if (o.next === w) r[o.k]++; });
+      const cad = team === 'blue' ? state.blueCadence : state.redCadence;
+      if (cad.hero && !heroAlive(team)) r.hero = 1;
+      return r;
+    }
     function triggerWave() {
       sound.playHorn();
       ['blue', 'red'].forEach(team => {
-        const cad = (team === 'blue') ? state.blueCadence : state.redCadence;
-        spawnUnit('pawn', team, 'L', 0);
-        spawnUnit('pawn', team, 'R', 0);
-        spawnUnit('pawn', team, 'L', 20);   // v7: 4 free pawns (2 front, 2 behind on the flank tracks)
-        spawnUnit('pawn', team, 'R', 20);
-        if (state.waveCount % 3 === 0) for (let i = 0; i < cad.brutes; i++) spawnUnit('brute', team, 'C', -10 - i * 24);
-        if (state.waveCount % 2 === 0) for (let i = 0; i < cad.archers; i++) spawnUnit('archer', team, ['L', 'R', 'C'][i % 3], 40 + Math.floor(i / 3) * 22);
-        if (state.waveCount % 3 === 0) for (let i = 0; i < cad.wizards; i++) spawnUnit('wizard', team, ['C', 'L', 'R'][i % 3], 58 + Math.floor(i / 3) * 22);
-        if (cad.hero && !heroAlive(team)) spawnUnit(HERO_OF[team], team, 'C', team === 'blue' ? 30 : 50);   // hero respawns every wave while dead
+        const q = state.spawnQ[team];
+        q.push('pawn', 'pawn', 'pawn', 'pawn');
+        const due = { archers: 0, wizards: 0, brutes: 0 };
+        state.orders[team].forEach(o => { if (o.next === state.waveCount) { due[o.k]++; o.next += o.every; } });
+        for (let i = 0; i < due.brutes; i++) q.push('brute');
+        const cad = team === 'blue' ? state.blueCadence : state.redCadence;
+        if (cad.hero && !heroAlive(team) && !q.includes(HERO_OF[team])) q.push(HERO_OF[team]);   // hero respawns every wave while dead
+        for (let i = 0; i < due.archers; i++) q.push('archer');
+        for (let i = 0; i < due.wizards; i++) q.push('wizard');
+        if (window.waveHook) window.waveHook(team, due);
       });
       notify(null, `WAVE ${state.waveCount}!`, '#f59e0b', 24);
+    }
+    // Release queued units from the gate: 2 per 0.3s (one per flank), centre for brutes/heroes.
+    const SPAWN_GAP = 0.3;
+    function updateSpawnQueue(dt) {
+      ['blue', 'red'].forEach(team => {
+        const q = state.spawnQ[team];
+        if (!q.length) return;
+        state.spawnT[team] -= dt;
+        if (state.spawnT[team] > 0) return;
+        state.spawnT[team] = SPAWN_GAP;
+        for (let n = 0; n < 2 && q.length; n++) {
+          const type = q.shift();
+          const i = state.spawnI[team]++;
+          const lane = (type === 'brute' || type === HERO_OF[team]) ? 'C' : ['L', 'R', 'C'][i % (type === 'pawn' ? 2 : 3)];
+          const u = spawnUnit(type, team, lane, 0);
+          if (window.spawnHook) window.spawnHook(u);
+          if (type === 'brute' || type === HERO_OF[team]) break;   // big units get their own slot
+        }
+      });
     }
 
     // --- GAME ENGINE UPDATE TICK ---
@@ -935,8 +1017,13 @@
       state.gameTime += dt;
 
       // 1. Passive Gold Accumulation
-      state.blueGold += BASE_PASSIVE_INCOME * dt;
-      state.redGold += BASE_PASSIVE_INCOME * dt * (state.mode === 'cpu' ? aiCfg().income : 1);
+      const aiMul = state.mode === 'cpu' ? aiCfg().income : 1;
+      const esc = escalated() ? 1.5 : 1;                     // escalation: +50% passive income
+      const gb = BASE_PASSIVE_INCOME * dt * esc * (state.aiTeam === 'blue' ? aiMul : 1);
+      const gr = BASE_PASSIVE_INCOME * dt * esc * (state.aiTeam === 'red' ? aiMul : 1);
+      state.blueGold += gb; state.redGold += gr; addScore('blue', gb); addScore('red', gr);
+
+      updateSpawnQueue(dt);
 
       // 2. Wave Countdown
       state.waveTimer -= dt;
@@ -1120,6 +1207,7 @@
         const dist = Math.hypot(dx, dy);
 
         if (dist < 38) {
+          addScore(w.team, w.carriedGold);
           if (w.team === 'blue') {
             state.blueGold += w.carriedGold;
             state.totalBlueGoldMined += w.carriedGold;
@@ -1176,35 +1264,62 @@
       }
     }
 
-    // Cavalier state machine: windup -> charge (forward or back) -> windup -> ...
+    // Cavalier (v11): marches like a normal unit; when an enemy is within chargeRange it picks a
+    // priority target (wizard > archer > acolyte/caster > anything), winds up, and charges at that
+    // point (diagonals allowed, clamped to the road), hitting everything on its path once and overshooting
+    // a little. After a charge it turns, re-acquires a target and charges again, or resumes marching.
+    const CAV_PRIORITY = { wizard: 4, archer: 3, acolyte: 2 };
+    function cavPickTarget(u, st) {
+      let best = null, bestScore = -1;
+      const consider = (t, kind) => {
+        const d = Math.hypot(t.x - u.x, t.y - u.y);
+        if (d > st.chargeRange) return;
+        const sc = (CAV_PRIORITY[kind] || 1) * 1000 - d;
+        if (sc > bestScore) { bestScore = sc; best = t; }
+      };
+      state.units.forEach(e => { if (!e.dead && e.team !== u.team && e.type !== 'worker') consider(e, e.type); });
+      state.turretPads.forEach(p => { const t = p.turret; if (t && !t.dead && t.team !== u.team) consider(t, 'turret'); });
+      return best;
+    }
     function updateCavalier(u, dt) {
       const st = UNIT_STATS.cavalier;
-      const fwd = u.team === 'blue' ? -1 : 1;              // +chargeDir = toward the enemy nexus
-      u.x += (laneCentreX(u.lane) - u.x) * 3 * dt;         // hold the centre line
-      if (u.chargeState === 'windup') {
+      const fwd = u.team === 'blue' ? -1 : 1;
+      const core = state.cores[u.team === 'blue' ? 'red' : 'blue'];
+      if (u.chargeState === 'windup' || u.chargeState === 'turn') {
         u.chargeTimer -= dt;
-        if (u.chargeTimer <= 0) { u.chargeState = 'charge'; u.hitSet.clear(); u.chargeLeft = u.chargeDir > 0 ? st.chargeDist : st.retreatDist; }
+        if (u.chargeTimer > 0) return;
+        const tgt = cavPickTarget(u, st);
+        if (!tgt) { u.chargeState = 'march'; u.chargeDir = 1; return; }
+        let dx = tgt.x - u.x, dy = tgt.y - u.y; const d = Math.hypot(dx, dy) || 1;
+        u.cvx = dx / d; u.cvy = dy / d;
+        u.chargeLeft = Math.min(st.chargeMax, d + st.overshoot);
+        u.chargeState = 'charge'; u.hitSet.clear();
+        u.chargeDir = (u.cvy * fwd) >= 0 ? 1 : -1;            // sprite facing: toward the enemy or back
         return;
       }
-      const step = st.chargeSpeed * dt;
-      u.y += fwd * u.chargeDir * step;
-      u.chargeLeft -= step;
-      u.walkAnim += dt * 10;
-      // impact everything along the path once per charge
-      const hit = t => { if (!u.hitSet.has(t)) { u.hitSet.add(t); dealDamage(t, u.effectiveAtk, u, 'physical'); createSparks(t.x, t.y, '#fde68a', 7); } };
-      state.units.forEach(e => { if (!e.dead && e.team !== u.team && Math.hypot(e.x - u.x, e.y - u.y) <= st.hitRadius + e.radius) hit(e); });
-      let stop = false;
-      if (u.chargeDir > 0) {
-        state.turretPads.forEach(p => { const t = p.turret; if (t && !t.dead && t.team !== u.team && Math.hypot(t.x - u.x, t.y - u.y) < 60) { hit(t); stop = true; } });
-        const core = state.cores[u.team === 'blue' ? 'red' : 'blue'];
+      if (u.chargeState === 'charge') {
+        const step = st.chargeSpeed * dt;
+        u.x += u.cvx * step; u.y += u.cvy * step; u.chargeLeft -= step;
+        clampToLane(u);
+        u.walkAnim += dt * 10;
+        const hit = t => { if (!u.hitSet.has(t)) { u.hitSet.add(t); dealDamage(t, u.effectiveAtk, u, 'physical'); createSparks(t.x, t.y, '#fde68a', 7); } };
+        state.units.forEach(e => { if (!e.dead && e.team !== u.team && Math.hypot(e.x - u.x, e.y - u.y) <= st.hitRadius + e.radius) hit(e); });
+        state.turretPads.forEach(p => { const t = p.turret; if (t && !t.dead && t.team !== u.team && Math.hypot(t.x - u.x, t.y - u.y) < 45) hit(t); });
+        let stop = u.chargeLeft <= 0;
         if (Math.abs(core.y - u.y) < 85) { hit(core); stop = true; }
-      } else {
-        const own = state.cores[u.team];
-        if (Math.abs(own.y - u.y) < 260) stop = true;      // don't ride back into its own gate
+        if (Math.abs(state.cores[u.team].y - u.y) < 240 && u.cvy * fwd < 0) stop = true;   // don't ride into its own gate
+        if (stop) { u.chargeState = 'turn'; u.chargeTimer = st.windup; }
+        return;
       }
-      if (u.chargeLeft <= 0 || stop) {
-        u.chargeDir = -u.chargeDir; u.chargeState = 'windup'; u.chargeTimer = st.windup;
+      // march: steady advance like a normal unit; at the enemy nexus it strikes with the lance
+      u.chargeDir = 1;
+      if (Math.abs(core.y - u.y) < 85) {
+        if (u.attackCooldown <= 0) { dealDamage(core, u.effectiveAtk, u, 'physical'); u.attackCooldown = u.attackInterval; }
+        return;
       }
+      if (cavPickTarget(u, st)) { u.chargeState = 'windup'; u.chargeTimer = st.windup; return; }
+      u.y += fwd * u.speed * dt;
+      u.x += (laneCentreX(u.lane) - u.x) * 2.5 * dt;
     }
 
     function triggerAttack(u, target) {
@@ -1279,6 +1394,7 @@
         owner.dmgDealt = (owner.dmgDealt || 0) + dealt;
         if (window.dmgHook) window.dmgHook(owner, dealt, target);
       }
+      if (target === state.cores.blue || target === state.cores.red) addScore(target.team === 'blue' ? 'red' : 'blue', Math.min(dmg, Math.max(0, target.hp)));
       target.hp -= dmg;
       target.flash = 0.08; // spec: 80ms white hit flash
       addFloatingText(target.x, target.y - 10, `-${dmg}`, '#ef4444', 13);
@@ -1383,7 +1499,7 @@
       });
 
       // Knockback & damage all enemies in radius
-      const blastRadius = 120; // spec: 120px, 70 dmg, 35px knockback
+      const blastRadius = 120; // spec: 120px, 70 dmg, 35px knockback (v11: 28px)
       state.units.forEach(u => {
         if (!u.dead && u.team !== turret.team) {
           const dx = u.x - turret.x;
@@ -1393,8 +1509,8 @@
             dealDamage(u, 70, turret);
             // Lateral & vertical knockback
             const angle = Math.atan2(dy, dx);
-            u.x += Math.cos(angle) * 35;
-            u.y += Math.sin(angle) * 35;
+            u.x += Math.cos(angle) * 28;   // v11: 35 -> 28 (less stalling)
+            u.y += Math.sin(angle) * 28;
             if (u.type !== 'worker') clampToLane(u);
             addFloatingText(u.x, u.y - 12, 'SHOCKWAVE!', '#fbbf24', 15);
           }
@@ -1427,7 +1543,7 @@
               target: target,
               targetX: target.x,
               targetY: target.y,
-              damage: core.atk,
+              damage: escalated() ? Math.round(core.atk * 0.5) : core.atk,   // escalation: retaliation halved
               speed: 380
             });
           }
@@ -1528,7 +1644,7 @@
         const p = screenToWorld(WORLD_W / 2, state.cameraY + viewportH * 0.35);
         addFloatingText(p.x, p.y, text, color, size, true);
       }
-      if (state.mode === 'host' && (team === null || team === 'red') && window.MP) MP.fx({ n: [text, color, size] });
+      if (state.mode === 'host' && (team === null || team !== myTeam()) && window.MP) MP.fx({ n: [text, color, size] });
     }
 
     function createSparks(x, y, color, count = 4) {
@@ -1600,37 +1716,31 @@
     function aiCfg() { return AI_LEVELS[state.difficulty] || AI_LEVELS.normal; }
     const padFree = p => !p.turret || p.turret.dead;
 
+    // v11: the AI can play either army (state.aiTeam) and buys through the same applyCommand as players.
+    const aiTeamOf = () => state.aiTeam || 'red';
+    const foeOf = t => (t === 'blue' ? 'red' : 'blue');
+    const aiCad = () => (aiTeamOf() === 'blue' ? state.blueCadence : state.redCadence);
+    const aiGold = () => (aiTeamOf() === 'blue' ? state.blueGold : state.redGold);
+    const nodeOf = t => (t === 'blue' ? state.playerNode : state.aiNode);
     function aiBuy(kind) {
-      const cost = COSTS[kind];
-      if (state.redGold < cost) return false;
-      if (kind === 'hero') {
-        if (state.redCadence.hero) return false;
-        state.redCadence.hero = 1;
-      } else if (kind === 'worker') {
-        spawnWorker('red', state.aiNode);
-      } else if (kind === 'turret') {
-        // spec: outer turret first, then inner
-        const pad = ['r_outer', 'r_inner'].map(id => state.turretPads.find(p => p.id === id)).find(padFree);
+      const T = aiTeamOf();
+      if (aiGold() < COSTS[kind]) return false;
+      let cmd = { k: kind };
+      if (kind === 'turret') {
+        const pad = [T[0] + '_outer', T[0] + '_inner'].map(id => state.turretPads.find(p => p.id === id)).find(p => p && padFree(p));
         if (!pad) return false;
-        pad.turret = new Turret(pad);
-        aiTurretBuys++;
-      } else {
-        state.redCadence[kind]++;
+        cmd.v = pad.id;
       }
-      state.redGold -= cost;
-      if (window.aiBuyHook) window.aiBuyHook(kind);   // sim/telemetry hook
-      return true;
+      const ok = applyCommand(T, cmd);
+      if (ok) { if (kind === 'turret') aiTurretBuys++; if (window.aiBuyHook) window.aiBuyHook(kind); }
+      return ok;
     }
     function aiSetNode(node) {
-      if (node === state.aiNode) return;
-      state.aiNode = node;
-      state.units.forEach(u => {
-        if (u.type === 'worker' && u.team === 'red' && u.workerState !== 'FLEEING' && u.workerState !== 'RECOVERING') {
-          u.targetNodeKey = node;
-          if (u.workerState === 'MINING') u.workerState = 'TRAVEL';
-        }
-      });
+      const T = aiTeamOf();
+      if (node !== nodeOf(T)) applyCommand(T, { k: 'node', v: node });
     }
+    // distance of y from team t's own nexus (0 at the nexus, grows toward the enemy)
+    const fromHome = (t, y) => Math.abs(y - state.cores[t].y);
 
     function updateAI(dt) {
       if (state.mode !== 'cpu') return;
@@ -1638,17 +1748,18 @@
       if (aiTimer > 0) return;
       const cfg = aiCfg();
       aiTimer = cfg.think[0] + Math.random() * (cfg.think[1] - cfg.think[0]);
+      const T = aiTeamOf(), P = foeOf(T);
+      const half = fromHome(T, BRIDGE_Y);
 
-      const blueArmy = state.units.filter(u => !u.dead && u.team === 'blue' && u.type !== 'worker');
-      const threat = blueArmy.filter(u => u.y < BRIDGE_Y).length + (state.cores.red.hp < state.cores.red.maxHp ? 2 : 0);
-      const clashY = calculateBattlelineY();
-      const redWorkers = state.units.filter(u => !u.dead && u.team === 'red' && u.type === 'worker').length;
-      const core = state.cores.red;
-      const deep = clashY < 700 || blueArmy.some(u => u.y - core.y < 420);   // a real push on the red nexus
+      const foeArmy = state.units.filter(u => !u.dead && u.team === P && u.type !== 'worker');
+      const threat = foeArmy.filter(u => fromHome(T, u.y) < half).length + (state.cores[T].hp < state.cores[T].maxHp ? 2 : 0);
+      const clash = fromHome(T, calculateBattlelineY());
+      const myWorkers = state.units.filter(u => !u.dead && u.team === T && u.type === 'worker').length;
+      const deep = clash < half - 410 || foeArmy.some(u => fromHome(T, u.y) < 420);   // a real push on the AI nexus
 
-      // 1. Mining node (never FAR: it is on the player's half)
+      // 1. Mining node (never FAR: it is on the opponent's half)
       if (!cfg.nodeSmart) aiSetNode(Math.random() < 0.5 ? 'SAFE' : 'MID');
-      else aiSetNode(threat >= 2 || clashY < 800 ? 'SAFE' : 'MID');
+      else aiSetNode(threat >= 2 || clash < half - 310 ? 'SAFE' : 'MID');
 
       if (Math.random() < cfg.mistake) return; // easy AI sometimes just idles
 
@@ -1657,24 +1768,20 @@
 
       // 3. Warm-up (waves 1-2): save the economy, only a second worker
       if (state.waveCount <= 2) {
-        if (redWorkers < Math.min(2, cfg.maxWorkers) && state.redGold >= 80 + 20) aiBuy('worker');
+        if (myWorkers < Math.min(2, cfg.maxWorkers) && aiGold() >= 80 + 20) aiBuy('worker');
         return;
       }
-
       // 4. More workers when safe
-      if (redWorkers < cfg.maxWorkers && threat < 2 && aiBuy('worker')) return;
+      if (myWorkers < cfg.maxWorkers && threat < 2 && aiBuy('worker')) return;
 
-      const bc = state.blueCadence, rc = state.redCadence;
-      // 5. Hero (Acolyte) once a real army exists; Hard banks for it, others buy when they happen to have 350g
+      const bc = T === 'red' ? state.blueCadence : state.redCadence;   // opponent's cadence
+      const rc = aiCad();
+      // 5. Hero once a real army exists; Hard banks for it
       if (!rc.hero && state.waveCount >= cfg.heroWave && rc.archers + rc.wizards + rc.brutes >= cfg.heroArmy && !deep) {
         if (aiBuy('hero')) return;
         if (cfg.bank) return;
       }
-
-      // 6. Army drafting:
-      //    - player wizards > AI brutes -> brutes (70% magic resist, wizards take 2x melee)
-      //    - player archers > AI wizards -> wizards (wizards resist arrows 50%), unless the player is brute-heavy
-      //    - archers capped at 2
+      // 6. Army drafting (counters): wizards -> brutes, archers -> wizards (unless brute-heavy), brutes -> archers
       const counter = Math.random() < cfg.counter;
       let pick = null;
       if (counter && bc.wizards > rc.brutes) pick = 'brutes';
@@ -1685,12 +1792,14 @@
         if (rc.archers < 2) opts.push('archers');
         if (bc.brutes < 2 || rc.wizards < 1) opts.push('wizards');
         opts.push('brutes');
-        pick = opts.sort((a, b) => rc[a] - rc[b])[0];   // keep the mix balanced
+        pick = opts.sort((a, b) => rc[a] - rc[b])[0];
         if (!counter && state.difficulty === 'easy') pick = opts[Math.floor(Math.random() * opts.length)];
       }
+      // Hard times combos: if this card's next wave lands right after an existing big spawn, wait one think
+      if (cfg.bank && state.waveTimer > 3 && state.waveTimer < 6 && Math.random() < 0.5) return;
       if (aiBuy(pick)) return;
       // 7. Late game: a second turret with spare gold
-      if (state.redGold > 450 && aiTurretBuys < cfg.turrets) aiBuy('turret');
+      if (aiGold() > 450 && aiTurretBuys < cfg.turrets) aiBuy('turret');
     }
 
     // --- TUG OF WAR BATTLELINE MATH ---
@@ -2549,11 +2658,20 @@
       document.getElementById('wave-num').textContent = state.waveCount;
       document.getElementById('wave-progress').style.width = `${(state.waveTimer / WAVE_INTERVAL) * 100}%`;
       document.getElementById('wave-seconds').textContent = `${Math.ceil(state.waveTimer)}s`;
+      {
+        const nx = spawnsAt(myTeam(), state.waveCount + 1);
+        const ic = { archers: '🏹', wizards: '🔮', brutes: '🛡️', hero: myTeam() === 'blue' ? '🐎' : '💀' };
+        const parts = Object.keys(ic).filter(k => nx[k]).map(k => ic[k] + (nx[k] > 1 ? nx[k] : ''));
+        document.getElementById('wave-next').textContent = parts.length ? '+' + parts.join('') : 'pawns';
+      }
 
       // Gold + match clock (MM:SS)
       document.getElementById('gold-counter').textContent = Math.floor(myGold());
       const t = Math.floor(state.gameTime);
-      document.getElementById('match-clock').textContent = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+      const rules = matchRules();
+      const shown = rules.matchMode === 'timed' ? Math.max(0, rules.minutes * 60 - t) : t;
+      document.getElementById('match-clock').textContent = `${String(Math.floor(shown / 60)).padStart(2, '0')}:${String(shown % 60).padStart(2, '0')}` + (escalated() ? ' 🔥' : '');
+      ['blue', 'red'].forEach(tm => { const el = document.getElementById('score-' + tm); if (el && state.score) { el.textContent = '★ ' + Math.floor(state.score[tm]); el.classList.toggle('hidden', rules.matchMode !== 'timed'); } });
 
       // Card Dock Availability
       updateCard('btn-buy-worker', myGold() >= 80);
@@ -2575,9 +2693,11 @@
       updateCard('btn-buy-turret', myGold() >= 250 && hasEmptyPad);
       
       // Badges
-      syncBadge('badge-archer', myCadence().archers);
-      syncBadge('badge-wizard', myCadence().wizards);
-      syncBadge('badge-brute', myCadence().brutes);
+      // card badges: count, plus an arrow when that card's units join the very next wave
+      const nxw = spawnsAt(myTeam(), state.waveCount + 1);
+      syncBadge('badge-archer', myCadence().archers, nxw.archers);
+      syncBadge('badge-wizard', myCadence().wizards, nxw.wizards);
+      syncBadge('badge-brute', myCadence().brutes, nxw.brutes);
 
       // Stats
       const activeWorkers = state.units.filter(u => u.type === 'worker' && u.team === myTeam()).length;
@@ -2592,10 +2712,10 @@
       else el.classList.add('disabled');
     }
 
-    function syncBadge(id, count) {
+    function syncBadge(id, count, joining) {
       const el = document.getElementById(id);
       if (count > 0) {
-        el.textContent = count;
+        el.textContent = count + (joining ? '↑' : '');
         el.classList.remove('hidden');
       } else {
         el.classList.add('hidden');
@@ -2605,7 +2725,12 @@
     // --- GAME OVER SCREEN ---
     function checkGameOver() {
       if (state.gameOver) return;
-      const winner = state.cores.red.hp <= 0 ? 'blue' : state.cores.blue.hp <= 0 ? 'red' : null;
+      let winner = state.cores.red.hp <= 0 ? 'blue' : state.cores.blue.hp <= 0 ? 'red' : null;
+      const r = matchRules();
+      if (!winner && r.matchMode === 'timed' && state.gameTime >= r.minutes * 60) {
+        winner = state.score.blue >= state.score.red ? 'blue' : 'red';
+        state.timeUp = true;
+      }
       if (winner) { state.winner = winner; showGameOver(winner === myTeam()); }
     }
 
@@ -2630,6 +2755,7 @@
         subtitle.textContent = myTeam() === 'blue' ? "The skeleton legion overran your throne..." : "The King's army shattered your crypt...";
       }
 
+      if (state.timeUp && state.score) subtitle.textContent = `Time! Score ${Math.floor(state.score[myTeam()])} vs ${Math.floor(state.score[myTeam() === 'blue' ? 'red' : 'blue'])}.`;
       document.getElementById('stat-waves').textContent = state.waveCount;
       document.getElementById('stat-gold').textContent = myTeam() === 'blue' ? `${state.totalBlueGoldMined}g` : '—';
       document.getElementById('stat-upgrades').textContent = `+${state.blueUpgradeLevel * 20}%`;
@@ -2689,7 +2815,8 @@
         notify(team, (team === 'blue' ? 'CAVALIER' : 'ACOLYTE') + ' JOINS NEXT WAVE!', '#facc15');
       } else if (CADENCE_INFO[c.k]) {
         (team === 'blue' ? state.blueCadence : state.redCadence)[c.k]++;
-        notify(team, CADENCE_INFO[c.k][0], CADENCE_INFO[c.k][1]);
+        addOrder(team, c.k);
+        notify(team, CADENCE_INFO[c.k][0] + ' (WAVE ' + (state.waveCount + 1) + ')', CADENCE_INFO[c.k][1]);
       } else return false;
       state[gk] -= cost;
       if (team === myTeam()) purchaseSound(c.k);
@@ -2849,12 +2976,38 @@
 
     // Start menu
     // Starts a match. mode: 'cpu' | 'host' (blue, runs the simulation) | 'guest' (red, renders host snapshots)
-    function startMatch(mode, difficulty) {
+    // --- SETTINGS (localStorage; the host's copy is sent to the guest) ---
+    const SETTINGS = Object.assign({ army: 'blue', matchMode: 'timed', minutes: 12 },
+      (() => { try { return JSON.parse(localStorage.getItem('rb-settings') || '{}'); } catch (e) { return {}; } })());
+    function saveSettings() { try { localStorage.setItem('rb-settings', JSON.stringify(SETTINGS)); } catch (e) {} renderSettings(); }
+    function renderSettings() {
+      const on = (el, yes) => { el.classList.toggle('bg-amber-500', yes); el.classList.toggle('text-slate-950', yes); el.classList.toggle('border-amber-300', yes);
+        el.classList.toggle('bg-slate-900', !yes); el.classList.toggle('text-slate-200', !yes); el.classList.toggle('border-slate-600', !yes); };
+      document.querySelectorAll('.army-btn').forEach(b => on(b, b.dataset.army === SETTINGS.army));
+      document.querySelectorAll('.mode-btn').forEach(b => on(b, b.dataset.mode === SETTINGS.matchMode));
+      document.querySelectorAll('.len-btn').forEach(b => on(b, +b.dataset.min === SETTINGS.minutes));
+      document.getElementById('set-len-row').style.opacity = SETTINGS.matchMode === 'timed' ? 1 : 0.4;
+      document.getElementById('settings-summary').textContent = '(' + (SETTINGS.matchMode === 'timed' ? 'Timed ' + SETTINGS.minutes + ' min' : 'Classic') + ')';
+    }
+    // the rules of the running match (host/cpu: own settings; guest: host's)
+    function matchRules() { return state.rules || { matchMode: SETTINGS.matchMode, minutes: SETTINGS.minutes }; }
+    function escalated() {
+      const r = matchRules();
+      return state.gameTime >= (r.matchMode === 'timed' ? r.minutes * 30 : 8 * 60);
+    }
+    function addScore(team, v) { if (state.score) state.score[team] += v; }
+
+    function startMatch(mode, difficulty, opts) {
+      opts = opts || {};
       state.mode = mode;
       if (difficulty) state.difficulty = difficulty;
-      VIEW.bottomTeam = (mode === 'guest') ? 'red' : 'blue';
+      // army: vs computer -> player's choice (AI takes the other); host -> host's choice; guest -> the other one
+      const mine = opts.team || (mode === 'guest' ? 'red' : SETTINGS.army);
+      VIEW.bottomTeam = mine;
+      state.aiTeam = mode === 'cpu' ? (mine === 'blue' ? 'red' : 'blue') : null;
+      state.rules = opts.rules || { matchMode: SETTINGS.matchMode, minutes: SETTINGS.minutes };
       ['modal-menu', 'modal-gameover', 'modal-mp'].forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
-      state.timeSpeed = 1;
+      state.timeSpeed = 1; state.timeUp = false;
       document.getElementById('btn-speed').textContent = '1x';
       document.getElementById('speed-indicator').textContent = '1x';
       UNIT_UID = 0;
@@ -2882,6 +3035,12 @@
       document.getElementById('modal-menu').classList.remove('hidden');
     }
     document.querySelectorAll('.diff-btn').forEach(b => b.addEventListener('click', () => startGame(b.dataset.diff)));
+    document.querySelectorAll('.army-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.army = b.dataset.army; saveSettings(); }));
+    document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.matchMode = b.dataset.mode; saveSettings(); }));
+    document.querySelectorAll('.len-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.minutes = +b.dataset.min; saveSettings(); }));
+    document.getElementById('btn-settings').addEventListener('click', () => document.getElementById('modal-settings').classList.remove('hidden'));
+    document.getElementById('settings-done').addEventListener('click', () => document.getElementById('modal-settings').classList.add('hidden'));
+    renderSettings();
     document.getElementById('btn-menu').addEventListener('click', () => {
       if (state.mode !== 'cpu' && window.MP) MP.leave();
       backToMenu();

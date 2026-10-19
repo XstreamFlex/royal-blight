@@ -273,9 +273,9 @@ const MP = (() => {
 
   // ---------- match flow ----------
   function startHostMatch() {
-    startMatch('host');
+    startMatch('host');   // host plays the army chosen on the main menu (SETTINGS.army)
     sendAcc = 1; // snapshot right away
-    send({ k: 'start' });
+    send({ k: 'start', team: myTeam() === 'blue' ? 'red' : 'blue', rules: state.rules });
   }
   function rematch() {
     const btn = $('btn-restart');
@@ -285,10 +285,10 @@ const MP = (() => {
   function onMessage(m) {
     if (m.k === 'bye') { lost('Your friend left the match.'); return; }
     if (role === 'host') {
-      if (m.k === 'cmd') applyCommand('red', m.c);
+      if (m.k === 'cmd') applyCommand(myTeam() === 'blue' ? 'red' : 'blue', m.c);
       else if (m.k === 'rematch' && state.gameOver) startHostMatch();
     } else {
-      if (m.k === 'start') { snaps = []; walk.clear(); startMatch('guest'); }
+      if (m.k === 'start') { snaps = []; walk.clear(); startMatch('guest', null, { team: m.team || 'red', rules: m.rules }); }
       else if (m.k === 's') {
         snaps.push({ t: performance.now(), s: m });
         if (snaps.length > 30) snaps.shift();
@@ -308,6 +308,7 @@ const MP = (() => {
       k: 's', gt: r1(state.gameTime), w: state.waveCount, wt: r1(state.waveTimer),
       g: [Math.floor(state.blueGold), Math.floor(state.redGold)],
       c: [state.blueCadence, state.redCadence], n: [state.playerNode, state.aiNode],
+      nx: [spawnsAt('blue', state.waveCount + 1), spawnsAt('red', state.waveCount + 1)],
       u: state.units.filter(u => !u.dead).map(u => [u.id, UT.indexOf(u.type), u.team === 'blue' ? 0 : 1,
         Math.round(u.x), Math.round(u.y), Math.ceil(u.hp), u.effectiveMaxHp, u.flash > 0 ? 1 : 0, u.radius,
         u.type === 'worker' ? (u.workerState === 'FLEEING' ? 1 : 0) : u.type === 'cavalier' ? (u.chargeDir < 0 ? 1 : 0) : 0, u.carriedGold || 0]),
@@ -316,7 +317,8 @@ const MP = (() => {
       co: [core(state.cores.blue), core(state.cores.red)],
       tp: state.turretPads.map(p => (p.turret && !p.turret.dead)
         ? [Math.ceil(p.turret.hp), p.turret.maxHp, p.turret.charge, p.turret.flash > 0 ? 1 : 0, r1(p.turret.rotation)] : 0),
-      go: state.gameOver ? state.winner : 0,
+      go: state.gameOver ? state.winner : 0, tu: state.timeUp ? 1 : 0,
+      sc: state.score ? [Math.floor(state.score.blue), Math.floor(state.score.red)] : 0,
       fx: fxQueue.splice(0)
     };
   }
@@ -369,10 +371,12 @@ const MP = (() => {
     });
     state.gameTime = S.gt; state.waveCount = S.w; state.waveTimer = S.wt;
     state.blueGold = S.g[0]; state.redGold = S.g[1];
-    state.blueCadence = S.c[0]; state.redCadence = S.c[1];
+    state.blueCadence = S.c[0]; state.redCadence = S.c[1]; state.netNext = S.nx || null;
     state.playerNode = S.n[0]; state.aiNode = S.n[1];
     updateHUD();
     updateMiniMap();
+    if (S.sc) state.score = { blue: S.sc[0], red: S.sc[1] };
+    if (S.tu) state.timeUp = true;
     if (S.go && !state.gameOver) { state.gameOver = true; state.winner = S.go; showGameOver(S.go === myTeam()); }
   }
 

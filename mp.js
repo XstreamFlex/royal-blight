@@ -307,7 +307,7 @@ const MP = (() => {
     return {
       k: 's', gt: r1(state.gameTime), w: state.waveCount, wt: r1(state.waveTimer),
       g: [Math.floor(state.blueGold), Math.floor(state.redGold)],
-      c: [state.blueCadence, state.redCadence], n: [state.playerNode, state.aiNode],
+      c: [state.blueCadence, state.redCadence], n: [state.playerNode, state.aiNode], ms: state.mineSel, mq: [mineQueue('blue'), mineQueue('red')],
       nx: [spawnsAt('blue', state.waveCount + 1), spawnsAt('red', state.waveCount + 1)],
       u: state.units.filter(u => !u.dead).map(u => [u.id, UT.indexOf(u.type), u.team === 'blue' ? 0 : 1,
         Math.round(u.x), Math.round(u.y), Math.ceil(u.hp), u.effectiveMaxHp, u.flash > 0 ? 1 : 0, u.radius,
@@ -374,6 +374,8 @@ const MP = (() => {
     state.blueGold = S.g[0]; state.redGold = S.g[1];
     state.blueCadence = S.c[0]; state.redCadence = S.c[1]; state.netNext = S.nx || null;
     state.playerNode = S.n[0]; state.aiNode = S.n[1];
+    if (S.ms) { state.mineSel = S.ms; refreshMineButtons(); }
+    if (S.mq) state.netMq = { blue: S.mq[0], red: S.mq[1] };
     updateHUD();
     updateMiniMap();
     if (S.gm) state.goldMined = { blue: S.gm[0], red: S.gm[1] };

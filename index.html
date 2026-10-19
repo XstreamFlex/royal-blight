@@ -145,11 +145,11 @@
         <div class="flex flex-col space-y-1.5 mt-2 w-full">
           <button id="node-far" class="w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-slate-800 border-2 border-slate-600 text-slate-300 transition-all shadow">
             <span class="text-rose-400 leading-none">FAR</span>
-            <span class="text-[8px] text-amber-300 mt-0.5">60g</span>
+            <span class="text-[8px] text-amber-300 mt-0.5">180g</span>
           </button>
           <button id="node-mid" class="w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-slate-800 border-2 border-slate-600 text-slate-300 transition-all shadow">
             <span class="text-amber-400 leading-none">MID</span>
-            <span class="text-[8px] text-amber-300 mt-0.5">25g</span>
+            <span class="text-[8px] text-amber-300 mt-0.5">50g</span>
           </button>
           <button id="node-safe" class="w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-blue-600 border-2 border-yellow-300 text-white transition-all shadow active-node-glow">
             <span class="text-yellow-300 leading-none">SAFE</span>
@@ -631,8 +631,8 @@
     // Mining Nodes (spec): each team has its own SAFE / MID / FAR node on its flank.
     const NODE_TYPES = {
       SAFE: { yield: 10, time: 5,  name: 'Safe Sapphire', color: '#38bdf8' },
-      MID:  { yield: 25, time: 8,  name: 'Mid Gold',      color: '#facc15' },
-      FAR:  { yield: 60, time: 15, name: 'Far Amethyst',  color: '#c084fc' }
+      MID:  { yield: 50, time: 8,  name: 'Mid Gold',      color: '#facc15' },
+      FAR:  { yield: 180, time: 15, name: 'Far Amethyst',  color: '#c084fc' }
     };
     const NODE_POS = {
       blue: { SAFE: { x: 110, y: 2000 }, MID: { x: 110, y: 1320 }, FAR: { x: 110, y: 740 } },
@@ -888,8 +888,9 @@
       state.turretPads.forEach(pad => pad.turret = null);
 
       // Spec: each team starts with 1 worker on MID
-      state.playerNode = 'MID'; state.aiNode = 'MID';
-      if (typeof setMiningNode === 'function') setMiningNode('MID', true);
+      state.playerNode = 'SAFE'; state.aiNode = 'SAFE';
+      state.mineSel = { blue: { SAFE: true, MID: false, FAR: false }, red: { SAFE: true, MID: false, FAR: false } };
+      if (typeof setMiningNode === 'function') setMiningNode('SAFE', true);
       spawnWorker('blue', 'MID');
       spawnWorker('red', 'MID');
 
@@ -1133,9 +1134,56 @@
       u.x = Math.max(LANE_X - m, Math.min(LANE_X + m, u.x));
     }
 
+    // v13 MINE CROWDING: one worker per mine node. A worker claims a node (travel + mining) and releases it
+    // when it starts home. Others take the preferred node if free, else the nearest free node
+    // (FAR only when it is safe or explicitly chosen), else queue at a waiting spot beside the preferred node.
+    function nodeBusy(team, key, except) {
+      return state.units.some(u => u !== except && !u.dead && u.type === 'worker' && u.team === team && u.claimKey === key);
+    }
+    function farSafe(team) {
+      return fromHome(team, calculateBattlelineY()) > fromHome(team, NODE_POS[team].FAR.y) + 60;
+    }
+    // v13 PLAYER-SELECTED MINES: workers only use their team's selected mines. A free selected mine is
+    // claimed (nearest first); if every selected mine is busy, the worker queues at the nearest selected one.
+    const selOf = team => (state.mineSel && state.mineSel[team]) || { SAFE: true };
+    function selectedKeys(team) { const m = selOf(team); return ['SAFE', 'MID', 'FAR'].filter(k => m[k]); }
+    function nearestKey(w, keys) {
+      let best = null, bd = 1e9;
+      for (const k of keys) { const n = NODE_POS[w.team][k], d = Math.hypot(n.x - w.x, n.y - w.y); if (d < bd) { bd = d; best = k; } }
+      return best;
+    }
+    function pickMine(w) {
+      const sel = selectedKeys(w.team);
+      return nearestKey(w, sel.filter(k => !nodeBusy(w.team, k, w)));
+    }
+    function mineQueue(team) {
+      const q = { SAFE: 0, MID: 0, FAR: 0 };
+      state.units.forEach(u => { if (!u.dead && u.type === 'worker' && u.team === team && u.workerState === 'QUEUED' && u.queueKey) q[u.queueKey]++; });
+      return q;
+    }
+    function queueSpot(team, key, w) {
+      const n = NODE_POS[team][key], i = state.units.filter(u => !u.dead && u.type === 'worker' && u.team === team && u.workerState === 'QUEUED' && u.queueKey === key).indexOf(w);
+      const dx = n.x < 220 ? 1 : -1, j = Math.max(0, i);
+      return { x: n.x + dx * (40 + 15 * (j % 6)), y: n.y - 6 + 16 * Math.floor(j / 6) * (team === 'blue' ? -1 : 1) };   // waiting line beside the mine
+    }
+
     function updateWorker(w, dt) {
-      const activeNodeKey = (w.team === 'blue') ? state.playerNode : state.aiNode;
-      const targetNode = getNode(w.team, activeNodeKey);
+      if (w.workerState === 'FLEEING' || w.workerState === 'RECOVERING' || w.workerState === 'RETURNING') w.claimKey = null;
+      // a mine toggled off while walking to it is abandoned (one already mining finishes its trip)
+      if (w.workerState === 'TRAVEL' && w.claimKey && !selOf(w.team)[w.claimKey]) w.claimKey = null;
+      if (w.workerState === 'QUEUED' && w.queueKey && !selOf(w.team)[w.queueKey]) w.queueKey = null;
+      if ((w.workerState === 'TRAVEL' || w.workerState === 'QUEUED') && !w.claimKey) {
+        const k = pickMine(w);
+        if (k) { w.claimKey = k; w.workerState = 'TRAVEL'; w.queueKey = null; }
+        else { w.workerState = 'QUEUED'; if (!w.queueKey) w.queueKey = nearestKey(w, selectedKeys(w.team)) || 'SAFE'; }
+      }
+      const prefKey = w.claimKey || w.queueKey || 'SAFE';
+      const targetNode = getNode(w.team, w.claimKey || prefKey);
+      if (w.workerState === 'QUEUED') {
+        const q = queueSpot(w.team, w.queueKey, w), dx = q.x - w.x, dy = q.y - w.y, d = Math.hypot(dx, dy);
+        if (d > 3) { const st = Math.min(d, w.speed * dt); w.x += dx / d * st; w.y += dy / d * st; }
+        return;
+      }
       const homeBase = (w.team === 'blue') ? state.cores.blue : state.cores.red;
 
       // Spec: an enemy combat unit within 40px -> drop gold, take a hit, flee home at +30% speed.
@@ -1200,6 +1248,7 @@
         if (w.miningProgress >= w.miningDuration) {
           w.carriedGold = targetNode.yield;
           w.workerState = 'RETURNING';
+          w.claimKey = null;
         }
       }
 
@@ -1384,6 +1433,15 @@
     // Damage types: 'physical' (melee), 'ranged' (arrows), 'magic' (wizard fireballs).
     // Untyped damage (turrets, cores, shockwave) ignores resistances, as before.
     function dealDamage(target, dmg, source, dmgType) {
+      // v13 Ian: Cavalier fully blocks every 3rd incoming hit (any damage type)
+      if (target.type === 'cavalier' && target.hp > 0 && dmg > 0) {
+        target.hitsTaken = (target.hitsTaken || 0) + 1;
+        if (target.hitsTaken % 3 === 0) {
+          if (window.blockHook) window.blockHook(target, dmg);
+          addFloatingText(target.x, target.y - 30, '\u{1F6E1} BLOCK', '#7dd3fc', 13);
+          return;
+        }
+      }
       if (dmgType && target.resist && target.resist[dmgType]) {
         const r = target.resist[dmgType];
         dmg = Math.max(1, Math.round(dmg * (1 - r)));
@@ -1715,9 +1773,9 @@
     // The old Hard is kept as 'brutal' (not on the menu; used by the sims).
     const AI_LEVELS = {
       easy:   { think: [4.5, 6.5], income: 0.75, maxWorkers: 1, counter: 0.10, mistake: 0.50, nodeSmart: false, turrets: 0, heroWave: 99, heroArmy: 99, bank: false },
-      normal: { think: [3.2, 4.8], income: 0.85, maxWorkers: 1, counter: 0.25, mistake: 0.35, nodeSmart: false, turrets: 1, heroWave: 14, heroArmy: 6, bank: false },
-      hard:   { think: [2.0, 3.0], income: 1.00, maxWorkers: 2, counter: 0.65, mistake: 0.10, nodeSmart: true,  turrets: 1, heroWave: 10, heroArmy: 5, bank: false },
-      brutal: { think: [1.0, 1.6], income: 1.12, maxWorkers: 4, counter: 0.95, mistake: 0.00, nodeSmart: true,  turrets: 2, heroWave: 10, heroArmy: 8, bank: true }
+      normal: { think: [3.2, 4.8], income: 0.85, maxWorkers: 2, counter: 0.25, mistake: 0.35, nodeSmart: false, turrets: 1, heroWave: 14, heroArmy: 6, bank: false },
+      hard:   { think: [2.0, 3.0], income: 1.00, maxWorkers: 3, counter: 0.65, mistake: 0.10, nodeSmart: true,  turrets: 1, heroWave: 10, heroArmy: 5, bank: false },
+      brutal: { think: [1.0, 1.6], income: 1.12, maxWorkers: 3, counter: 0.95, mistake: 0.00, nodeSmart: true,  turrets: 2, heroWave: 10, heroArmy: 8, bank: true }
     };
     let aiTimer = 2.0, aiGoal = null, aiTurretBuys = 0;
     function aiCfg() { return AI_LEVELS[state.difficulty] || AI_LEVELS.normal; }
@@ -1742,9 +1800,10 @@
       if (ok) { if (kind === 'turret') aiTurretBuys++; if (window.aiBuyHook) window.aiBuyHook(kind); }
       return ok;
     }
-    function aiSetNode(node) {
-      const T = aiTeamOf();
-      if (node !== nodeOf(T)) applyCommand(T, { k: 'node', v: node });
+    function aiSetSel(want) {           // v13: AI mine selection; turn wanted ones on first so one always stays on
+      const T = aiTeamOf(), cur = selOf(T);
+      ['SAFE', 'MID', 'FAR'].forEach(k => { if (want[k] && !cur[k]) applyCommand(T, { k: 'node', v: k, on: true }); });
+      ['SAFE', 'MID', 'FAR'].forEach(k => { if (!want[k] && cur[k]) applyCommand(T, { k: 'node', v: k, on: false }); });
     }
     // distance of y from team t's own nexus (0 at the nexus, grows toward the enemy)
     const fromHome = (t, y) => Math.abs(y - state.cores[t].y);
@@ -1765,8 +1824,11 @@
       const deep = clash < half - 410 || foeArmy.some(u => fromHome(T, u.y) < 420);   // a real push on the AI nexus
 
       // 1. Mining node (never FAR: it is on the opponent's half)
-      if (!cfg.nodeSmart) aiSetNode(Math.random() < 0.5 ? 'SAFE' : 'MID');
-      else aiSetNode(threat >= 2 || clash < half - 310 ? 'SAFE' : 'MID');
+      // 1. Mine selection: Easy sticks to Safe; Normal adds Mid sometimes; Hard+ uses Safe+Mid, Far only when
+      //    the battle line is well past it, and drops Mid when pushed back.
+      if (cfg.maxWorkers <= 1) aiSetSel({ SAFE: true });
+      else if (!cfg.nodeSmart) aiSetSel({ SAFE: true, MID: Math.random() < 0.5 });
+      else { const pushed = threat >= 2 || clash < half - 310; aiSetSel({ SAFE: true, MID: !pushed, FAR: !pushed && farSafe(T) }); }
 
       if (Math.random() < cfg.mistake) return; // easy AI sometimes just idles
 
@@ -1896,7 +1958,9 @@
       // Each team's SAFE / MID / FAR crystals (blue on the left flank, red on the right)
       ['blue', 'red'].forEach(team => ['SAFE', 'MID', 'FAR'].forEach(k => {
         const n = getNode(team, k);
-        drawCrystalNode(n, n.color, `${k} ${n.yield}g/${n.time}s`);
+        const q = state.mode === 'guest' ? ((state.netMq && state.netMq[team]) || {})[k] || 0 : mineQueue(team)[k];
+        const on = team === myTeam() && selOf(team)[k];
+        drawCrystalNode(n, n.color, `${on ? '\u2714 ' : ''}${k} ${n.yield}g/${n.time}s${q ? ' \u00B7 ' + q + ' waiting' : ''}`);
       }));
     }
 
@@ -1970,9 +2034,11 @@
       drawUprightSprite(img, node.x, node.y, 62, 62, -6);
       // Yield plaque
       const ly = node.team === 'red' ? node.y - 50 : node.y + 22;
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)'; ctx.fillRect(node.x - 36, ly, 72, 14);
-      ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(node.x - 36, ly, 72, 14);
-      ctx.fillStyle = color; ctx.font = 'bold 8px Fredoka, sans-serif'; ctx.textAlign = 'center';
+      ctx.font = 'bold 8px Fredoka, sans-serif'; ctx.textAlign = 'center';
+      const pw = Math.max(72, ctx.measureText(label).width + 10);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)'; ctx.fillRect(node.x - pw / 2, ly, pw, 14);
+      ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.strokeRect(node.x - pw / 2, ly, pw, 14);
+      ctx.fillStyle = color;
       fillTextUpright(label, node.x, ly + 7);
       ctx.restore();
     }
@@ -2804,19 +2870,19 @@
       const gk = team === 'blue' ? 'blueGold' : 'redGold';
       if (c.k === 'node') {
         if (!NODE_TYPES[c.v]) return false;
-        if (team === 'blue') state.playerNode = c.v; else state.aiNode = c.v;
-        state.units.forEach(u => {
-          if (u.type === 'worker' && u.team === team && u.workerState !== 'FLEEING' && u.workerState !== 'RECOVERING') {
-            u.targetNodeKey = c.v;
-            if (u.workerState === 'MINING') u.workerState = 'TRAVEL';
-          }
-        });
+        // v13: toggle a mine in this team's selection (at least one stays on). c.on forces a state.
+        const sel = state.mineSel[team];
+        const want = c.on === undefined ? !sel[c.v] : !!c.on;
+        if (!want && selectedKeys(team).length <= 1) return false;
+        sel[c.v] = want;
+        if (team === 'blue') state.playerNode = selectedKeys(team)[0]; else state.aiNode = selectedKeys(team)[0];
+        if (team === myTeam()) refreshMineButtons();
         return true;
       }
       const cost = COSTS[c.k];
       if (cost === undefined || state[gk] < cost) return false;
       if (c.k === 'worker') {
-        spawnWorker(team, team === 'blue' ? state.playerNode : state.aiNode);
+        spawnWorker(team, selectedKeys(team)[0]);
       } else if (c.k === 'turret') {
         const pad = state.turretPads.find(p => p.id === c.v && p.team === team);
         if (!pad || !padFree(pad)) return false;
@@ -2848,17 +2914,19 @@
       return applyCommand(myTeam(), c);
     }
 
-    // Mining Node Switchboard (always shows / controls my team's workers)
-    function setMiningNode(key, silent) {
-      const btnSafe = document.getElementById('node-safe');
-      const btnMid = document.getElementById('node-mid');
-      const btnFar = document.getElementById('node-far');
-      const off = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-slate-800 border-2 border-slate-600 text-slate-300 transition-all shadow';
+    // Mining selection toggles (always show / control my team's mines; several can be on)
+    function refreshMineButtons() {
+      const off = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-slate-800 border-2 border-slate-600 text-slate-400 opacity-70 transition-all shadow';
       const on = 'w-full py-1 rounded-lg text-[9px] font-black flex flex-col items-center bg-blue-600 border-2 border-yellow-300 text-white transition-all shadow active-node-glow';
-      btnSafe.className = key === 'SAFE' ? on : off;
-      btnMid.className = key === 'MID' ? on : off;
-      btnFar.className = key === 'FAR' ? on : off;
-      if (!silent) issue({ k: 'node', v: key });
+      const sel = selOf(myTeam());
+      ['SAFE', 'MID', 'FAR'].forEach(k => { const b = document.getElementById('node-' + k.toLowerCase()); if (b) { b.className = sel[k] ? on : off; b.setAttribute('aria-pressed', sel[k] ? 'true' : 'false'); } });
+    }
+    function setMiningNode(key, silent) {      // tap = toggle this mine for my workers
+      if (silent) { refreshMineButtons(); return; }
+      if (selOf(myTeam())[key] && selectedKeys(myTeam()).length <= 1) { refreshMineButtons(); return; }
+      const want = !selOf(myTeam())[key];
+      if (state.mode === 'guest') { selOf(myTeam())[key] = want; refreshMineButtons(); }   // optimistic; host snapshot confirms
+      issue({ k: 'node', v: key, on: want });
     }
 
     document.getElementById('node-safe').addEventListener('click', () => setMiningNode('SAFE'));
@@ -3031,7 +3099,7 @@
       state.started = true;
       state.cameraY = state.targetCameraY = VIEW_HOME_Y;
       clampCamera();
-      setMiningNode('MID', true);
+      setMiningNode('SAFE', true);
       // Mini-map rail: my side always at the bottom
       document.getElementById('tension-rail').style.transform = isFlipped() ? 'scaleY(-1)' : '';
       const btnRestart = document.getElementById('btn-restart');

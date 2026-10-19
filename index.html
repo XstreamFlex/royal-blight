@@ -865,6 +865,7 @@
       state.blueGold = 100;
       state.redGold = 100;
       state.totalBlueGoldMined = 0;
+      state.goldMined = { blue: 0, red: 0 };
       state.gameTime = 0;           // v10 fix: the match clock carried over into rematches
       state.score = { blue: 0, red: 0 };
       state.waveTimer = WAVE_INTERVAL;
@@ -1210,6 +1211,7 @@
 
         if (dist < 38) {
           addScore(w.team, w.carriedGold);
+          state.goldMined[w.team] = (state.goldMined[w.team] || 0) + w.carriedGold;
           if (w.team === 'blue') {
             state.blueGold += w.carriedGold;
             state.totalBlueGoldMined += w.carriedGold;
@@ -2769,7 +2771,7 @@
 
       if (state.timeUp && state.score) subtitle.textContent = `Time! Score ${Math.floor(state.score[myTeam()])} vs ${Math.floor(state.score[myTeam() === 'blue' ? 'red' : 'blue'])}.`;
       document.getElementById('stat-waves').textContent = state.waveCount;
-      document.getElementById('stat-gold').textContent = myTeam() === 'blue' ? `${state.totalBlueGoldMined}g` : '—';
+      document.getElementById('stat-gold').textContent = `${Math.floor((state.goldMined && state.goldMined[myTeam()]) || 0)}g`;
       document.getElementById('stat-upgrades').textContent = `+${state.blueUpgradeLevel * 20}%`;
 
       modal.classList.remove('hidden');

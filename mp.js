@@ -318,6 +318,7 @@ const MP = (() => {
       tp: state.turretPads.map(p => (p.turret && !p.turret.dead)
         ? [Math.ceil(p.turret.hp), p.turret.maxHp, p.turret.charge, p.turret.flash > 0 ? 1 : 0, r1(p.turret.rotation)] : 0),
       go: state.gameOver ? state.winner : 0, tu: state.timeUp ? 1 : 0,
+      gm: state.goldMined ? [state.goldMined.blue, state.goldMined.red] : 0,
       sc: state.score ? [Math.floor(state.score.blue), Math.floor(state.score.red)] : 0,
       fx: fxQueue.splice(0)
     };
@@ -375,6 +376,7 @@ const MP = (() => {
     state.playerNode = S.n[0]; state.aiNode = S.n[1];
     updateHUD();
     updateMiniMap();
+    if (S.gm) state.goldMined = { blue: S.gm[0], red: S.gm[1] };
     if (S.sc) state.score = { blue: S.sc[0], red: S.sc[1] };
     if (S.tu) state.timeUp = true;
     if (S.go && !state.gameOver) { state.gameOver = true; state.winner = S.go; showGameOver(S.go === myTeam()); }

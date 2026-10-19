@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-v11';
+const CACHE_VERSION = 'royal-blight-v12';
 const CORE = [
   './', './index.html', './manifest.json', './mp.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/fonts/fonts.css',
@@ -16,7 +16,7 @@ const CORE = [
   './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/apple-touch-icon.png'
 ];
 // Optional sprites: cached if present, ignored if missing.
-const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromancer', 'turret_blue', 'turret_red', 'turret_pad', 'mine_safe', 'mine_mid', 'mine_far', 'cavalier_blue', 'cavalier_blue_back', 'acolyte_red', 'acolyte_red_back'].concat(
+const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromancer', 'nexus_necromancer_back', 'turret_blue', 'turret_red', 'turret_pad', 'mine_safe', 'mine_mid', 'mine_far', 'cavalier_blue', 'cavalier_blue_back', 'acolyte_red', 'acolyte_red_back'].concat(
   ['knight','skeleton','archer','wizard','brute','worker']
     .flatMap(k => [k + '_blue', k + '_red', k + '_blue_back', k + '_red_back'])
     .filter(n => !/^knight_red|^skeleton_blue/.test(n))

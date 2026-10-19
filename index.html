@@ -103,58 +103,6 @@
   <!-- Mobile Viewport Container (Locked to responsive phone aspect ratio) -->
   <div id="game-app" class="relative w-full max-w-md h-full max-h-[940px] bg-slate-900 flex flex-col overflow-hidden shadow-2xl border-x border-slate-800">
 
-    <!-- TOP HEADER: Core Healths, Wave Timer & Controls -->
-    <header class="relative z-20 w-full bg-slate-900/95 border-b-2 border-slate-700/80 px-2.5 py-1.5 flex items-center justify-between shadow-md backdrop-blur-md">
-      <!-- Blue King Core Indicator -->
-      <div class="flex items-center space-x-1.5">
-        <div class="w-8 h-8 rounded-full bg-gradient-to-b from-blue-500 to-blue-700 border-2 border-yellow-300 flex items-center justify-center shadow-md text-sm">
-          👑
-        </div>
-        <div class="flex flex-col">
-          <div class="flex items-center justify-between text-[10px] font-black text-blue-300 uppercase leading-none">
-            <span>King</span>
-            <span id="king-hp-num">2500</span>
-          </div>
-          <div class="w-16 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700 mt-0.5">
-            <div id="king-hp-bar" class="h-full bg-blue-500 transition-all duration-200" style="width: 100%;"></div>
-          </div>
-          <span id="score-blue" class="hidden text-[9px] font-black text-sky-200 leading-none mt-0.5">★ 0</span>
-        </div>
-      </div>
-
-      <!-- Gold (+3/s), match clock, Save HTML -->
-      <div class="flex flex-col items-center">
-        <div class="flex items-center space-x-1">
-          <div class="flex items-center space-x-1 cr-gold-pill px-2 py-0.5 rounded-full">
-            <span class="text-xs">🪙</span>
-            <span id="gold-counter" class="text-amber-400 font-black text-xs tracking-wide">100</span>
-            <span class="text-[8px] text-amber-300/80 font-bold">+3/s</span>
-          </div>
-          <span id="speed-indicator" class="text-[9px] bg-amber-500/20 text-amber-300 font-extrabold px-1 rounded border border-amber-500/40">1x</span>
-        </div>
-        <div class="flex items-center space-x-1 mt-0.5">
-          <span id="match-clock" class="text-[11px] font-black text-slate-200 tabular-nums">00:00</span>
-          <button id="btn-save-html" class="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-300/60 active:scale-95">Save HTML</button>
-        </div>
-      </div>
-
-      <!-- Red Necromancer Core Indicator -->
-      <div class="flex items-center space-x-1.5">
-        <div class="flex flex-col items-end">
-          <div class="flex items-center justify-between text-[10px] font-black text-rose-300 uppercase leading-none w-full">
-            <span id="necro-hp-num">2500</span>
-            <span>Necro</span>
-          </div>
-          <div class="w-16 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700 mt-0.5">
-            <div id="necro-hp-bar" class="h-full bg-rose-500 transition-all duration-200" style="width: 100%;"></div>
-          </div>
-          <span id="score-red" class="hidden text-[9px] font-black text-rose-200 leading-none mt-0.5">★ 0</span>
-        </div>
-        <div class="w-8 h-8 rounded-full bg-gradient-to-b from-purple-700 to-rose-900 border-2 border-purple-400 flex items-center justify-center shadow-md text-sm">
-          💀
-        </div>
-      </div>
-    </header>
 
     <!-- MAIN WORLD CANVAS WRAPPER -->
     <div id="canvas-wrapper" class="relative flex-1 w-full h-full overflow-hidden cursor-grab active:cursor-grabbing">
@@ -232,8 +180,58 @@
 
     <!-- BOTTOM ACTION CARD DOCK (Clash Royale Toy-like Presentation) -->
     <footer class="relative z-20 w-full bg-gradient-to-t from-slate-950 via-slate-900 to-slate-900 border-t-2 border-slate-700 px-2 py-2 select-none">
-      <div class="flex items-center justify-end px-1 mb-1 text-[10px] text-slate-300 font-bold">
-        <span>Workers: <span id="worker-count-txt" class="text-yellow-400 font-black">1</span></span>
+      <!-- HUD STRIP (v12: moved from the top of the screen into the top of the dock) -->
+      <div id="hud-strip" class="w-full rounded-xl bg-slate-950/80 border border-slate-700/80 px-2 py-1 mb-1.5 flex items-center justify-between shadow-inner">
+        <!-- Blue King Core Indicator -->
+        <div class="flex items-center space-x-1.5">
+          <div class="w-7 h-7 rounded-full bg-gradient-to-b from-blue-500 to-blue-700 border-2 border-yellow-300 flex items-center justify-center shadow-md text-sm">
+            👑
+          </div>
+          <div class="flex flex-col">
+            <div class="flex items-center justify-between text-[10px] font-black text-blue-300 uppercase leading-none">
+              <span>King</span>
+              <span id="king-hp-num">2500</span>
+            </div>
+            <div class="w-16 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700 mt-0.5">
+              <div id="king-hp-bar" class="h-full bg-blue-500 transition-all duration-200" style="width: 100%;"></div>
+            </div>
+            <span id="score-blue" class="hidden text-[9px] font-black text-sky-200 leading-none mt-0.5">★ 0</span>
+          </div>
+        </div>
+
+        <!-- Gold (+3/s), match clock, Save HTML -->
+        <div class="flex flex-col items-center">
+          <div class="flex items-center space-x-1">
+            <div class="flex items-center space-x-1 cr-gold-pill px-2 py-0.5 rounded-full">
+              <span class="text-xs">🪙</span>
+              <span id="gold-counter" class="text-amber-400 font-black text-xs tracking-wide">100</span>
+              <span class="text-[8px] text-amber-300/80 font-bold">+3/s</span>
+            </div>
+            <span id="speed-indicator" class="text-[9px] bg-amber-500/20 text-amber-300 font-extrabold px-1 rounded border border-amber-500/40">1x</span>
+          </div>
+          <div class="flex items-center space-x-1 mt-0.5">
+            <span id="match-clock" class="text-[11px] font-black text-slate-200 tabular-nums">00:00</span>
+            <span class="text-[9px] text-slate-300 font-bold">⛏<span id="worker-count-txt" class="text-yellow-400 font-black">1</span></span>
+            <button id="btn-save-html" class="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-300/60 active:scale-95">Save HTML</button>
+          </div>
+        </div>
+
+        <!-- Red Necromancer Core Indicator -->
+        <div class="flex items-center space-x-1.5">
+          <div class="flex flex-col items-end">
+            <div class="flex items-center justify-between text-[10px] font-black text-rose-300 uppercase leading-none w-full">
+              <span id="necro-hp-num">2500</span>
+              <span>Necro</span>
+            </div>
+            <div class="w-16 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700 mt-0.5">
+              <div id="necro-hp-bar" class="h-full bg-rose-500 transition-all duration-200" style="width: 100%;"></div>
+            </div>
+            <span id="score-red" class="hidden text-[9px] font-black text-rose-200 leading-none mt-0.5">★ 0</span>
+          </div>
+          <div class="w-7 h-7 rounded-full bg-gradient-to-b from-purple-700 to-rose-900 border-2 border-purple-400 flex items-center justify-center shadow-md text-sm">
+            💀
+          </div>
+        </div>
       </div>
 
       <!-- Responsive Action Cards Grid -->
@@ -780,6 +778,7 @@
     loadSprite('nexus_king');        // blue nexus (front)
     loadSprite('nexus_king_back');   // blue nexus seen from behind (faces its troops)
     loadSprite('nexus_necromancer'); // red nexus
+    loadSprite('nexus_necromancer_back'); // red nexus seen from behind (v12)
 
     let UNIT_UID = 0;
     // --- UNIT CLASS DEFINITION ---
@@ -939,7 +938,7 @@
                   chargeSpeed: 150, chargeRange: 220, chargeMax: 300, overshoot: 60, windup: 1.8, hitRadius: 26,
                   resist: { ranged: 0.25 } },                                  // plate barding vs arrows
       acolyte:  { hp: 300, speed: 42, atk: 34, range: 135, interval: 1.0, radius: 15,
-                  raiseCap: 4, raiseHpPct: 0.7, raiseWindow: 1.0 }
+                  raiseCap: 4, raiseHpPct: 0.7, raiseWindow: 3.0 }   // v12: 1s -> 3s
     });
     const HERO_OF = { blue: 'cavalier', red: 'acolyte' };
     function spawnUnit(type, team, lane, back) {
@@ -1002,8 +1001,11 @@
         for (let n = 0; n < 2 && q.length; n++) {
           const type = q.shift();
           const i = state.spawnI[team]++;
-          const lane = (type === 'brute' || type === HERO_OF[team]) ? 'C' : ['L', 'R', 'C'][i % (type === 'pawn' ? 2 : 3)];
-          const u = spawnUnit(type, team, lane, 0);
+          // v12 comeback rule: ranged units (archer, wizard, acolyte) enter from BEHIND their nexus on the
+          // flank tracks and walk forward past it, so they don't clump at the gate where splash melts them.
+          const ranged = type === 'archer' || type === 'wizard' || type === 'acolyte';
+          const lane = ranged ? ['L', 'R'][i % 2] : (type === 'brute' || type === HERO_OF[team]) ? 'C' : ['L', 'R', 'C'][i % (type === 'pawn' ? 2 : 3)];
+          const u = spawnUnit(type, team, lane, ranged ? 145 : 0);   // 145 -> back edge (y 2205 / 15)
           if (window.spawnHook) window.spawnHook(u);
           if (type === 'brute' || type === HERO_OF[team]) break;   // big units get their own slot
         }
@@ -1707,10 +1709,13 @@
     // died there), turrets only for a real push and capped per match (Hard used to buy one whenever a
     // single blue pawn crossed the bridge), 3 workers max on Hard (4 starved its army), and the hero
     // is bought once a real army exists (Hard banks for it).
+    // v12 remap from Ian's real play: Hard = old Normal, Normal = old Easy, Easy = new genuinely easy AI.
+    // The old Hard is kept as 'brutal' (not on the menu; used by the sims).
     const AI_LEVELS = {
-      easy:   { think: [3.2, 4.8], income: 0.85, maxWorkers: 1, counter: 0.25, mistake: 0.35, nodeSmart: false, turrets: 1, heroWave: 14, heroArmy: 6, bank: false },
-      normal: { think: [2.0, 3.0], income: 1.00, maxWorkers: 2, counter: 0.65, mistake: 0.10, nodeSmart: true,  turrets: 1, heroWave: 10, heroArmy: 5, bank: false },
-      hard:   { think: [1.0, 1.6], income: 1.12, maxWorkers: 4, counter: 0.95, mistake: 0.00, nodeSmart: true,  turrets: 2, heroWave: 10, heroArmy: 8, bank: true }
+      easy:   { think: [4.5, 6.5], income: 0.75, maxWorkers: 1, counter: 0.10, mistake: 0.50, nodeSmart: false, turrets: 0, heroWave: 99, heroArmy: 99, bank: false },
+      normal: { think: [3.2, 4.8], income: 0.85, maxWorkers: 1, counter: 0.25, mistake: 0.35, nodeSmart: false, turrets: 1, heroWave: 14, heroArmy: 6, bank: false },
+      hard:   { think: [2.0, 3.0], income: 1.00, maxWorkers: 2, counter: 0.65, mistake: 0.10, nodeSmart: true,  turrets: 1, heroWave: 10, heroArmy: 5, bank: false },
+      brutal: { think: [1.0, 1.6], income: 1.12, maxWorkers: 4, counter: 0.95, mistake: 0.00, nodeSmart: true,  turrets: 2, heroWave: 10, heroArmy: 8, bank: true }
     };
     let aiTimer = 2.0, aiGoal = null, aiTurretBuys = 0;
     function aiCfg() { return AI_LEVELS[state.difficulty] || AI_LEVELS.normal; }
@@ -1793,7 +1798,7 @@
         if (bc.brutes < 2 || rc.wizards < 1) opts.push('wizards');
         opts.push('brutes');
         pick = opts.sort((a, b) => rc[a] - rc[b])[0];
-        if (!counter && state.difficulty === 'easy') pick = opts[Math.floor(Math.random() * opts.length)];
+        if (!counter && (state.difficulty === 'easy' || state.difficulty === 'normal')) pick = opts[Math.floor(Math.random() * opts.length)];
       }
       // Hard times combos: if this card's next wave lands right after an existing big spawn, wait one think
       if (cfg.bank && state.waveTimer > 3 && state.waveTimer < 6 && Math.random() < 0.5) return;
@@ -1828,10 +1833,12 @@
       drawTurretPads();
 
       // 4. Draw Citadels (King Citadel & Necromancer Citadel)
+      // depth: units just 'behind' a citadel on screen are drawn before it, the rest after
+      drawUnits(behindCitadel);
       drawCitadels();
 
       // 5. Draw Units (Vector Anatomies, Weapons, Plumes, Skeletons)
-      drawUnits();
+      drawUnits(u => !behindCitadel(u));
 
       // 6. Draw Projectiles
       drawProjectiles();
@@ -2162,8 +2169,13 @@
       ctx.restore();
     }
 
-    function drawUnits() {
+    function behindCitadel(u) {
+      const sy = y => (isFlipped() ? -y : y);
+      return ['blue', 'red'].some(t => { const c = state.cores[t]; return Math.abs(u.y - c.y) < 160 && sy(u.y) < sy(c.y) + (isFlipped() ? 40 : 40); });
+    }
+    function drawUnits(filter) {
       state.units.forEach(u => {
+        if (filter && !filter(u)) return;
         ctx.save();
         // Dynamic drop shadow
         ctx.fillStyle = 'rgba(0,0,0,0.35)';

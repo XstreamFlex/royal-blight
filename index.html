@@ -342,6 +342,14 @@
             <button data-min="20" class="len-btn py-2 rounded-lg border-2 font-black text-xs">20m</button>
           </div>
         </div>
+        <div>
+          <div class="text-[11px] font-black text-slate-200 uppercase mb-1">Battery Saver</div>
+          <div class="grid grid-cols-2 gap-1">
+            <button data-bat="1" class="bat-btn py-2 rounded-lg border-2 font-black text-xs">On (30 fps)</button>
+            <button data-bat="0" class="bat-btn py-2 rounded-lg border-2 font-black text-xs">Off (smooth)</button>
+          </div>
+          <p class="text-[10px] text-slate-400 leading-snug mt-1">Keeps phones cooler: 30 fps, lighter glow effects and resolution. The game itself plays exactly the same.</p>
+        </div>
         <p class="text-[10px] text-slate-300 leading-snug">Score = all gold collected (mining + passive) + 1 per point of damage to the enemy nexus. A destroyed nexus still wins at once. Escalation: from half time (Classic: from 8:00) passive income is +50% and nexus retaliation is halved. In Play vs Friend the host's settings are used.</p>
       </div>
       <button id="settings-done" class="w-full max-w-xs mt-4 py-3 rounded-xl bg-amber-500 text-slate-950 font-black text-sm uppercase">Done</button>
@@ -711,14 +719,53 @@
     // --- CANVAS RESIZING ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    {
+      const d = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
+      Object.defineProperty(ctx, 'shadowBlur', { get() { return d.get.call(this); }, set(v) { d.set.call(this, (v && batterySaver()) ? 0 : v); } });
+    }
     const wrapper = document.getElementById('canvas-wrapper');
 
     let scale = 1;
     let viewportH = 800;
 
+    // v15 BATTERY SAVER (default on): 30 fps render cap, DPR <= 1.5 (2 when off), no canvas shadow blur,
+    // fewer particles. The simulation is unaffected (fixed 60 Hz steps either way).
+    function batterySaver() { try { return SETTINGS.battery !== false; } catch (e) { return true; } }
+    function maxDpr() { return batterySaver() ? 1.5 : 2; }
+    function applyPowerMode() { resizeCanvas(); bgCache = null; spriteCache = new WeakMap(); wakeLoop(); }
+
+    // Static arena background pre-rendered at device resolution; each frame blits only the visible slice.
+    let bgCache = null;
+    function getBgCache() {
+      const bg = SPRITES['arena_bg'];
+      if (!bg) return null;
+      const w = Math.round(WORLD_W * scale), h = Math.round(WORLD_H * scale);
+      if (!bgCache || bgCache.width !== w || bgCache.height !== h || bgCache.src !== bg) {
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(bg, 0, 0, w, h);
+        bgCache = c; bgCache.src = bg;
+      }
+      return bgCache;
+    }
+    // Sprites are 512-768px sources drawn at ~40-180 world px: cache each at its on-screen pixel size.
+    let spriteCache = new WeakMap();
+    function scaledSprite(img, w, h) {
+      if (!img || !img.width) return img;
+      const pw = Math.max(1, Math.round(w * scale)), ph = Math.max(1, Math.round(h * scale));
+      if (pw >= img.width) return img;                       // never upscale a cache
+      let m = spriteCache.get(img); if (!m) { m = new Map(); spriteCache.set(img, m); }
+      const key = pw * 10000 + ph; let c = m.get(key);
+      if (!c) {
+        if (m.size > 24) m.clear();
+        c = document.createElement('canvas'); c.width = pw; c.height = ph;
+        const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, pw, ph); m.set(key, c);
+      }
+      return c;
+    }
+
     function resizeCanvas() {
       const rect = wrapper.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr());
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
       canvas.style.width = `${rect.width}px`;
@@ -1062,9 +1109,8 @@
       // 10. Win/Loss Evaluation
       checkGameOver();
 
-      // 11. Synchronize UI Elements & Left Telemetry Rail
-      updateHUD();
-      updateMiniMap();
+      // 11. UI + rail are refreshed from the render loop (throttled), not every simulation step
+      state.hudDirty = true;
     }
 
     // --- ANTI-CLUMPING & UNIT COMBAT TICK ---
@@ -1710,6 +1756,7 @@
     }
 
     function createSparks(x, y, color, count = 4) {
+      if (batterySaver()) count = Math.ceil(count / 2);
       for (let i = 0; i < count; i++) {
         const ang = Math.random() * Math.PI * 2;
         const spd = Math.random() * 80 + 30;
@@ -1915,7 +1962,15 @@
 
     function drawEnvironment() {
       const bg = SPRITES['arena_bg'];
-      if (bg) { ctx.drawImage(bg, 0, 0, WORLD_W, WORLD_H); return; }
+      if (bg) {
+        const bc = getBgCache(), k = bc.width / WORLD_W;
+        // visible world rows (camera works in un-flipped coordinates; the flip mirrors the whole world)
+        let y0 = state.cameraY, y1 = state.cameraY + viewportH;
+        if (isFlipped()) { const a = WORLD_H - y1, b2 = WORLD_H - y0; y0 = a; y1 = b2; }
+        y0 = Math.max(0, Math.floor(y0) - 2); y1 = Math.min(WORLD_H, Math.ceil(y1) + 2);
+        ctx.drawImage(bc, 0, Math.round(y0 * k), bc.width, Math.round((y1 - y0) * k), 0, y0, WORLD_W, y1 - y0);
+        return;
+      }
       // Procedural fallback: blight (top) / grass (bottom), river + centre bridge, one cobblestone lane
       ctx.fillStyle = '#2c193e'; ctx.fillRect(0, 0, WORLD_W, RIVER_Y0);
       ctx.fillStyle = '#3f7d3a'; ctx.fillRect(0, RIVER_Y1, WORLD_W, WORLD_H - RIVER_Y1);
@@ -1950,7 +2005,7 @@
     function drawUprightSprite(img, x, y, w, h, dy) {
       ctx.save(); ctx.translate(x, y);
       if (isFlipped()) ctx.rotate(Math.PI);
-      ctx.drawImage(img, -w / 2, dy - h / 2, w, h);
+      ctx.drawImage(scaledSprite(img, w, h), -w / 2, dy - h / 2, w, h);
       ctx.restore();
     }
 
@@ -2169,7 +2224,7 @@
       const sc = 1 + 0.08 * k;
       ctx.scale(sc, sc);
       if (core.flash > 0) ctx.filter = 'brightness(1.8)';
-      ctx.drawImage(img, -S / 2, 66 - S, S, S);
+      ctx.drawImage(scaledSprite(img, S, S), -S / 2, 66 - S, S, S);
       ctx.filter = 'none';
       ctx.restore();
       // Health bar just beyond the sprite, on the side facing the battlefield
@@ -2237,6 +2292,11 @@
       ctx.restore();
     }
 
+    function onScreenY(y, pad) {
+      let y0 = state.cameraY, y1 = state.cameraY + viewportH;
+      if (isFlipped()) { const a = WORLD_H - y1; y1 = WORLD_H - y0; y0 = a; }
+      return y > y0 - pad && y < y1 + pad;
+    }
     function behindCitadel(u) {
       const sy = y => (isFlipped() ? -y : y);
       return ['blue', 'red'].some(t => { const c = state.cores[t]; return Math.abs(u.y - c.y) < 160 && sy(u.y) < sy(c.y) + (isFlipped() ? 40 : 40); });
@@ -2244,6 +2304,7 @@
     function drawUnits(filter) {
       state.units.forEach(u => {
         if (filter && !filter(u)) return;
+        if (!onScreenY(u.y, 90)) return;               // v15: skip units outside the camera view
         ctx.save();
         // Dynamic drop shadow
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -2276,7 +2337,7 @@
           if (spr) {
             const hero = u.type === 'cavalier' || u.type === 'acolyte';
             const size = u.radius * (hero ? 3.4 : 2.8);
-            ctx.drawImage(spr, -size / 2, -size * 0.6, size, size);
+            ctx.drawImage(scaledSprite(spr, size, size), -size / 2, -size * 0.6, size, size);
           } else {
             drawCharacterVector(u);
           }
@@ -2624,7 +2685,7 @@
         railGlyphs.innerHTML = ''; railGlyphs.appendChild(railCanvas);
         railCtx = railCanvas.getContext('2d');
       }
-      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr());
       const W = railGlyphs.clientWidth, H = railGlyphs.clientHeight;
       if (!W || !H) return;
       if (railCanvas.width !== Math.round(W * dpr) || railCanvas.height !== Math.round(H * dpr)) {
@@ -2687,7 +2748,7 @@
         c.moveTo(-5.5, 6); c.lineTo(5.5, 6); c.moveTo(-3.5, 6); c.lineTo(-3.5, -6); c.lineTo(3.5, -6); c.lineTo(3.5, 6);
         c.moveTo(-2.2, -1); c.quadraticCurveTo(0, -3.4, 2.2, -1); c.quadraticCurveTo(0, 1.4, -2.2, -1);
       }
-      c.shadowColor = col; c.shadowBlur = 4;
+      c.shadowColor = col; c.shadowBlur = batterySaver() ? 0 : 4;
             c.strokeStyle = col; c.lineWidth = 1.5; c.stroke();
       c.shadowBlur = 0; c.strokeStyle = '#ffffff'; c.globalAlpha = 0.55; c.lineWidth = 0.6; c.stroke();
       c.restore();
@@ -3059,7 +3120,7 @@
     // Start menu
     // Starts a match. mode: 'cpu' | 'host' (blue, runs the simulation) | 'guest' (red, renders host snapshots)
     // --- SETTINGS (localStorage; the host's copy is sent to the guest) ---
-    const SETTINGS = Object.assign({ army: 'blue', matchMode: 'timed', minutes: 12 },
+    const SETTINGS = Object.assign({ army: 'blue', matchMode: 'timed', minutes: 12, battery: true },
       (() => { try { return JSON.parse(localStorage.getItem('rb-settings') || '{}'); } catch (e) { return {}; } })());
     function saveSettings() { try { localStorage.setItem('rb-settings', JSON.stringify(SETTINGS)); } catch (e) {} renderSettings(); }
     function renderSettings() {
@@ -3068,6 +3129,7 @@
       document.querySelectorAll('.army-btn').forEach(b => on(b, b.dataset.army === SETTINGS.army));
       document.querySelectorAll('.mode-btn').forEach(b => on(b, b.dataset.mode === SETTINGS.matchMode));
       document.querySelectorAll('.len-btn').forEach(b => on(b, +b.dataset.min === SETTINGS.minutes));
+      document.querySelectorAll('.bat-btn').forEach(b => on(b, (b.dataset.bat === '1') === batterySaver()));
       document.getElementById('set-len-row').style.opacity = SETTINGS.matchMode === 'timed' ? 1 : 0.4;
       document.getElementById('settings-summary').textContent = '(' + (SETTINGS.matchMode === 'timed' ? 'Timed ' + SETTINGS.minutes + ' min' : 'Classic') + ')';
     }
@@ -3120,6 +3182,7 @@
     document.querySelectorAll('.army-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.army = b.dataset.army; saveSettings(); }));
     document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.matchMode = b.dataset.mode; saveSettings(); }));
     document.querySelectorAll('.len-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.minutes = +b.dataset.min; saveSettings(); }));
+    document.querySelectorAll('.bat-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.battery = b.dataset.bat === '1'; saveSettings(); applyPowerMode(); }));
     document.getElementById('btn-settings').addEventListener('click', () => document.getElementById('modal-settings').classList.remove('hidden'));
     document.getElementById('settings-done').addEventListener('click', () => document.getElementById('modal-settings').classList.add('hidden'));
     renderSettings();
@@ -3166,22 +3229,56 @@
     document.getElementById('btn-save-html').addEventListener('click', saveHTML);
 
     // --- MAIN TICK LOOP ---
-    let lastTime = performance.now();
+    // Fixed 60 Hz simulation steps (deterministic regardless of frame rate); rendering capped at 30 fps in
+    // Battery Saver. The loop stops completely when the tab is hidden, on menus, while paused and after the
+    // end screen (after a short grace so the last multiplayer snapshot goes out), and wakes on any change.
+    const SIM_STEP = 1 / 60;
+    let hudT = 0, lastTime = performance.now(), lastRender = 0, simAcc = 0, loopOn = false, idleFor = 0;
+    function loopWanted() { return !document.hidden && state.started && !state.paused && !state.gameOver; }
+    function wakeLoop() {
+      if (loopOn || document.hidden) return;
+      loopOn = true; idleFor = 0; lastTime = performance.now(); requestAnimationFrame(tick);
+    }
+    window.wakeLoop = wakeLoop;
     function tick(currentTime) {
-      const dt = Math.min(0.1, (currentTime - lastTime) / 1000) * state.timeSpeed;
+      if (document.hidden) { loopOn = false; return; }
+      const minGap = batterySaver() ? 1000 / 30 - 4 : 0;
+      if (currentTime - lastRender < minGap) { requestAnimationFrame(tick); return; }
+      lastRender = currentTime;
+      const real = Math.min(0.1, Math.max(0, (currentTime - lastTime) / 1000));
       lastTime = currentTime;
+      const dt = real * state.timeSpeed;
 
       if (state.mode === 'guest' && window.MP) MP.guestFrame(dt);  // guest only renders host snapshots
-      else update(dt);
-      if (state.mode === 'host' && window.MP) MP.hostTick(dt / state.timeSpeed);
+      else if (state.timeSpeed > 0.001) {
+        simAcc += dt; let n = 0;
+        while (simAcc >= SIM_STEP && n < 12) { update(SIM_STEP); simAcc -= SIM_STEP; n++; }
+        if (n === 12) simAcc = 0;
+      } else update(dt);                                             // frozen (test harness) mode
+      if (state.mode === 'host' && window.MP) MP.hostTick(real);
       render();
+      hudT += real;
+      if (state.hudDirty && hudT >= (batterySaver() ? 0.1 : 1 / 30)) { hudT = 0; state.hudDirty = false; updateHUD(); updateMiniMap(); }
 
+      if (loopWanted()) idleFor = 0; else idleFor += real;
+      if (idleFor > 1.2) { loopOn = false; return; }                // fully idle: stop until woken
       requestAnimationFrame(tick);
     }
+    // wake on state changes that matter (start, unpause, rematch) without touching every call site
+    ['paused', 'started', 'gameOver'].forEach(key => {
+      let v = state[key];
+      Object.defineProperty(state, key, { get: () => v, set: x => { v = x; if (loopWanted()) wakeLoop(); }, configurable: true });
+    });
+    document.addEventListener('visibilitychange', () => {
+      try { if (sound && sound.ctx) { if (document.hidden) sound.ctx.suspend(); else sound.ctx.resume(); } } catch (e) {}
+      if (!document.hidden) { wakeLoop(); }
+    });
+    // touches / camera drags on an idle board still need a redraw
+    ['pointerdown', 'pointermove', 'wheel', 'resize'].forEach(ev => window.addEventListener(ev, () => wakeLoop(), { passive: true }));
 
     window.onload = function() {
       initGame();
-      requestAnimationFrame(tick);
+      wakeLoop();
     };
   </script>
   <script src="assets/lib/qrcode.js"></script>

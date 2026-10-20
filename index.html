@@ -930,7 +930,7 @@
       state.cores.blue.hp = state.cores.blue.maxHp;
       state.cores.red.hp = state.cores.red.maxHp;
 
-      aiTimer = 2.0; aiGoal = null; aiTurretBuys = 0;
+      aiTimer = 2.0; aiGoal = null; aiTurretBuys = 0; AIS.blue = { timer: 2, turrets: 0 }; AIS.red = { timer: 2, turrets: 0 };
       // Reset Turret Pads
       state.turretPads.forEach(pad => pad.turret = null);
 
@@ -1068,10 +1068,10 @@
       state.gameTime += dt;
 
       // 1. Passive Gold Accumulation
-      const aiMul = state.mode === 'cpu' ? aiCfg().income : 1;
       const esc = escalated() ? 1.5 : 1;                     // escalation: +50% passive income
-      const gb = BASE_PASSIVE_INCOME * dt * esc * (state.aiTeam === 'blue' ? aiMul : 1);
-      const gr = BASE_PASSIVE_INCOME * dt * esc * (state.aiTeam === 'red' ? aiMul : 1);
+      const mulOf = t => { const c = state.mode === 'cpu' || state.aiTeams ? aiCfgOf(t) : null; return c ? c.income : 1; };
+      const gb = BASE_PASSIVE_INCOME * dt * esc * mulOf('blue');
+      const gr = BASE_PASSIVE_INCOME * dt * esc * mulOf('red');
       state.blueGold += gb; state.redGold += gr; addScore('blue', gb); addScore('red', gr);
 
       updateSpawnQueue(dt);
@@ -1819,17 +1819,24 @@
     // v12 remap from Ian's real play: Hard = old Normal, Normal = old Easy, Easy = new genuinely easy AI.
     // The old Hard is kept as 'brutal' (not on the menu; used by the sims).
     const AI_LEVELS = {
-      easy:   { think: [4.5, 6.5], income: 0.75, maxWorkers: 1, counter: 0.10, mistake: 0.50, nodeSmart: false, turrets: 0, heroWave: 99, heroArmy: 99, bank: false },
-      normal: { think: [3.2, 4.8], income: 0.85, maxWorkers: 2, counter: 0.25, mistake: 0.35, nodeSmart: false, turrets: 1, heroWave: 14, heroArmy: 6, bank: false },
-      hard:   { think: [2.0, 3.0], income: 1.00, maxWorkers: 3, counter: 0.65, mistake: 0.10, nodeSmart: true,  turrets: 1, heroWave: 10, heroArmy: 5, bank: false },
+      // v16: Easy unchanged; Normal = v15 Hard; Hard = new 'smart' brain (see aiSmart). oldnormal/oldhard kept hidden for sims.
+      easy:   { think: [4.5, 6.5], income: 0.75, maxWorkers: 1, counter: 0.10, mistake: 0.50, nodeSmart: false, turrets: 0, heroWave: 99, heroArmy: 99, bank: false, randomPick: true },
+      normal: { think: [2.0, 3.0], income: 1.00, maxWorkers: 3, counter: 0.65, mistake: 0.10, nodeSmart: true,  turrets: 1, heroWave: 10, heroArmy: 5, bank: false },
+      hard:   { think: [1.3, 1.7], income: 1.00, maxWorkers: 4, counter: 1.00, mistake: 0.00, nodeSmart: true,  turrets: 2, heroWave: 3, heroArmy: 2, bank: true, smart: true, comboWait: true,
+                mix: { a: [1, 0.2], w: [1.4, 0.3], b: [2, 0.4] } },
+      oldnormal: { think: [3.2, 4.8], income: 0.85, maxWorkers: 2, counter: 0.25, mistake: 0.35, nodeSmart: false, turrets: 1, heroWave: 14, heroArmy: 6, bank: false, randomPick: true },
       brutal: { think: [1.0, 1.6], income: 1.12, maxWorkers: 3, counter: 0.95, mistake: 0.00, nodeSmart: true,  turrets: 2, heroWave: 10, heroArmy: 8, bank: true }
     };
-    let aiTimer = 2.0, aiGoal = null, aiTurretBuys = 0;
-    function aiCfg() { return AI_LEVELS[state.difficulty] || AI_LEVELS.normal; }
+    // Per-team AI state; state.aiTeams = { red: 'hard', blue: 'normal' } lets sims run AI vs AI.
+    let aiTimer = 2.0, aiGoal = null, aiTurretBuys = 0, curAI = null;
+    const AIS = { blue: { timer: 2, turrets: 0 }, red: { timer: 2, turrets: 0 } };
+    function aiTeamsMap() { return state.aiTeams || (state.mode === 'cpu' && state.aiTeam ? { [state.aiTeam]: state.difficulty } : {}); }
+    function aiCfgOf(team) { const d = aiTeamsMap()[team]; return d ? (AI_LEVELS[d] || AI_LEVELS.normal) : null; }
+    function aiCfg() { return aiCfgOf(aiTeamOf()) || AI_LEVELS[state.difficulty] || AI_LEVELS.normal; }
     const padFree = p => !p.turret || p.turret.dead;
 
     // v11: the AI can play either army (state.aiTeam) and buys through the same applyCommand as players.
-    const aiTeamOf = () => state.aiTeam || 'red';
+    const aiTeamOf = () => curAI || state.aiTeam || 'red';
     const foeOf = t => (t === 'blue' ? 'red' : 'blue');
     const aiCad = () => (aiTeamOf() === 'blue' ? state.blueCadence : state.redCadence);
     const aiGold = () => (aiTeamOf() === 'blue' ? state.blueGold : state.redGold);
@@ -1844,7 +1851,7 @@
         cmd.v = pad.id;
       }
       const ok = applyCommand(T, cmd);
-      if (ok) { if (kind === 'turret') aiTurretBuys++; if (window.aiBuyHook) window.aiBuyHook(kind); }
+      if (ok) { if (kind === 'turret') AIS[T].turrets++; if (window.aiBuyHook) window.aiBuyHook(kind); }
       return ok;
     }
     function aiSetSel(want) {           // v13: AI mine selection; turn wanted ones on first so one always stays on
@@ -1856,11 +1863,20 @@
     const fromHome = (t, y) => Math.abs(y - state.cores[t].y);
 
     function updateAI(dt) {
-      if (state.mode !== 'cpu') return;
-      aiTimer -= dt;
-      if (aiTimer > 0) return;
-      const cfg = aiCfg();
-      aiTimer = cfg.think[0] + Math.random() * (cfg.think[1] - cfg.think[0]);
+      if (state.mode !== 'cpu' && !state.aiTeams) return;
+      const map = aiTeamsMap();
+      for (const t of Object.keys(map)) {
+        curAI = t; AIS[t].timer -= dt;
+        if (AIS[t].timer <= 0) {
+          const cfg = aiCfgOf(t);
+          AIS[t].timer = cfg.think[0] + Math.random() * (cfg.think[1] - cfg.think[0]);
+          aiTurretBuys = AIS[t].turrets;
+          if (cfg.smart) aiSmart(cfg); else aiThink(cfg);
+        }
+        curAI = null;
+      }
+    }
+    function aiThink(cfg) {
       const T = aiTeamOf(), P = foeOf(T);
       const half = fromHome(T, BRIDGE_Y);
 
@@ -1909,13 +1925,54 @@
         if (bc.brutes < 2 || rc.wizards < 1) opts.push('wizards');
         opts.push('brutes');
         pick = opts.sort((a, b) => rc[a] - rc[b])[0];
-        if (!counter && (state.difficulty === 'easy' || state.difficulty === 'normal')) pick = opts[Math.floor(Math.random() * opts.length)];
+        if (!counter && cfg.randomPick) pick = opts[Math.floor(Math.random() * opts.length)];
       }
       // Hard times combos: if this card's next wave lands right after an existing big spawn, wait one think
       if (cfg.bank && state.waveTimer > 3 && state.waveTimer < 6 && Math.random() < 0.5) return;
       if (aiBuy(pick)) return;
       // 7. Late game: a second turret with spare gold
       if (aiGold() > 450 && aiTurretBuys < cfg.turrets) aiBuy('turret');
+    }
+
+    // v16 HARD: built around one-worker-per-mine. Spreads 3-4 workers over Safe+Mid (+Far whenever the line
+    // allows, dropped the moment it is threatened), takes the hero as soon as it has a first army, reads the
+    // opponent's per-purchase cadence and counters it, times buys to land with its next big spawn, turrets
+    // when pushed, never idles. No income bonus.
+    function aiSmart(cfg) {
+      const T = aiTeamOf(), P = foeOf(T), half = fromHome(T, BRIDGE_Y);
+      const foeArmy = state.units.filter(u => !u.dead && u.team === P && u.type !== 'worker');
+      const mine = state.units.filter(u => !u.dead && u.team === T && u.type !== 'worker');
+      const inHalf = foeArmy.filter(u => fromHome(T, u.y) < half);
+      const clash = fromHome(T, calculateBattlelineY());
+      const workers = state.units.filter(u => !u.dead && u.team === T && u.type === 'worker').length;
+      const deep = clash < half - 410 || foeArmy.some(u => fromHome(T, u.y) < 420);
+      const far = NODE_POS[T].FAR, farDanger = foeArmy.some(u => Math.abs(u.y - far.y) < 420) || (AIS[T].lostW || 0) >= 2;
+      const midDanger = foeArmy.some(u => Math.abs(u.y - NODE_POS[T].MID.y) < 200) && inHalf.length > mine.length;
+      const useFar = !farDanger && farSafe(T);
+      aiSetSel({ SAFE: true, MID: !midDanger, FAR: useFar });
+      const g = aiGold(), rc = aiCad(), bc = T === 'red' ? state.blueCadence : state.redCadence;
+      const army = rc.archers + rc.wizards + rc.brutes;
+
+      // defend first
+      if (deep && AIS[T].turrets < cfg.turrets && inHalf.length >= 3 && aiBuy('turret')) return;
+      // economy: 3 workers (one per mine is the cap; a 4th covers return trips when Far is in use)
+      const wantW = useFar ? 4 : 3;
+      AIS[T].wBought = AIS[T].wBought || 0;
+      AIS[T].lostW = Math.max(0, AIS[T].wBought + 1 - workers);          // workers lost so far (1 starting worker)
+      if (workers < Math.min(wantW, cfg.maxWorkers) && AIS[T].wBought < 5 && !(deep && inHalf.length > mine.length + 2)) {
+        if (aiBuy('worker')) { AIS[T].wBought++; return; } if (workers < 2) return;
+      }
+      // hero as soon as a first army exists (it also defends, so a push does not delay it)
+      if (!rc.hero && army >= cfg.heroArmy) { if (aiBuy('hero')) return; return; /* bank for it */ }
+      // counter the opponent's standing orders (what keeps coming every wave)
+      // target mix = base mix + counters to what the opponent keeps ordering; buy the most under-filled card
+      const M = cfg.mix || { a: [1.5, 0.9], w: [1.2, 0.6], b: [0.8, 0.9] };
+      const want = { archers: M.a[0] + M.a[1] * bc.brutes, wizards: M.w[0] + M.w[1] * bc.archers, brutes: M.b[0] + M.b[1] * bc.wizards };
+      const pick = Object.keys(want).sort((a, b) => rc[a] / want[a] - rc[b] / want[b])[0];
+      // combo timing: buy so the new card spawns with the next wave rather than mid-wave alone
+      if (cfg.comboWait && state.waveTimer > 6 && g < COSTS[pick] + 60 && !deep) return;
+      if (aiBuy(pick)) return;
+      if (g > 420 && AIS[T].turrets < cfg.turrets && deep) aiBuy('turret');
     }
 
     // --- TUG OF WAR BATTLELINE MATH ---

@@ -1040,26 +1040,26 @@
     const VARIANTS = {
       pawn: {
         sword:  { name: 'Long Sword',     icon: '\u{1F5E1}', desc: 'Balanced (current)' },
-        mace:   { name: 'Mace',           icon: '\u2692',    desc: 'Small splash, less single-target dmg', mul: { atk: 0.80 }, meleeSplash: [34, 0.6] },
-        hammer: { name: 'Hammer',         icon: '\u{1F528}', desc: '0.5s stun per hit, slower swing',     mul: { interval: 1.35, atk: 1.15 }, stun: 0.5 },
+        mace:   { name: 'Mace',           icon: '\u2692',    desc: 'Small splash, less single-target dmg', mul: { atk: 0.80 }, meleeSplash: [34, 0.52] },
+        hammer: { name: 'Hammer',         icon: '\u{1F528}', desc: '0.5s stun per hit, slower swing',     mul: { interval: 1.32, atk: 1.16 }, stun: 0.5 },
         shield: { name: 'Sword & Shield', icon: '\u{1F6E1}', desc: 'Much tougher, less damage',            mul: { atk: 0.72 }, resistAdd: { physical: 0.30, ranged: 0.35 } }
       },
       archer: {
         short:   { name: 'Short Bow',   icon: '\u{1F3F9}', desc: 'Balanced (current)' },
-        long:    { name: 'Longbow',     icon: '\u{1F3AF}', desc: 'Outranges archers, slower fire', set: { range: 178 }, mul: { interval: 1.15 } },
-        flame:   { name: 'Flame Arrow', icon: '\u{1F525}', desc: 'Burns targets over time',        mul: { atk: 0.62 }, burn: [4.5, 3] },
-        hunting: { name: 'Hunting Bow', icon: '\u{1FAB6}', desc: 'Arrows pierce into a 2nd target', mul: { atk: 0.78 }, pierce: [1, 0.3] }
+        long:    { name: 'Longbow',     icon: '\u{1F3AF}', desc: 'Outranges archers, slower fire', cost: -10, set: { range: 146 }, mul: { interval: 1.28 } },
+        flame:   { name: 'Flame Arrow', icon: '\u{1F525}', desc: 'Burns targets over time',        cost: 10, mul: { atk: 0.62 }, burn: [7, 3] },
+        hunting: { name: 'Hunting Bow', icon: '\u{1FAB6}', desc: 'Arrows pierce into a 2nd target', cost: 20, mul: { atk: 0.84 }, pierce: [1, 1.0] }
       },
       brute: {
         base:   { name: 'Brute',        icon: '\u{1F4AA}', desc: 'Balanced (current)' },
         light:  { name: 'Light Armor',  icon: '\u{1F4A8}', desc: 'Faster, less HP',   mul: { speed: 1.22, hp: 0.92 } },
-        heavy:  { name: 'Heavy Armor',  icon: '\u{1F9F1}', desc: 'Tankier, slower',   mul: { speed: 0.78, hp: 1.07 } },
-        spiked: { name: 'Spiked Armor', icon: '\u{1F994}', desc: 'More damage, less HP', mul: { atk: 1.55, hp: 0.86 } }
+        heavy:  { name: 'Heavy Armor',  icon: '\u{1F9F1}', desc: 'Tankier, slower',   cost: 10, mul: { speed: 0.82, hp: 1.13 } },
+        spiked: { name: 'Spiked Armor', icon: '\u{1F994}', desc: 'More damage, less HP', mul: { atk: 1.16, hp: 0.90 } }
       },
       wizard: {
         battle: { name: 'Battle Mage',   icon: '\u{1F52E}', desc: 'Splash fireballs (current)' },
-        priest: { name: 'Priest',        icon: '\u271A',    desc: 'Heals allies, weak attack', cost: -40, set: { atk: 18, splash: 0 }, heal: 50 },
-        banner: { name: 'Banner Bearer', icon: '\u{1F6A9}', desc: 'Aura: nearby allies faster + stronger', cost: -50, set: { atk: 22, splash: 0, hp: 215 }, aura: [140, 0.25, 0.36] }
+        priest: { name: 'Priest',        icon: '\u271A',    desc: 'Heals allies, weak attack', cost: -40, set: { atk: 18, splash: 0 }, heal: 47 },
+        banner: { name: 'Banner Bearer', icon: '\u{1F6A9}', desc: 'Aura: nearby allies faster + stronger', cost: -50, set: { atk: 22, splash: 0, hp: 215 }, aura: [140, 0.25, 0.45] }
       }
     };
     const SLOT_OF = { pawn: 'pawn', archer: 'archer', brute: 'brute', wizard: 'wizard' };
@@ -2094,10 +2094,10 @@
     // v17 AI loadouts. Easy: random. Normal: a sensible mix. Hard: counter-picks the player's loadout
     // (COUNTER_PICK comes from the AI-vs-AI variant matrix in BALANCE_v17.md).
     const COUNTER_PICK = {
-      pawn:   { sword: 'hammer', mace: 'shield', hammer: 'mace', shield: 'hammer' },
-      archer: { short: 'long', long: 'hunting', flame: 'long', hunting: 'flame' },
-      brute:  { base: 'spiked', light: 'heavy', heavy: 'spiked', spiked: 'light' },
-      wizard: { battle: 'battle', priest: 'battle', banner: 'battle' }
+      pawn:   { sword: 'shield', mace: 'shield', hammer: 'mace', shield: 'hammer' },
+      archer: { short: 'flame', long: 'flame', flame: 'long', hunting: 'long' },
+      brute:  { base: 'light', light: 'base', heavy: 'light', spiked: 'base' },
+      wizard: { battle: 'battle', priest: 'battle', banner: 'priest' }
     };
     const SENSIBLE = { pawn: ['sword', 'shield', 'hammer'], archer: ['short', 'long', 'flame'], brute: ['base', 'heavy', 'spiked'], wizard: ['battle', 'battle', 'priest'] };
     function aiPickLoadout(diff, playerLo) {

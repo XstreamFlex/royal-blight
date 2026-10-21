@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-  <title>Royal Blight BETA v21</title>
+  <title>Royal Blight BETA v22</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -303,7 +303,7 @@
     <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
       <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
       <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v21</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v22</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -888,7 +888,7 @@
         this.resist = opts.resist || {};
         this.attackCooldown = Math.random() * 0.4;
         this.variant = opts.variant || null;
-        ['meleeSplash', 'stun', 'burn', 'pierce', 'heal', 'aura', 'splash'].forEach(k => { if (opts[k] !== undefined) this[k] = opts[k]; });
+        ['meleeSplash', 'stun', 'burn', 'pierce', 'heal', 'aura', 'splash', 'holy', 'falloff'].forEach(k => { if (opts[k] !== undefined) this[k] = opts[k]; });
         this.attackAnimTimer = 0;
         this.flash = 0;
         this.dead = false;
@@ -1013,7 +1013,7 @@
                 resist: { magic: 0.2 } },                                   // BALANCE v8: 20% vs wizard fireballs
       archer: { hp: 90,  speed: 42, atk: 22, range: 140, interval: 1.5 },   // BALANCE: 1.3s -> 1.5s
       wizard: { hp: 175, speed: 44, atk: 38, range: 125, interval: 1.4,     // BALANCE: dmg 34->38, speed 40->44
-                splash: 72,                                                 // v21: 85 -> 72px (was overtuned vs clumps; BALANCE: 65 -> 85)
+                splash: 85,                                                 // v22: back to 85px; clump scaling now handled by falloff (v21 had 72)
                 resist: { ranged: 0.5, turret: 0.3, physical: -1.0 } },     // 50% arrows, 30% turret bolts; BALANCE v7: takes 2x melee
       brute:  { hp: 462, speed: 34, atk: 28, range: 26,  interval: 1.5, radius: 20,
                 resist: { magic: 0.70 } }                                   // BALANCE v7: 70% vs wizard fireballs, HP 462
@@ -1057,9 +1057,12 @@
         spiked: { name: 'Spiked Armor', icon: '\u{1F994}', desc: 'More damage, less HP', mul: { atk: 1.16, hp: 0.90 } }
       },
       wizard: {
-        battle: { name: 'Battle Mage',   icon: '\u{1F52E}', desc: 'Splash fireballs (current)' },
-        priest: { name: 'Priest',        icon: '\u271A',    desc: 'Heals allies, weak attack', cost: -40, set: { atk: 18, splash: 0 }, heal: 47 },
-        banner: { name: 'Banner Bearer', icon: '\u{1F6A9}', desc: 'Aura: nearby allies faster + stronger', cost: -50, set: { atk: 22, splash: 0, hp: 215 }, aura: [140, 0.25, 0.45] }
+        // v22: Battle Mage splash has falloff [edge fraction, max extra targets, decay per extra target]
+        battle: { name: 'Battle Mage',   icon: '\u{1F52E}', desc: 'Fireballs: full hit + falloff splash', falloff: [0.75, 6, 0.9] },
+        // v22: Priest holy burst [radius, enemy dmg = atk, ally heal]: small splash that chips enemies and heals allies in the area
+        priest: { name: 'Priest',        icon: '\u271A',    desc: 'Holy burst: chips foes, heals allies around it', cost: -40, set: { atk: 12, splash: 0 }, holy: [60, 14] },
+        // v22: Banner aura { r radius, spd move+, as attack speed+, dr damage taken-, dmg damage+ }; stays behind the front line
+        banner: { name: 'Banner Bearer', icon: '\u{1F6A9}', desc: 'War banner: nearby melee hit faster, take less dmg', cost: -50, set: { atk: 22, splash: 0, hp: 215 }, aura: { r: 175, spd: 0.12, as: 0.19, dr: 0.13, dmg: 0.06, melee: true } }
       }
     };
     const SLOT_OF = { pawn: 'pawn', archer: 'archer', brute: 'brute', wizard: 'wizard' };
@@ -1074,7 +1077,7 @@
       if (v.mul) for (const k in v.mul) st[k] = Math.round(base[k] * v.mul[k] * 100) / 100;
       if (v.set) Object.assign(st, v.set);
       if (v.resistAdd) { st.resist = Object.assign({}, base.resist || {}); for (const k in v.resistAdd) st.resist[k] = (st.resist[k] || 0) + v.resistAdd[k]; }
-      ['meleeSplash', 'stun', 'burn', 'pierce', 'heal', 'aura'].forEach(k => { if (v[k] !== undefined) st[k] = v[k]; });
+      ['meleeSplash', 'stun', 'burn', 'pierce', 'heal', 'aura', 'holy', 'falloff'].forEach(k => { if (v[k] !== undefined) st[k] = v[k]; });
       return st;
     }
     function costOf(team, k) {
@@ -1435,8 +1438,8 @@
       state.units.forEach(b => {
         if (b.dead || !b.aura) return;
         state.units.forEach(a => {
-          if (!a.dead && a.team === b.team && a !== b && a.type !== 'worker' && Math.hypot(a.x - b.x, a.y - b.y) <= b.aura[0]) {
-            a.auraT = 0.25; a.auraSpd = b.aura[1]; a.auraDmg = b.aura[2];
+          if (!a.dead && a.team === b.team && a !== b && a.type !== 'worker' && (!b.aura.melee || a.range <= 40) && Math.hypot(a.x - b.x, a.y - b.y) <= b.aura.r) {
+            a.auraT = 0.25; a.auraSpd = b.aura.spd; a.auraDmg = b.aura.dmg; a.auraAs = b.aura.as; a.auraDr = b.aura.dr;
           }
         });
       });
@@ -1462,7 +1465,6 @@
     }
     function updateCombatMinion(u, dt) {
       const spd = u.speed * (u.auraT > 0 ? 1 + u.auraSpd : 1);
-      if (u.heal && u.attackCooldown <= 0 && priestHeal(u)) { u.attackCooldown = u.attackInterval; u.attackAnimTimer = 0.22; }
       // Find nearest enemy unit or turret within aggro threshold
       let target = findNearestTarget(u.x, u.y, u.range + 90, u.team);
 
@@ -1483,7 +1485,7 @@
           // In combat range: Halt and attack
           if (u.attackCooldown <= 0) {
             triggerAttack(u, target);
-            u.attackCooldown = u.attackInterval;
+            u.attackCooldown = u.attackInterval / (u.auraT > 0 ? 1 + (u.auraAs || 0) : 1);   // v22 banner attack speed
             u.attackAnimTimer = 0.22;
           }
         } else {
@@ -1494,6 +1496,11 @@
       } else {
         // March down lane towards enemy citadel
         const marchDir = (u.team === 'blue') ? -1 : 1;
+        if (u.aura) {                                            // v22 Banner: walk with the front line, ~50px behind the lead ally
+          let lead = null;
+          state.units.forEach(a => { if (!a.dead && a.team === u.team && a !== u && a.type !== 'worker' && !a.aura && Math.abs(a.y - u.y) < 400 && (!lead || (a.y - lead.y) * marchDir > 0)) lead = a; });
+          if (lead && (lead.y - u.y) * marchDir < 50) { u.x += (laneCentreX(u.lane) + u.laneOffset - u.x) * 2.5 * dt; return; }
+        }
         const eCore = (u.team === 'blue') ? state.cores.red : state.cores.blue;
         const toCore = (eCore.y - u.y) * marchDir;              // v20: >0 core still ahead, <0 unit is behind it
         if (toCore < 160) {                                      // v20: at/behind the nexus -> close in on it, never walk past
@@ -1604,7 +1611,10 @@
         sound.playMagicBurst();
         state.projectiles.push({ type: 'soulbolt', team: u.team, x: u.x, y: u.y, target, targetX: target.x, targetY: target.y,
           damage: u.effectiveAtk, damageType: 'magic', speed: 330, src: u, soul: true });
-      } else if (u.type === 'wizard' && !u.splash) {          // v17 Priest / Banner: weak single-target bolt
+      } else if (u.type === 'wizard' && u.holy) {             // v22 Priest: holy burst (chip enemies + heal allies)
+        state.projectiles.push({ type: 'holy', team: u.team, x: u.x, y: u.y, target, targetX: target.x, targetY: target.y,
+          damage: u.effectiveAtk, damageType: 'magic', speed: 300, src: u, holy: u.holy });
+      } else if (u.type === 'wizard' && !u.splash) {          // v17 Banner: weak single-target bolt
         state.projectiles.push({ type: 'fireball', team: u.team, x: u.x, y: u.y, target, targetX: target.x, targetY: target.y,
           damage: u.effectiveAtk, damageType: 'magic', speed: 320, src: u });
       } else if (u.type === 'wizard') {
@@ -1620,6 +1630,7 @@
           damage: u.effectiveAtk,
           damageType: 'magic',
           splashRadius: u.splash || UNIT_STATS.wizard.splash,
+          falloff: u.falloff,
           speed: 300,
           src: u
         });
@@ -1638,6 +1649,7 @@
           return;
         }
       }
+      if (target.auraT > 0 && target.auraDr && dmg > 0) dmg = Math.max(1, Math.round(dmg * (1 - target.auraDr)));   // v22 banner armor
       if (dmgType && target.resist && target.resist[dmgType]) {
         const r = target.resist[dmgType];
         dmg = Math.max(1, Math.round(dmg * (1 - r)));
@@ -1830,7 +1842,31 @@
         const dist = Math.hypot(dx, dy);
 
         if (dist < 18) {
-          if (p.splashRadius) {
+          if (p.holy) {                                        // v22 Priest holy burst
+            const [hr, heal] = p.holy;
+            state.particles.push({ type: 'shockwave', color: '250,204,21', x: p.x, y: p.y, radius: 8, maxRadius: hr, life: 0.4, maxLife: 0.4 });
+            createSparks(p.x, p.y, '#fde68a', 8);
+            state.units.forEach(u => {
+              if (u.dead || u.type === 'worker' || Math.hypot(u.x - p.x, u.y - p.y) > hr) return;
+              if (u.team !== p.team) dealDamage(u, u === p.target ? p.damage : Math.round(p.damage * 0.6), p.src, p.damageType);
+              else if (u.hp < u.maxHp) {
+                const h = Math.min(heal, u.maxHp - u.hp); u.hp += h;
+                if (p.src) p.src.dmgDealt = (p.src.dmgDealt || 0) + h; if (window.dmgHook && p.src) window.dmgHook(p.src, h, u);
+                state.particles.push({ type: 'plus', x: u.x + (Math.random() - 0.5) * 10, y: u.y - 10, vx: 0, vy: -38, life: 0.7, maxLife: 0.7 });
+              }
+            });
+            if (p.target && !p.target.dead && !(p.target instanceof Unit)) dealDamage(p.target, p.damage, p.src, p.damageType);
+          } else if (p.splashRadius && p.falloff) {           // v22 Battle Mage: full primary hit, distance falloff, capped + decaying extras
+            const [edge, cap, decay] = p.falloff;
+            createSparks(p.x, p.y, (p.team === 'blue' ? '#38bdf8' : '#c084fc'), 10);
+            const hits = state.units.filter(u => !u.dead && u.team !== p.team && u !== p.target && Math.hypot(u.x - p.x, u.y - p.y) <= p.splashRadius)
+              .map(u => ({ u, d: Math.hypot(u.x - p.x, u.y - p.y) })).sort((a, b) => a.d - b.d).slice(0, cap);
+            if (p.target && !p.target.dead) dealDamage(p.target, p.damage, p.src, p.damageType);
+            hits.forEach((o, k) => {
+              const f = (1 - (1 - edge) * (o.d / p.splashRadius)) * Math.pow(decay, k);
+              dealDamage(o.u, Math.max(1, Math.round(p.damage * f)), p.src, p.damageType);
+            });
+          } else if (p.splashRadius) {
             // Splash damage
             createSparks(p.x, p.y, (p.team === 'blue' ? '#38bdf8' : '#c084fc'), 10);
             // v10 anti-stacking: a unit already splashed in the last 0.4s takes 50% from further
@@ -1969,6 +2005,8 @@
         p.life -= dt;
         if (p.type === 'shockwave') {
           p.radius += (p.maxRadius - p.radius) * 10 * dt;
+        } else if (p.type === 'plus') {
+          p.y += p.vy * dt;
         } else {
           p.x += p.vx * dt;
           p.y += p.vy * dt;
@@ -2578,6 +2616,15 @@
         ctx.ellipse(u.x, u.y + (u.radius * 0.8), u.radius * 0.9, u.radius * 0.45, 0, 0, Math.PI * 2);
         ctx.fill();
 
+        if (u.aura) {                                          // v22 Banner: visible aura ring
+          const g = 0.5 + 0.5 * Math.sin(performance.now() / 300);
+          ctx.strokeStyle = `rgba(251,146,60,${0.55 + 0.35 * g})`; ctx.fillStyle = "rgba(251,146,60,0.12)"; ctx.lineWidth = 4;
+          ctx.setLineDash([10, 8]); ctx.beginPath(); ctx.ellipse(u.x, u.y, u.aura.r, u.aura.r * 0.8, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+        }
+        if (u.auraT > 0 && !u.aura) {                          // v22: buffed allies glow
+          ctx.fillStyle = 'rgba(251,146,60,0.35)'; ctx.beginPath(); ctx.ellipse(u.x, u.y + u.radius * 0.8, u.radius * 1.3, u.radius * 0.65, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#fb923c'; ctx.lineWidth = 2; ctx.stroke();
+        }
         if (u.type === 'cavalier' || u.type === 'acolyte') {   // hero aura
           const g = 0.5 + 0.5 * Math.sin(performance.now() / 260);
           ctx.strokeStyle = u.team === 'blue' ? `rgba(250,204,21,${0.45 + 0.4 * g})` : `rgba(163,230,53,${0.45 + 0.4 * g})`;
@@ -2895,6 +2942,9 @@
           ctx.beginPath();
           ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
           ctx.fill();
+        } else if (p.type === 'holy') {
+          ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(p.x, p.y, 2.2, 0, Math.PI * 2); ctx.fill();
         } else if (p.type === 'soulbolt') {
           ctx.fillStyle = '#a3e635'; ctx.shadowColor = '#a3e635'; ctx.shadowBlur = 10;
           ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
@@ -2915,13 +2965,16 @@
         ctx.save();
         if (p.type === 'shockwave') {
           const alpha = p.life / p.maxLife;
-          ctx.strokeStyle = (p.team === 'blue') 
+          ctx.strokeStyle = p.color ? `rgba(${p.color}, ${alpha})` : (p.team === 'blue')
             ? `rgba(96, 165, 250, ${alpha})` 
             : `rgba(244, 63, 94, ${alpha})`;
           ctx.lineWidth = 8 * alpha;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
           ctx.stroke();
+        } else if (p.type === 'plus') {                        // v22 Priest heal '+'
+          ctx.globalAlpha = Math.max(0, p.life / p.maxLife); ctx.font = 'bold 15px Fredoka, sans-serif'; ctx.textAlign = 'center';
+          ctx.strokeStyle = '#14532d'; ctx.lineWidth = 3; ctx.strokeText('+', p.x, p.y); ctx.fillStyle = '#4ade80'; ctx.fillText('+', p.x, p.y);
         } else {
           ctx.fillStyle = p.color;
           ctx.beginPath();

@@ -83,7 +83,7 @@
       brief: 'Take back the scorched farmland one farmstead at a time. Push into each farm and hold it to replant it; every held farm pays bonus gold. Watch for fire-lines flaring across the rows.',
       objectives: [{ k: 'hold', name: 'Farmsteads', guards: true, secs: 14, mode: 'sequence', pay: 60, zones: [{ y: 1420, h: 80, name: 'South farm' }, { y: 1110, h: 80, name: 'Mill farm' }, { y: 800, h: 80, name: 'East farm' }] }],
       hazards: [{ k: 'fireline', every: 16, warn: 2.2, dur: 4, dps: 14, h: 46 }], noNexusWin: true, timeLimit: 900,
-      stars: ['Recapture all 3 farms', 'Nexus above 50%', 'Hold all 3 farms at the same time'],
+      stars: ['Recapture all 3 farms', 'Nexus above 50%', 'No farm lost, under 4:00'],
       before: [['Vesper', 'Take the south farm first. Felix never guards it.']], after: [['Farmer', '(presses one seed into the ash)'], ['Rufus', 'That\u2019s how it starts. One field at a time.']], cut: ['ch1_m04_fields_reclaimed'] },
     M05: { region: 'eastmarch', name: 'Windmill Ridge', type: 'DEF', map: 'farmland', gold: 260, reward: ['G2', 'X2'], unlock: ['archer:flame'],
       ai: { level: 'normal', strat: 'push', income: 1.0 },
@@ -125,7 +125,7 @@
     return 'orange';
   }
   // v27 controlling army per region (border color). A freed region flies the Royal Blue of Paradale.
-  const ARMY = { paradale: ['Royal Blue', '#2563eb'], eastmarch: ['Green Army', '#22c55e'], westreach: ['Yellow Army', '#eab308'], northcrag: ['Silver Army', '#e5e7eb'], southmire: ['Grave Purple', '#9333ea'] };
+  const ARMY = { paradale: ['Royal Blue', '#2563eb'], eastmarch: ['Green Army', '#a3a322', 'url(#rbWheat)'], westreach: ['Yellow Army', '#eab308'], northcrag: ['Silver Army', '#e5e7eb'], southmire: ['Grave Purple', '#9333ea'] };
   function controller(rk) { const r = REGIONS[rk]; if (r.hub || (r.missions.length && won(r.missions[r.missions.length - 1]))) return ARMY.paradale; return ARMY[rk]; }
   const MAP_C = [50, 47], DIRA = { east: 0, south: 90, west: 180, north: 270 };
   function regionPath(rk) {             // wedge between the capital ring and the coast, in 0-100 map space
@@ -204,7 +204,7 @@
     const R = S.R; if (!R.guards) return;
     const down = R.guards.filter(u => u.dead).length;
     if (down > R.guardsDown) { R.guardsDown = down; R.barnRate = 0.5 + 0.5 * down / R.guards.length;
-      toast(down === R.guards.length ? 'Last guard down! Felix musters at full strength.' : `Guard down! Felix musters faster (${Math.round(R.barnRate * 100)}%)`, '#fb923c'); }
+      toast(down === R.guards.length ? 'Last guard down! Felix musters at full strength.' : `Guard down! Felix musters faster (${Math.round(R.barnRate * 100)}%)`, '#fb923c'); S.bark('guard_down'); }
   }
   function setupObjective(o, i) {
     const R = S.R, st = R.obj[i] = { o, done: false, failed: false };
@@ -259,9 +259,9 @@
         if (!active) return;
         if (!st.owned[i]) {
           if (b > 0 && b > r) st.held[i] = Math.min(o.secs, st.held[i] + dt); else if (r > b) st.held[i] = Math.max(0, st.held[i] - dt * 0.5);
-          if (st.held[i] >= o.secs) { st.owned[i] = true; st.loseT[i] = 0; if (o.pay) { state.blueGold += o.pay; addFloatingText(LANE_X, z.y, '+' + o.pay + 'g REPLANTED!', '#4ade80', 16); } if (o.mode === 'sequence') st.idx = Math.max(st.idx, i + 1); toast(z.name + ' recaptured!', '#4ade80'); }
+          if (st.held[i] >= o.secs) { st.owned[i] = true; st.loseT[i] = 0; if (o.pay) { state.blueGold += o.pay; addFloatingText(LANE_X, z.y, '+' + o.pay + 'g REPLANTED!', '#4ade80', 16); } if (o.mode === 'sequence') st.idx = Math.max(st.idx, i + 1); toast(z.name + ' recaptured!', '#4ade80'); S.bark('farm_won'); }
         } else if (r > 0 && b === 0) {                        // enemy retakes a farm it sits in for 10s
-          st.loseT[i] += dt; if (st.loseT[i] > 10) { st.owned[i] = false; st.held[i] = 0; toast(z.name + ' lost!', '#f87171'); if (o.mode === 'sequence') st.idx = Math.min(st.idx, i); }
+          st.loseT[i] += dt; if (st.loseT[i] > 10) { st.owned[i] = false; st.held[i] = 0; st.everLost = true; toast(z.name + ' lost!', '#f87171'); S.bark('farm_lost'); if (o.mode === 'sequence') st.idx = Math.min(st.idx, i); }
         } else st.loseT[i] = Math.max(0, st.loseT[i] - dt);
       });
       if (st.owned.every(Boolean)) { st.allAtOnce = true; st.done = true; }
@@ -271,7 +271,7 @@
       st.left = Math.max(0, o.secs - R.t);
       if (st.enemyT >= o.maxEnemy) st.failed = true; else if (st.left <= 0) st.done = true;
     } else if (o.k === 'beacons') {
-      o.ys.forEach((y, i) => { if (!st.lit[i] && B.some(u => Math.abs(u.y - y) < 30)) { st.lit[i] = true; toast('Lantern lit! (' + st.lit.filter(Boolean).length + '/3)', '#fde68a'); createSparks(LANE_X + 80, y, '#facc15', 16); } });
+      o.ys.forEach((y, i) => { if (!st.lit[i] && B.some(u => Math.abs(u.y - y) < 30)) { st.lit[i] = true; toast('Lantern lit! (' + st.lit.filter(Boolean).length + '/3)', '#fde68a'); S.bark('lantern'); createSparks(LANE_X + 80, y, '#facc15', 16); } });
       st.done = st.lit.every(Boolean);
     } else if (o.k === 'evac') {
       st.next -= dt;
@@ -299,7 +299,7 @@
         const near = B.filter(u => Math.hypot(u.x - c.u.x, u.y - c.u.y) < 70).length, foes = Rd.filter(u => Math.hypot(u.x - c.u.x, u.y - c.u.y) < 90).length;
         if (near > 0 && foes === 0) c.prog += dt; else c.prog = Math.max(0, c.prog - dt * 0.5);
         if (c.prog >= 3) {
-          c.freed = true; c.u.dead = true; toast(c.c.name + ' is free!', '#4ade80');
+          c.freed = true; c.u.dead = true; toast(c.c.name + ' is free!', '#4ade80'); S.bark('freed');
           if (c.c.hero) { R.trialHero = true; state.blueCadence.hero = 1; const h = spawnUnit('cavalier', 'blue', 'C', 0); h.y = c.c.y + 40; }
           else for (let k = 0; k < (c.c.n || 1); k++) { state.blueCadence[c.c.unit] = (state.blueCadence[c.c.unit] || 0) + 1; addOrder('blue', c.c.unit); }
         }
@@ -315,7 +315,7 @@
       if (st.mine >= o.target) st.done = true; else if (st.theirs >= o.target) st.failed = true;
     } else if (o.k === 'survive') {
       st.left = Math.max(0, o.secs - R.t);
-      if (st.left <= 0 && !st.arrived) { st.arrived = true; st.done = true; toast('REINFORCEMENTS HAVE ARRIVED!', '#4ade80');
+      if (st.left <= 0 && !st.arrived) { st.arrived = true; st.done = true; toast('REINFORCEMENTS HAVE ARRIVED!', '#4ade80'); S.bark('reinf');
         (o.reinforce || [['brute', 4], ['archer', 4], ['pawn', 8]]).forEach(([ty, n]) => { for (let k = 0; k < n; k++) state.spawnQ.blue.push(ty); }); }
     } else if (o.k === 'deadline') {
       st.left = Math.max(0, o.secs - R.t);
@@ -332,7 +332,7 @@
       if (Math.abs(d) < 8) {
         u.dead = true;
         if (u.evac) { u.evac.saved++; addFloatingText(u.x, u.y - 14, 'SAFE!', '#4ade80', 13); }
-        if (u.wagon) { u.wagon.arrived++; if (u.team === 'red') { state.redUpgradeLevel += 0.25; toast('A wagon reached Felix! His army burns hotter.', '#fb923c'); } else { state.blueGold += 120; addFloatingText(u.x, u.y, '+120g', '#facc15', 15); } }
+        if (u.wagon) { u.wagon.arrived++; if (u.team === 'red') { state.redUpgradeLevel += 0.25; toast('A wagon reached Felix! His army burns hotter.', '#fb923c'); S.bark('wagon_in'); } else { state.blueGold += 120; addFloatingText(u.x, u.y, '+120g', '#facc15', 15); } }
         return;
       }
       u.y += Math.sign(d) * u.speed * dt; u.walkAnim += dt * 6;
@@ -361,11 +361,11 @@
     });
   }
   function tickBoss(dt) {
-    const R = S.R, b = R.boss; if (b.dead) { if (!R.bossDown) { R.bossDown = true; toast('FELIX FALLS! HIS NEXUS IS EXPOSED', '#4ade80'); } return; }
+    const R = S.R, b = R.boss; if (b.dead) { if (!R.bossDown) { R.bossDown = true; toast('FELIX FALLS! HIS NEXUS IS EXPOSED', '#4ade80'); S.bark('felix_down'); } return; }
     const f = b.hp / b.maxHp, cr = state.cores.red;
     R.shieldHp = R.shieldHp || cr.hp; cr.hp = Math.max(cr.hp, R.shieldHp);          // nexus shielded while Felix stands
-    if (R.phase === 1 && f < 0.66) { R.phase = 2; toast('PHASE 2: FIRE-LINES SPLIT THE LANE', '#fb923c'); }
-    if (R.phase === 2 && f < 0.33) { R.phase = 3; toast('PHASE 3: RAIN OF ARROWS!', '#f87171'); }
+    if (R.phase === 1 && f < 0.66) { R.phase = 2; toast('PHASE 2: FIRE-LINES SPLIT THE LANE', '#fb923c'); S.bark('phase2'); }
+    if (R.phase === 2 && f < 0.33) { R.phase = 3; toast('PHASE 3: RAIN OF ARROWS!', '#f87171'); S.bark('phase3'); }
     if (R.phase >= 2 && !S.m.hazards) S.m._hz = S.m._hz || { k: 'fireline', every: 9, warn: 2, dur: 3.5, dps: 16, h: 44 };
     if (R.phase >= 2) tickHazard(S.m._hz, 9, dt);
     if (R.phase >= 3) {
@@ -400,7 +400,7 @@
       case 'M01': s[1] = core > 0.5; s[2] = R.t <= m.par; break;
       case 'M02': { const e = get('evac'); s[1] = e.lost <= 1; s[2] = e.lost === 0; break; }
       case 'M03': { const e = get('intercept'); s[1] = e.killed >= 7; s[2] = e.killed >= 8; break; }
-      case 'M04': s[1] = R.minCoreFrac > 0.5; s[2] = get('hold').allAtOnce; break;
+      case 'M04': s[1] = R.minCoreFrac > 0.5; s[2] = get('hold').allAtOnce && !get('hold').everLost && R.t < 240; break;
       case 'M05': s[1] = get('defend').enemyT < 10; s[2] = R.turretsLost === 0; break;
       case 'M06': s[1] = get('rescue').done; s[2] = R.jousts >= 3; break;
       case 'M07': s[1] = core > 0.5; s[2] = R.minCoreFrac >= 0.75; break;
@@ -524,6 +524,11 @@
     const menuBox = $('btn-loadout');
     menuBox.insertAdjacentHTML('beforebegin', `<button id="btn-story" class="w-full max-w-xs mb-2 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 text-slate-950 font-black text-sm uppercase tracking-wider shadow-lg active:scale-95">\u{1F4D6} Story <span class="normal-case font-bold text-[10px]">\u00B7 Act 1</span></button>`);
     $('btn-story').onclick = () => S.openMap();
+    // v29: voices toggle + credits
+    $('btn-friend').insertAdjacentHTML('afterend', `<div class="w-full max-w-xs grid grid-cols-2 gap-2 mt-2"><button id="btn-vo" class="py-2 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase active:scale-95"></button><button id="btn-credits" class="py-2 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase active:scale-95">\u{1F4DC} Credits</button></div>`);
+    const voLbl = () => $('btn-vo').textContent = S.voMuted() ? '\u{1F507} Voices off' : '\u{1F50A} Voices on';
+    voLbl(); $('btn-vo').onclick = () => { S.setVoMute(!S.voMuted()); voLbl(); };
+    $('btn-credits').onclick = () => showPanel('Credits', CREDITS_HTML);
   }
   function showPanel(title, html, buttons) {
     const b = $('modal-brief');
@@ -533,7 +538,94 @@
     b.classList.remove('hidden');
     return new Promise(res => b.querySelectorAll('button[data-k]').forEach(x => x.onclick = () => { b.classList.add('hidden'); res(x.dataset.k); }));
   }
-  const cutSlot = key => `<div class="my-2 mx-auto rounded-lg border border-dashed border-amber-500/60 bg-black/60 flex flex-col items-center justify-center text-amber-200/80" style="width:120px;aspect-ratio:9/16" data-cutscene="${key}"><div class="text-2xl">\u{1F3AC}</div><div class="text-[9px] font-bold px-1">Cutscene<br>${esc(key)}<br>(9:16, coming)</div></div>`;
+
+  // ---- v29: dialogue (portraits + speech bubbles + pre-rendered Piper voice) ----
+  const BARKS = {
+    farm_won: ['Farmer', 'Bless you, Majesty! The rows will grow again.'],
+    farm_lost: ['Pip', 'They took a farm back! Hurry!'],
+    guard_down: ['Garrow', 'One less guard. Felix will feel that.'],
+    lantern: ['Ruphene', 'One more lantern lit!'],
+    freed: ['Garrow', 'Free at last! Now, where is my horse?'],
+    reinf: ['Ruphene', 'Reinforcements! Right on time.'],
+    wagon_in: ['Felix', 'More oil! Burn it all!'],
+    phase2: ['Felix', 'You want fire? I will split this field in two!'],
+    phase3: ['Felix', 'Rain, arrows! Rain on them all!'],
+    felix_down: ['Felix', 'The fire... it is going out...'],
+  };
+  S.BARKS = BARKS;
+  const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', '???': 'mystery' };
+  const LEFT = { Rufus: 1, Ruphene: 1, Garrow: 1, Pip: 1, Farmer: 1, Vesper: 1 };
+  let VO = null, voAudio = null;
+  fetch('assets/vo/index.json').then(r => r.json()).then(j => VO = j).catch(() => {});
+  S.voMuted = () => localStorage.getItem('rb.voMute') === '1';
+  S.setVoMute = m => { localStorage.setItem('rb.voMute', m ? '1' : '0'); if (m && voAudio) voAudio.pause(); };
+  function playVo(key) {
+    if (voAudio) { voAudio.pause(); voAudio = null; }
+    if (S.voMuted() || !VO || !VO[key]) return null;
+    try { voAudio = new Audio('assets/vo/' + key + '.m4a?' + VO[key].h); voAudio.volume = 0.95; voAudio.play().catch(() => {}); } catch (e) { voAudio = null; }
+    return voAudio;
+  }
+  const portraitHtml = (who, size) => { const p = PORTRAIT[who];
+    return p ? `<img src="assets/portraits/${p}.webp" alt="${esc(who)}" style="width:${size}px;height:${size}px" class="rounded-2xl bg-gradient-to-b from-sky-700 to-slate-900 border-[3px] border-amber-300 shadow-xl object-contain">`
+             : `<div style="width:${size}px;height:${size}px" class="rounded-2xl bg-slate-800 border-[3px] border-amber-300 shadow-xl flex items-center justify-center text-4xl">\u{1F4DC}</div>`; };
+  // full-screen dialogue: tap to advance, Skip, mute toggle. prefix = mission id + '_b' / '_a'
+  S.dialogue = function (lines, prefix) {
+    lines = (lines || []).filter(l => l && l[1]);
+    if (!lines.length) return Promise.resolve();
+    let el = $('rb-dialogue');
+    if (!el) { el = document.createElement('div'); el.id = 'rb-dialogue'; el.className = 'fixed inset-0 z-[80] flex flex-col justify-end'; document.body.appendChild(el); }
+    el.classList.remove('hidden');
+    return new Promise(done => {
+      let i = 0, t = null;
+      const finish = () => { clearTimeout(t); if (voAudio) voAudio.pause(); el.classList.add('hidden'); el.innerHTML = ''; done(); };
+      const show = () => {
+        clearTimeout(t);
+        if (i >= lines.length) return finish();
+        const [w0, txt] = lines[i], who = w0 || 'Narrator', left = !!LEFT[who] || who === 'Narrator', muted = S.voMuted();
+        const clean = String(txt);
+        el.innerHTML = `<div class="absolute inset-0 bg-black/55"></div>
+          <div class="absolute top-3 right-3 flex gap-2 z-10">
+            <button data-d="mute" class="px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-500 text-lg" aria-label="Toggle voices">${muted ? '\u{1F507}' : '\u{1F50A}'}</button>
+            <button data-d="skip" class="px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-500 text-xs font-black text-slate-100 uppercase">Skip \u23ED</button></div>
+          <div class="relative w-full max-w-md mx-auto px-3 pb-8 flex ${left ? 'flex-row' : 'flex-row-reverse'} items-end gap-2" style="animation:rbpop .18s ease-out">
+            <div class="shrink-0 flex flex-col items-center">${portraitHtml(who, 96)}<div class="mt-1 px-2 rounded-md bg-amber-400 text-slate-950 text-[11px] font-black uppercase">${esc(who === 'Narrator' ? 'Narrator' : who)}</div></div>
+            <div class="relative flex-1 mb-6 bg-white text-slate-900 rounded-2xl px-3 py-3 shadow-2xl border-[3px] border-slate-900 text-[15px] font-bold leading-snug">
+              <div class="absolute bottom-3 ${left ? '-left-3' : '-right-3'} w-0 h-0" style="border-top:10px solid transparent;border-bottom:10px solid transparent;${left ? 'border-right:12px solid #0f172a' : 'border-left:12px solid #0f172a'}"></div>
+              ${who === 'Narrator' ? `<i>${esc(clean)}</i>` : esc(clean).replace(/\*([^*]+)\*/g, '<b><i>$1</i></b>').replace(/\(([^)]*)\)/g, '<span class="block text-[11px] text-slate-500 italic font-semibold">($1)</span>')}
+              <div class="text-right text-[10px] text-slate-500 font-black mt-1">${i + 1}/${lines.length} \u00B7 tap \u25B6</div></div></div>
+          <style>@keyframes rbpop{from{transform:translateY(14px) scale(.96);opacity:.3}to{transform:none;opacity:1}}</style>`;
+        const a = playVo(prefix + i);
+        // auto-advance after voice ends (+0.9s) or reading time when muted
+        const next = () => { i++; show(); };
+        if (a) a.onended = () => { t = setTimeout(next, 900); };
+        else t = setTimeout(next, 1800 + clean.length * 55);
+        el.onclick = e => { const d = e.target.closest('[data-d]'); if (d && d.dataset.d === 'skip') return finish();
+          if (d && d.dataset.d === 'mute') { S.setVoMute(!S.voMuted()); d.textContent = S.voMuted() ? '\u{1F507}' : '\u{1F50A}'; return; } next(); };
+      };
+      show();
+    });
+  };
+  // small non-blocking mid-mission bubble (top of screen)
+  let barkT = null;
+  S.bark = function (key) {
+    const b = BARKS[key]; if (!b || !S.R) return;
+    let el = $('rb-bark');
+    if (!el) { el = document.createElement('div'); el.id = 'rb-bark'; el.className = 'fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-none w-[92%] max-w-sm'; el.style.top = '118px'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="flex items-center gap-2" style="animation:rbpop .18s ease-out">${portraitHtml(b[0], 54)}<div class="flex-1 bg-white text-slate-900 rounded-2xl px-2 py-1.5 border-[3px] border-slate-900 shadow-xl text-[12px] font-bold leading-tight"><span class="text-[10px] font-black uppercase text-amber-700">${esc(b[0])}</span><br>${esc(b[1])}</div></div>`;
+    el.style.display = 'block'; playVo('bark_' + key);
+    clearTimeout(barkT); barkT = setTimeout(() => { el.style.display = 'none'; }, 3800);
+  };
+  const CREDITS_HTML = `<div class="text-xs text-slate-200 space-y-2">
+    <p><b class="text-amber-300">Royal Blight</b> \u00B7 design, code &amp; art direction: XstreamFlex</p>
+    <div><div class="text-[10px] font-black text-amber-300 uppercase">Character voices</div>
+    <p>Voices synthesized with <b>Piper</b> (rhasspy/piper, piper-tts 1.8.0, GPL-3.0; used offline, not shipped).</p>
+    <p>Voices synthesized with Piper using the <b>LibriTTS-R dataset (CC BY 4.0)</b>, Koizumi et al., derived from LibriVox / LibriTTS. Voice model en_US-libritts_r-medium (Ruphene, Vesper, Felix, Garrow, Farmer, Narrator, ???). <a class="underline text-sky-300" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">License</a></p>
+    <p>en_US-joe-medium (Rufus): CC0 \u00B7 en_US-kristin-medium (Pip): public domain.</p>
+    <p class="text-slate-400">Voice lines were rendered with pitch, tempo and echo filters (ffmpeg).</p></div>
+    <div><div class="text-[10px] font-black text-amber-300 uppercase">Art</div><p>Sprites, portraits and maps generated and edited for Royal Blight.</p></div></div>`;
+  const BIG_CUTS = { prologue_contact_lost: 1, ch1_m01_red_eyes: 1, ch1_m07_apology: 1, ch1_m07_cold_smile: 1 };   // v29: video slots only for big story moments
+  const cutSlot = key => BIG_CUTS[key] ? cutSlot0(key) : '';
+  const cutSlot0 = key => `<div class="my-2 mx-auto rounded-lg border border-dashed border-amber-500/60 bg-black/60 flex flex-col items-center justify-center text-amber-200/80" style="width:120px;aspect-ratio:9/16" data-cutscene="${key}"><div class="text-2xl">\u{1F3AC}</div><div class="text-[9px] font-bold px-1">Cutscene<br>${esc(key)}<br>(9:16, coming)</div></div>`;
   const beats = lines => lines.map(([who, t]) => `<p class="text-xs text-slate-200 mb-1">${who ? `<b class="text-amber-300">${esc(who)}:</b> ` : ''}<i>${esc(t)}</i></p>`).join('');
   S.openMap = function () {
     $('modal-menu').classList.add('hidden'); $('modal-gameover').classList.add('hidden'); $('modal-story').classList.remove('hidden');
@@ -542,9 +634,10 @@
     // v27: illustrated kingdom map; each region = progress-tinted area with a border in its controlling army's color
     const shapes = Object.keys(REGIONS).map(k => { const col = COLOR[regionColor(k)], [an, ac] = controller(k);
       return `<path d="${regionPath(k)}" fill="${col}" fill-opacity="0.26" stroke="#000" stroke-opacity="0.45" stroke-width="2.4" stroke-linejoin="round"/>` +
-             `<path d="${regionPath(k)}" fill="none" stroke="${ac}" stroke-width="1.3" stroke-linejoin="round" stroke-dasharray="${REGIONS[k].hub ? 'none' : '3 1.2'}"><title>${an}</title></path>`; }).join('');
+             `<path d="${regionPath(k)}" fill="none" stroke="${controller(k)[2] || ac}" stroke-width="${controller(k)[2] ? 2 : 1.3}" stroke-linejoin="round" stroke-dasharray="${REGIONS[k].hub ? 'none' : '3 1.2'}"><title>${an}</title></path>`; }).join('');
     map.style.background = "url('assets/kingdom_map.jpg') center/cover"; map.style.borderRadius = '14px'; map.style.boxShadow = '0 6px 24px #0009';
-    map.innerHTML = `<svg viewBox="0 0 100 100" class="absolute inset-0 w-full h-full">${shapes}</svg>` +
+    const defs = `<defs><pattern id="rbWheat" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#a3a322"/><path d="M1.5 0.3 L1.5 2.7 M1.5 1 L0.7 0.5 M1.5 1 L2.3 0.5 M1.5 1.8 L0.7 1.3 M1.5 1.8 L2.3 1.3" stroke="#fde68a" stroke-width="0.35"/></pattern></defs>`;   // v29: olive wheat border = Green Army
+    map.innerHTML = `<svg viewBox="0 0 100 100" class="absolute inset-0 w-full h-full">${defs}${shapes}</svg>` +
       Object.entries(REGIONS).map(([k, r]) => {
         const col = regionColor(k), w = r.missions.filter(won).length, n = r.missions.length || r.count;
         const pulse = col === 'lightgreen' ? 'animation:stpulse 1.2s infinite' : '';
@@ -587,7 +680,7 @@
     const dsel = guarded ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty \u00B7 barn guards per farm</div><div class="text-xs text-slate-200">${['easy', 'normal', 'hard'].map(d => d === SAVE.diff ? `<b class="text-amber-300">[${d} ${GUARDS[d]}]</b>` : d + ' ' + GUARDS[d]).join(' \u00B7 ')}</div><p class="text-[10px] text-slate-400">Felix musters pawns at half rate while his barn guards stand; each guard you kill raises it.</p>` : '';
     const k = await showPanel(`${id}: ${esc(m.name)}`, html + dsel, guarded ? [['Back', 'back'], ['Easy', 'd:easy'], ['Normal', 'd:normal'], ['Hard', 'd:hard'], ['\u2694 Start', 'go']] : [['Back', 'back'], ['\u2694 Start', 'go']]);
     if (k && k.startsWith('d:')) { SAVE.diff = k.slice(2); persist(); return S.brief(id); }
-    if (k === 'go') { $('modal-story').classList.add('hidden'); S.start(id); }
+    if (k === 'go') { $('modal-story').classList.add('hidden'); await S.dialogue(m.before, id + '_b'); S.start(id); }
   };
   function objText(o, m) {
     switch (o.k) {
@@ -610,6 +703,7 @@
   }
   async function showResults(r) {
     const m = M[r.id];
+    if (r.win) await S.dialogue(m.after, r.id + '_a');
     const html = `<div class="text-center text-3xl mb-1">${r.win ? r.stars.map(s => s ? '\u2B50' : '\u2606').join('') : '\u{1F480}'}</div>
       <p class="text-center text-xs text-slate-300 mb-2">${r.win ? 'Victory in ' + Math.floor(r.t / 60) + ':' + String(r.t % 60).padStart(2, '0') : 'Defeat. Regroup and try again: losses still earn XP.'}</p>
       ${r.win ? m.stars.map((s, i) => `<p class="text-xs ${r.stars[i] ? 'text-amber-200' : 'text-slate-500'}">${r.stars[i] ? '\u2B50' : '\u2606'} ${esc(s)}</p>`).join('') : ''}

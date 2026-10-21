@@ -554,7 +554,8 @@
         <div id="st-map" class="relative w-full max-w-sm" style="aspect-ratio:1/1"></div>
         <div id="st-legend" class="flex flex-wrap justify-center gap-1 text-[9px] font-bold text-slate-200 px-2 mb-1"></div>
         <div id="st-region" class="w-full max-w-sm px-3 pb-3"></div>
-        <div class="w-full max-w-sm px-3 pb-4 grid grid-cols-3 gap-2">
+        <div class="w-full max-w-sm px-3 pb-4 grid grid-cols-2 gap-2">
+          <button id="st-cine" class="py-2 rounded-lg bg-indigo-800/80 text-indigo-100 font-black text-[10px] uppercase">\u{1F3AC} Cinematics</button>
           <button id="st-shop" class="py-2 rounded-lg bg-amber-800/80 text-amber-100 font-black text-[10px] uppercase">\u{1F4B0} Treasury</button>
           <button id="st-export" class="py-2 rounded-lg bg-slate-700 text-slate-100 font-black text-[10px] uppercase">Export save</button>
           <button id="st-import" class="py-2 rounded-lg bg-slate-700 text-slate-100 font-black text-[10px] uppercase">Import save</button>
@@ -565,6 +566,7 @@
     $('st-export').onclick = () => { const s = exportSave(); try { navigator.clipboard && navigator.clipboard.writeText(s); } catch (e) {} prompt('Your story save (copied). Keep it somewhere safe:', s); };
     $('st-import').onclick = () => { const s = prompt('Paste a ' + (window.RB_TITLE || 'Royal Blight') + ' save (RB1....):'); if (!s) return; const r = importSave(s); alert(r === true ? 'Save imported!' : 'Could not import: ' + r); S.openMap(); };
     $('st-shop').onclick = () => openTreasury();
+    $('st-cine').onclick = () => S.openCinematics();
     // menu entry (keeps Quick Match + multiplayer intact)
     const menuBox = $('btn-loadout');
     menuBox.insertAdjacentHTML('beforebegin', `<button id="btn-story" class="w-full max-w-xs mb-2 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 text-slate-950 font-black text-sm uppercase tracking-wider shadow-lg active:scale-95">\u{1F4D6} Story <span class="normal-case font-bold text-[10px]">\u00B7 Act 1</span></button>`);
@@ -668,8 +670,56 @@
     <p>en_US-joe-medium (Rufus): CC0 \u00B7 en_US-kristin-medium (Pip): public domain.</p>
     <p class="text-slate-400">Voice lines were rendered with pitch, tempo and echo filters (ffmpeg).</p></div>
     <div><div class="text-[10px] font-black text-amber-300 uppercase">Art</div><p>Sprites, portraits and maps generated and edited for ${esc(window.RB_TITLE || 'Royal Blight')}.</p></div></div>`;
+  // ---- v33 CINEMATICS: the voiced Ch1 cutscenes (assets/cine/<key>.mp4, 720p H.264/AAC, streamed, not precached)
+  // 'start' plays after tapping Start on the first attempt; 'end' plays after the first clear. Seen ones go to the gallery.
+  const CINE = [
+    ['prologue_lanterns', 'P0', 'start', 'Festival of Lanterns'], ['prologue_contact_lost', 'P0', 'end', 'Contact Lost'],
+    ['ch1_m01_briefing', 'M01', 'start', 'Smoke on the Horizon'], ['ch1_m01_red_eyes', 'M01', 'end', 'Red Eyes'],
+    ['ch1_m02_farmers', 'M02', 'start', 'Save the Harvest'], ['ch1_m03_wagons', 'M03', 'start', 'Fire-Oil Wagons'],
+    ['ch1_m04_fields_reclaimed', 'M04', 'end', 'Fields Reclaimed'], ['ch1_m05_windmill', 'M05', 'start', 'The Windmill'],
+    ['ch1_m06_garrow', 'M06', 'end', 'Garrow Rides Again'], ['ch1_m07_apology', 'M07', 'end', "Felix's Apology"], ['ch1_m07_cold_smile', 'M07', 'end', 'A Cold Smile']
+  ];
+  S.CINE = CINE;
+  const cinesFor = (id, when) => CINE.filter(c => c[1] === id && c[2] === when).map(c => c[0]);
+  // full-screen 9:16 player. Always starts from a tap (iOS needs a user gesture for sound). Resolves when done/skipped.
+  S.playCine = function (keys) {
+    keys = [].concat(keys).filter(Boolean); if (!keys.length) return Promise.resolve(false);
+    let el = $('rb-cine'); if (!el) { el = document.createElement('div'); el.id = 'rb-cine'; el.className = 'fixed inset-0 z-[90] bg-black flex items-center justify-center'; document.body.appendChild(el); }
+    el.classList.remove('hidden');
+    return new Promise(done => {
+      let i = 0;
+      const finish = () => { const v = el.querySelector('video'); if (v) { v.pause(); v.removeAttribute('src'); v.load(); } el.classList.add('hidden'); el.innerHTML = ''; done(true); };
+      const one = () => {
+        if (i >= keys.length) return finish();
+        const k = keys[i], meta = CINE.find(c => c[0] === k) || [k, '', '', k];
+        if (!SAVE.seen.includes('cine:' + k)) { SAVE.seen.push('cine:' + k); persist(); }
+        el.innerHTML = `<video playsinline webkit-playsinline preload="auto" src="assets/cine/${k}.mp4" poster="assets/cine/${k}.jpg" class="h-full w-full object-contain bg-black"></video>
+          <button data-c="skip" class="absolute top-3 right-3 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-500 text-xs font-black text-white uppercase">Skip \u23ED</button>
+          <div data-c="tap" class="absolute inset-0 flex flex-col items-center justify-center bg-black/40"><div class="w-20 h-20 rounded-full bg-amber-500 text-slate-950 text-4xl flex items-center justify-center shadow-2xl">\u25B6</div>
+          <div class="mt-3 text-amber-200 font-black text-sm uppercase tracking-wider">${esc(meta[3])}</div><div class="text-slate-300 text-[11px]">Tap to watch</div></div>`;
+        const v = el.querySelector('video'), tap = el.querySelector('[data-c=tap]');
+        v.onended = () => { i++; one(); }; v.onerror = () => { i++; one(); };
+        el.querySelector('[data-c=skip]').onclick = e => { e.stopPropagation(); finish(); };
+        tap.onclick = () => { v.muted = false; const p = v.play(); tap.style.display = 'none'; if (p && p.catch) p.catch(() => { tap.style.display = 'flex'; }); };
+        v.onclick = () => { if (v.paused) v.play(); else v.pause(); };
+      };
+      one();
+    });
+  };
+  S.openCinematics = function () {
+    const seen = CINE.filter(c => SAVE.seen.includes('cine:' + c[0]));
+    const h = `<p class="text-[11px] text-slate-300 mb-2 text-center">Cutscenes you have unlocked. They play the first time you start or clear a mission.</p><div class="grid grid-cols-2 gap-2">` +
+      CINE.map(c => { const ok = seen.includes(c); return `<button data-cine="${c[0]}" ${ok ? '' : 'disabled'} class="rounded-xl overflow-hidden border-2 ${ok ? 'border-amber-500' : 'border-slate-700 opacity-50'} bg-slate-900 text-left">
+        <div class="aspect-[9/16] max-h-32 w-full bg-black flex items-center justify-center" style="${ok ? `background:url('assets/cine/${c[0]}.jpg') center/cover` : ''}">${ok ? '<span class="text-2xl">\u25B6</span>' : '\u{1F512}'}</div>
+        <div class="px-1.5 py-1 text-[10px] font-black ${ok ? 'text-amber-200' : 'text-slate-500'}">${c[1]} \u00B7 ${ok ? esc(c[3]) : '???'}</div></button>`; }).join('') + `</div>` +
+      `<button id="cine-all" class="mt-2 w-full py-2 rounded-lg bg-slate-700 text-slate-100 text-[11px] font-black uppercase" ${seen.length ? '' : 'disabled'}>\u25B6 Play all unlocked (${seen.length}/${CINE.length})</button>`;
+    showPanel('\u{1F3AC} Cinematics', h);
+    const b = $('modal-brief');
+    b.querySelectorAll('[data-cine]').forEach(x => x.onclick = () => { b.classList.add('hidden'); S.playCine(x.dataset.cine).then(() => S.openCinematics()); });
+    const all = $('cine-all'); if (all) all.onclick = () => { b.classList.add('hidden'); S.playCine(seen.map(c => c[0])).then(() => S.openCinematics()); };
+  };
   const BIG_CUTS = { prologue_contact_lost: 1, ch1_m01_red_eyes: 1, ch1_m07_apology: 1, ch1_m07_cold_smile: 1 };   // v29: video slots only for big story moments
-  const cutSlot = key => BIG_CUTS[key] ? cutSlot0(key) : '';
+  const cutSlot = key => '';   // v33: real cutscenes play instead (see CINE); gallery on the story map
   const cutSlot0 = key => `<div class="my-2 mx-auto rounded-lg border border-dashed border-amber-500/60 bg-black/60 flex flex-col items-center justify-center text-amber-200/80" style="width:120px;aspect-ratio:9/16" data-cutscene="${key}"><div class="text-2xl">\u{1F3AC}</div><div class="text-[9px] font-bold px-1">Cutscene<br>${esc(key)}<br>(9:16, coming)</div></div>`;
   const beats = lines => lines.map(([who, t]) => `<p class="text-xs text-slate-200 mb-1">${who ? `<b class="text-amber-300">${esc(who)}:</b> ` : ''}<i>${esc(t)}</i></p>`).join('');
   S.openMap = function () {
@@ -729,7 +779,7 @@
     const rsb = $('st-rs'); if (rsb) rsb.onclick = () => { SAVE.replayStory = !SAVE.replayStory; persist(); rsb.textContent = '\u{1F4D6} Replay story: ' + (SAVE.replayStory ? 'ON' : 'OFF'); rsb.className = rsb.className.replace(SAVE.replayStory ? 'bg-slate-800 text-slate-300 border-slate-600' : 'bg-amber-500 text-slate-950 border-amber-300', SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'); };
     const k = await kP;
     if (k && k.startsWith('d:')) { SAVE.diff = k.slice(2); persist(); return S.brief(id); }
-    if (k === 'go') { $('modal-story').classList.add('hidden'); if (!replayed || SAVE.replayStory) await S.dialogue(m.before, id + '_b'); S.start(id); }
+    if (k === 'go') { $('modal-story').classList.add('hidden'); if (!replayed || SAVE.replayStory) { const cs = cinesFor(id, 'start').filter(c => SAVE.replayStory || !SAVE.seen.includes('cine:' + c)); if (cs.length) await S.playCine(cs); else await S.dialogue(m.before, id + '_b'); } S.start(id); }
   };
   function objText(o, m) {
     switch (o.k) {
@@ -752,7 +802,7 @@
   }
   async function showResults(r) {
     const m = M[r.id];
-    if (r.win && (r.firstClear || SAVE.replayStory)) await S.dialogue(m.after, r.id + '_a');
+    if (r.win && (r.firstClear || SAVE.replayStory)) { const ce = cinesFor(r.id, 'end'); if (ce.length) await S.playCine(ce); else await S.dialogue(m.after, r.id + '_a'); }
     const html = `<div class="text-center text-3xl mb-1">${r.win ? r.stars.map(s => s ? '\u2B50' : '\u2606').join('') : '\u{1F480}'}</div>
       <p class="text-center text-xs text-slate-300 mb-2">${r.win ? 'Victory in ' + Math.floor(r.t / 60) + ':' + String(r.t % 60).padStart(2, '0') : 'Defeat. Regroup and try again: losses still earn XP.'}</p>
       ${r.win ? m.stars.map((s, i) => `<p class="text-xs ${r.stars[i] ? 'text-amber-200' : 'text-slate-500'}">${r.stars[i] ? '\u2B50' : '\u2606'} ${esc(s)}</p>`).join('') : ''}

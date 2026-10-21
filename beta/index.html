@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v32</title>
+  <title>Royal Blight BETA v33</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -310,7 +310,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v32</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v33</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -2987,9 +2987,13 @@
 
         ctx.restore();
 
-        if (u.markUntil > state.gameTime) {                    // v23: marked by a pawn -> archers hit +35% (gold crosshair)
-          ctx.save(); ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; const mr = u.radius * 0.75;
-          ctx.beginPath(); ctx.arc(u.x, u.y, mr, 0, Math.PI * 2); ctx.moveTo(u.x - mr - 4, u.y); ctx.lineTo(u.x + mr + 4, u.y); ctx.moveTo(u.x, u.y - mr - 4); ctx.lineTo(u.x, u.y + mr + 4); ctx.stroke(); ctx.restore();
+        if (u.markUntil > state.gameTime) {                    // v33: small "marked" pip above the head (was a big gold crosshair over the unit)
+          // foe marked by my pawns = red-ish downward chevron; my unit marked by the foe = cyan hollow ring (shape + colour differ for colour-blind players)
+          const mine = u.team === myTeam(), hy = u.y - u.radius - 15;
+          ctx.save(); ctx.globalAlpha = 0.7; ctx.lineWidth = 1.6;
+          if (!mine) { ctx.fillStyle = '#f87171'; ctx.strokeStyle = '#450a0a'; ctx.beginPath(); ctx.moveTo(u.x - 4, hy - 3); ctx.lineTo(u.x + 4, hy - 3); ctx.lineTo(u.x, hy + 2); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+          else { ctx.strokeStyle = '#67e8f9'; ctx.beginPath(); ctx.arc(u.x, hy, 3, 0, Math.PI * 2); ctx.stroke(); }
+          ctx.restore();
         }
         if (u.scorchUntil > state.gameTime) {                  // v23: scorched by a Battle Mage -> brutes hit +30% (ember dots)
           ctx.save(); ctx.fillStyle = '#f97316'; for (let k = 0; k < 3; k++) { const a = performance.now() / 200 + k * 2.1; ctx.beginPath(); ctx.arc(u.x + Math.cos(a) * u.radius, u.y - 4 + Math.sin(a) * u.radius * 0.5, 2.2, 0, Math.PI * 2); ctx.fill(); } ctx.restore();
@@ -4078,7 +4082,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v32';
+    window.APP_VERSION = 'v33';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

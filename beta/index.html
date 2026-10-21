@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-  <title>Royal Blight BETA v22</title>
+  <title>Royal Blight BETA v23</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -303,7 +303,7 @@
     <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
       <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
       <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v22</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v23</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -888,7 +888,7 @@
         this.resist = opts.resist || {};
         this.attackCooldown = Math.random() * 0.4;
         this.variant = opts.variant || null;
-        ['meleeSplash', 'stun', 'burn', 'pierce', 'heal', 'aura', 'splash', 'holy', 'falloff'].forEach(k => { if (opts[k] !== undefined) this[k] = opts[k]; });
+        ['meleeSplash', 'stun', 'burn', 'pierce', 'heal', 'aura', 'splash', 'holy', 'falloff', 'fsplash'].forEach(k => { if (opts[k] !== undefined) this[k] = opts[k]; });
         this.attackAnimTimer = 0;
         this.flash = 0;
         this.dead = false;
@@ -909,7 +909,7 @@
         const mult = (this.team === 'blue') 
           ? (1 + state.blueUpgradeLevel * 0.2) 
           : (1 + state.redUpgradeLevel * 0.2);
-        return Math.round(this.atk * mult * (this.auraT > 0 ? 1 + this.auraDmg : 1));
+        return Math.round(this.atk * mult * (this.auraT > 0 ? 1 + this.auraDmg : 1) * (this.hexT > 0 ? 1 - this.hexDmg : 1));
       }
 
       get effectiveMaxHp() {
@@ -928,11 +928,11 @@
         this.x = pad.x;
         this.y = pad.y;
         this.radius = 24;
-        this.maxHp = 1500;                             // v19: doubled (was 750)
+        this.maxHp = 2000;                             // v23: 1500->2000 (v19 1500, v17 750)
         this.hp = this.maxHp;
         this.lagHp = this.maxHp;
         this.range = 190;                               // v17: outranges every archer (Longbow 178)
-        this.resist = { ranged: 0.60, magic: 0.30 };    // v17: strong vs arrows, some magic resistance
+        this.resist = { ranged: 0.60, magic: 0.30, physical: 0.20 };   // v23: +20% vs melee    // v17: strong vs arrows, some magic resistance
         this.tier = 1;                                  // v17: upgrades T2 (splash bolts) and T3 (second shot)
         this.attackInterval = 1.0;                      // v19: +20% attack speed (was 1.2)
         this.cooldown = 0.5;
@@ -1015,7 +1015,7 @@
       wizard: { hp: 175, speed: 44, atk: 38, range: 125, interval: 1.4,     // BALANCE: dmg 34->38, speed 40->44
                 splash: 85,                                                 // v22: back to 85px; clump scaling now handled by falloff (v21 had 72)
                 resist: { ranged: 0.5, turret: 0.3, physical: -1.0 } },     // 50% arrows, 30% turret bolts; BALANCE v7: takes 2x melee
-      brute:  { hp: 462, speed: 34, atk: 28, range: 26,  interval: 1.5, radius: 20,
+      brute:  { hp: 500, /* v23: 462->500 with price 110->120 */ speed: 34, atk: 28, range: 26,  interval: 1.5, radius: 20,
                 resist: { magic: 0.70 } }                                   // BALANCE v7: 70% vs wizard fireballs, HP 462
     };
     // HEROES (v10): one per army, bought once for 350g, respawns with every wave while dead.
@@ -1046,25 +1046,31 @@
       },
       archer: {
         short:   { name: 'Short Bow',   icon: '\u{1F3F9}', desc: 'Balanced (current)' },
-        long:    { name: 'Longbow',     icon: '\u{1F3AF}', desc: 'Outranges archers, slower fire', cost: -10, set: { range: 146 }, mul: { interval: 1.28 } },
-        flame:   { name: 'Flame Arrow', icon: '\u{1F525}', desc: 'Burns targets over time',        cost: 10, mul: { atk: 0.62 }, burn: [7, 3] },
-        hunting: { name: 'Hunting Bow', icon: '\u{1FAB6}', desc: 'Arrows pierce into a 2nd target', cost: 20, mul: { atk: 0.84 }, pierce: [1, 1.0] }
+        long:    { name: 'Longbow',     icon: '\u{1F3AF}', desc: 'Piercing shot: also hits the foes right behind', set: { range: 146 }, mul: { interval: 1.2 }, pierce: [2, 0.35] },
+        flame:   { name: 'Flame Arrow', icon: '\u{1F525}', desc: 'Fire burst: small splash on impact', mul: { atk: 0.7 }, fsplash: [38, 0.4] },
+        hunting: { name: 'Hunting Bow', icon: '\u{1FAB6}', desc: 'Rapid fire: 2x shots, half damage', mul: { atk: 0.55, interval: 0.5 } }
       },
       brute: {
         base:   { name: 'Brute',        icon: '\u{1F4AA}', desc: 'Balanced (current)' },
         light:  { name: 'Light Armor',  icon: '\u{1F4A8}', desc: 'Faster, less HP',   mul: { speed: 1.22, hp: 0.92 } },
-        heavy:  { name: 'Heavy Armor',  icon: '\u{1F9F1}', desc: 'Tankier, slower',   cost: 10, mul: { speed: 0.82, hp: 1.13 } },
+        heavy:  { name: 'Heavy Armor',  icon: '\u{1F9F1}', desc: 'Tankier, slower',   mul: { speed: 0.82, hp: 1.13 } },
         spiked: { name: 'Spiked Armor', icon: '\u{1F994}', desc: 'More damage, less HP', mul: { atk: 1.16, hp: 0.90 } }
       },
       wizard: {
         // v22: Battle Mage splash has falloff [edge fraction, max extra targets, decay per extra target]
-        battle: { name: 'Battle Mage',   icon: '\u{1F52E}', desc: 'Fireballs: full hit + falloff splash', falloff: [0.75, 6, 0.9] },
+        battle: { name: 'Battle Mage',   icon: '\u{1F52E}', desc: 'Fireballs splash + scorch: brutes deal +30% to scorched foes', falloff: [0.55, 3, 0.85], set: { atk: 30 } },
         // v22: Priest holy burst [radius, enemy dmg = atk, ally heal]: small splash that chips enemies and heals allies in the area
-        priest: { name: 'Priest',        icon: '\u271A',    desc: 'Holy burst: chips foes, heals allies around it', cost: -40, set: { atk: 12, splash: 0 }, holy: [60, 14] },
+        priest: { name: 'Priest',        icon: '\u271A',    desc: 'Holy burst: chips foes, heals allies around it', set: { atk: 12, splash: 0 }, holy: [60, 14] },
         // v22: Banner aura { r radius, spd move+, as attack speed+, dr damage taken-, dmg damage+ }; stays behind the front line
-        banner: { name: 'Banner Bearer', icon: '\u{1F6A9}', desc: 'War banner: nearby melee hit faster, take less dmg', cost: -50, set: { atk: 22, splash: 0, hp: 215 }, aura: { r: 175, spd: 0.12, as: 0.19, dr: 0.13, dmg: 0.06, melee: true } }
+        banner: { name: 'Banner Bearer', icon: '\u{1F6A9}', desc: 'Banner: allied melee hit faster + tougher (brutes most); nearby foes weakened', set: { atk: 22, splash: 0, hp: 230 }, aura: { r: 175, spd: 0.12, as: 0.08, dr: 0.10, dmg: 0.06, melee: true, fdmg: 0.08, fas: 0.08 } }
       }
     };
+    // v23 COMBOS. Mages support brutes, archers support pawns. Turret taunt/durability.
+    const SYN = { scorchT: 2.5, scorchBrute: 0.30,          // Battle Mage: hit foes are scorched; brutes deal +30% to them
+                  priestBrute: 1.0,                          // Priest: v22 behaviour kept (benchmark); no extra brute bonus
+                  bannerBruteDr: 0.06,                       // Banner: brutes in aura get an extra -12% dmg taken
+                  markT: 1.5, markArrow: 0.35,               // a foe a pawn just hit is 'marked': archers deal +35% to it
+                  tauntR: 215, turretRegen: 10, regenDelay: 4 };
     const SLOT_OF = { pawn: 'pawn', archer: 'archer', brute: 'brute', wizard: 'wizard' };
     const CARD_SLOT = { archers: 'archer', wizards: 'wizard', brutes: 'brute' };
     const DEFAULT_LOADOUT = { pawn: 'sword', archer: 'short', brute: 'base', wizard: 'battle' };
@@ -1077,7 +1083,7 @@
       if (v.mul) for (const k in v.mul) st[k] = Math.round(base[k] * v.mul[k] * 100) / 100;
       if (v.set) Object.assign(st, v.set);
       if (v.resistAdd) { st.resist = Object.assign({}, base.resist || {}); for (const k in v.resistAdd) st.resist[k] = (st.resist[k] || 0) + v.resistAdd[k]; }
-      ['meleeSplash', 'stun', 'burn', 'pierce', 'heal', 'aura', 'holy', 'falloff'].forEach(k => { if (v[k] !== undefined) st[k] = v[k]; });
+      ['meleeSplash', 'stun', 'burn', 'pierce', 'heal', 'aura', 'holy', 'falloff', 'fsplash'].forEach(k => { if (v[k] !== undefined) st[k] = v[k]; });
       return st;
     }
     function costOf(team, k) {
@@ -1253,7 +1259,7 @@
         if (u.dead) continue;
 
         if (u.flash > 0) u.flash -= dt;
-        if (u.auraT > 0) u.auraT -= dt;
+        if (u.auraT > 0) u.auraT -= dt; if (u.hexT > 0) u.hexT -= dt;
         if (u.burnT > 0) {                                   // v17 Flame Arrow burn, applied in 0.5s ticks
           u.burnT -= dt; u.burnAcc = (u.burnAcc || 0) + u.burnDps * dt;
           if (u.burnAcc >= u.burnDps * 0.5 || u.burnT <= 0) { const d = Math.round(u.burnAcc); u.burnAcc = 0; if (d > 0) dealDamage(u, d, u.burnBy, 'burn'); if (u.dead) continue; }
@@ -1439,7 +1445,10 @@
         if (b.dead || !b.aura) return;
         state.units.forEach(a => {
           if (!a.dead && a.team === b.team && a !== b && a.type !== 'worker' && (!b.aura.melee || a.range <= 40) && Math.hypot(a.x - b.x, a.y - b.y) <= b.aura.r) {
-            a.auraT = 0.25; a.auraSpd = b.aura.spd; a.auraDmg = b.aura.dmg; a.auraAs = b.aura.as; a.auraDr = b.aura.dr;
+            a.auraT = 0.25; a.auraSpd = b.aura.spd; a.auraDmg = b.aura.dmg; a.auraAs = b.aura.as; a.auraDr = b.aura.dr + (a.type === 'brute' ? SYN.bannerBruteDr : 0);
+          }
+          if (b.aura.fdmg && !a.dead && a.team !== b.team && a.type !== 'worker' && Math.hypot(a.x - b.x, a.y - b.y) <= b.aura.r) {   // v23 enemy debuff
+            a.hexT = 0.25; a.hexDmg = b.aura.fdmg; a.hexAs = b.aura.fas;
           }
         });
       });
@@ -1466,7 +1475,11 @@
     function updateCombatMinion(u, dt) {
       const spd = u.speed * (u.auraT > 0 ? 1 + u.auraSpd : 1);
       // Find nearest enemy unit or turret within aggro threshold
-      let target = findNearestTarget(u.x, u.y, u.range + 90, u.team);
+      let target = null;
+      if (u.type !== 'worker') state.turretPads.forEach(p => { const t = p.turret;   // v23 taunt: enemy turrets in range pull aggro
+        if (t && !t.dead && t.team !== u.team && Math.hypot(t.x - u.x, t.y - u.y) <= SYN.tauntR) target = t; });
+      u.taunted = !!target;
+      if (!target) target = findNearestTarget(u.x, u.y, u.range + 90, u.team);
 
       // Check opposing core if within range
       if (!target) {
@@ -1485,7 +1498,7 @@
           // In combat range: Halt and attack
           if (u.attackCooldown <= 0) {
             triggerAttack(u, target);
-            u.attackCooldown = u.attackInterval / (u.auraT > 0 ? 1 + (u.auraAs || 0) : 1);   // v22 banner attack speed
+            u.attackCooldown = u.attackInterval / (u.auraT > 0 ? 1 + (u.auraAs || 0) : 1) / (u.hexT > 0 ? 1 - (u.hexAs || 0) : 1);   // v22 banner attack speed, v23 banner hex
             u.attackAnimTimer = 0.22;
           }
         } else {
@@ -1577,6 +1590,7 @@
       
       if (u.type === 'pawn') {
         sound.playSwordSlash();
+        if (target instanceof Unit) target.markUntil = state.gameTime + SYN.markT;   // v23: archers punish what pawns engage
         dealDamage(target, u.effectiveAtk, u, 'physical');
         createSparks(target.x, target.y, '#e2e8f0', 4);
         if (u.stun) applyStun(target, u.stun);
@@ -1598,7 +1612,7 @@
           damage: u.effectiveAtk,
           damageType: 'ranged',
           speed: 400,
-          src: u, burn: u.burn, pierce: u.pierce
+          src: u, burn: u.burn, pierce: u.pierce, fsplash: u.fsplash
         });
       } else if (u.type === 'acolyte') {
         // never the same target twice in a row if another enemy is in range
@@ -1649,6 +1663,11 @@
           return;
         }
       }
+      if (source && dmg > 0 && target instanceof Unit) {   // v23 combos
+        if (source.type === 'brute' && target.scorchUntil > state.gameTime) dmg = Math.round(dmg * (1 + SYN.scorchBrute));
+        if (source.type === 'archer' && dmgType === 'ranged' && target.markUntil > state.gameTime) dmg = Math.round(dmg * (1 + SYN.markArrow));
+      }
+      if (target instanceof Turret) target.hitAt = state.gameTime;
       if (target.auraT > 0 && target.auraDr && dmg > 0) dmg = Math.max(1, Math.round(dmg * (1 - target.auraDr)));   // v22 banner armor
       if (dmgType && target.resist && target.resist[dmgType]) {
         const r = target.resist[dmgType];
@@ -1713,6 +1732,7 @@
         turret.rotation += 0.8 * dt;
         if (turret.flash > 0) turret.flash -= dt;
         if (turret.cooldown > 0) turret.cooldown -= dt;
+        if (state.gameTime - (turret.hitAt || -99) > SYN.regenDelay && turret.hp < turret.maxHp) turret.hp = Math.min(turret.maxHp, turret.hp + SYN.turretRegen * dt);   // v23 self-repair
 
         if (turret.lagHp > turret.hp) {
           turret.lagHp -= (turret.lagHp - turret.hp) * 5 * dt;
@@ -1850,7 +1870,7 @@
               if (u.dead || u.type === 'worker' || Math.hypot(u.x - p.x, u.y - p.y) > hr) return;
               if (u.team !== p.team) dealDamage(u, u === p.target ? p.damage : Math.round(p.damage * 0.6), p.src, p.damageType);
               else if (u.hp < u.maxHp) {
-                const h = Math.min(heal, u.maxHp - u.hp); u.hp += h;
+                const h = Math.min(Math.round(heal * (u.type === 'brute' ? SYN.priestBrute : 1)), u.maxHp - u.hp); u.hp += h;
                 if (p.src) p.src.dmgDealt = (p.src.dmgDealt || 0) + h; if (window.dmgHook && p.src) window.dmgHook(p.src, h, u);
                 state.particles.push({ type: 'plus', x: u.x + (Math.random() - 0.5) * 10, y: u.y - 10, vx: 0, vy: -38, life: 0.7, maxLife: 0.7 });
               }
@@ -1861,8 +1881,9 @@
             createSparks(p.x, p.y, (p.team === 'blue' ? '#38bdf8' : '#c084fc'), 10);
             const hits = state.units.filter(u => !u.dead && u.team !== p.team && u !== p.target && Math.hypot(u.x - p.x, u.y - p.y) <= p.splashRadius)
               .map(u => ({ u, d: Math.hypot(u.x - p.x, u.y - p.y) })).sort((a, b) => a.d - b.d).slice(0, cap);
-            if (p.target && !p.target.dead) dealDamage(p.target, p.damage, p.src, p.damageType);
+            if (p.target && !p.target.dead) { if (p.target instanceof Unit) p.target.scorchUntil = state.gameTime + SYN.scorchT; dealDamage(p.target, p.damage, p.src, p.damageType); }
             hits.forEach((o, k) => {
+              o.u.scorchUntil = state.gameTime + SYN.scorchT;
               const f = (1 - (1 - edge) * (o.d / p.splashRadius)) * Math.pow(decay, k);
               dealDamage(o.u, Math.max(1, Math.round(p.damage * f)), p.src, p.damageType);
             });
@@ -1888,6 +1909,11 @@
             if (p.soul && p.target instanceof Unit) { p.target.soulAt = state.gameTime; p.target.soulBy = p.src; }
             const tgt = p.target;
             dealDamage(tgt, p.damage, p.src, p.damageType);
+            if (p.fsplash) {                                 // v23 Flame Arrow: small fire burst on impact
+              state.particles.push({ type: 'shockwave', color: '249,115,22', x: tgt.x, y: tgt.y, radius: 6, maxRadius: p.fsplash[0], life: 0.35, maxLife: 0.35 });
+              createSparks(tgt.x, tgt.y, '#f97316', 9);
+              state.units.forEach(e => { if (!e.dead && e !== tgt && e.team !== p.team && e.type !== 'worker' && Math.hypot(e.x - tgt.x, e.y - tgt.y) <= p.fsplash[0]) dealDamage(e, Math.max(1, Math.round(p.damage * p.fsplash[1])), p.src, p.damageType); });
+            }
             if (p.burn && tgt instanceof Unit && !tgt.dead) { tgt.burnT = p.burn[1]; tgt.burnDps = p.burn[0]; tgt.burnBy = p.src; }
             if (p.pierce) {                                  // v17 Hunting Bow: continue into the next enemy behind
               const ax = tgt.x - (p.src ? p.src.x : p.x), ay = tgt.y - (p.src ? p.src.y : p.y), al = Math.hypot(ax, ay) || 1;
@@ -1895,7 +1921,7 @@
               state.units.filter(e => !e.dead && e !== tgt && e.team !== p.team && e.type !== 'worker')
                 .map(e => ({ e, along: ((e.x - tgt.x) * ax + (e.y - tgt.y) * ay) / al, off: Math.abs((e.x - tgt.x) * ay - (e.y - tgt.y) * ax) / al }))
                 .filter(o => o.along > 0 && o.along < 70 && o.off < 22).sort((a, b) => a.along - b.along)
-                .forEach(o => { if (n-- > 0) dealDamage(o.e, Math.round(p.damage * p.pierce[1]), p.src, p.damageType); });
+                .forEach(o => { if (n-- > 0) { createSparks(o.e.x, o.e.y, '#e2e8f0', 5); dealDamage(o.e, Math.round(p.damage * p.pierce[1]), p.src, p.damageType); } });
             }
           }
           state.projectiles.splice(i, 1);
@@ -2150,7 +2176,7 @@
       brute:  { base: 'light', light: 'base', heavy: 'light', spiked: 'base' },
       wizard: { battle: 'battle', priest: 'battle', banner: 'priest' }
     };
-    const SENSIBLE = { pawn: ['sword', 'shield', 'hammer'], archer: ['short', 'long', 'flame'], brute: ['base', 'heavy', 'spiked'], wizard: ['battle', 'battle', 'priest'] };
+    const SENSIBLE = { pawn: ['sword', 'shield', 'hammer'], archer: ['short', 'long', 'flame'], brute: ['base', 'heavy', 'spiked'], wizard: ['battle', 'priest', 'banner'] };
     function aiPickLoadout(diff, playerLo) {
       const lo = {}, rnd = a => a[Math.floor(Math.random() * a.length)];
       for (const slot of Object.keys(VARIANTS)) {
@@ -2441,6 +2467,12 @@
 
     function drawTurret(t) {
       ctx.save();
+      if (state.units.some(u => !u.dead && u.taunted && u.team !== t.team && Math.hypot(u.x - t.x, u.y - t.y) <= SYN.tauntR)) {   // v23 taunt ring while drawing aggro
+        const g = 0.5 + 0.5 * Math.sin(performance.now() / 220);
+        ctx.strokeStyle = `rgba(239,68,68,${0.35 + 0.4 * g})`; ctx.lineWidth = 3; ctx.setLineDash([12, 8]);
+        ctx.beginPath(); ctx.ellipse(t.x, t.y, SYN.tauntR, SYN.tauntR * 0.8, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fecaca'; ctx.fillText('TAUNT', t.x, t.y - 62);
+      }
       // Drop shadow
       ctx.fillStyle = 'rgba(0,0,0,0.4)';
       ctx.beginPath();
@@ -2621,6 +2653,14 @@
           ctx.strokeStyle = `rgba(251,146,60,${0.55 + 0.35 * g})`; ctx.fillStyle = "rgba(251,146,60,0.12)"; ctx.lineWidth = 4;
           ctx.setLineDash([10, 8]); ctx.beginPath(); ctx.ellipse(u.x, u.y, u.aura.r, u.aura.r * 0.8, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
         }
+        if (u.hexT > 0) {                                      // v23: weakened by an enemy banner (purple ring)
+          ctx.strokeStyle = 'rgba(168,85,247,0.95)'; ctx.lineWidth = 2.5; ctx.setLineDash([4, 3]);
+          ctx.beginPath(); ctx.ellipse(u.x, u.y + u.radius * 0.8, u.radius * 1.15, u.radius * 0.55, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        }
+        if (u.taunted) {                                       // v23: taunted by a turret (red tether)
+          let tt = null; state.turretPads.forEach(p => { if (p.turret && !p.turret.dead && p.turret.team !== u.team && Math.hypot(p.turret.x - u.x, p.turret.y - u.y) <= SYN.tauntR) tt = p.turret; });
+          if (tt) { ctx.strokeStyle = 'rgba(239,68,68,0.55)'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(tt.x, tt.y); ctx.stroke(); ctx.setLineDash([]); }
+        }
         if (u.auraT > 0 && !u.aura) {                          // v22: buffed allies glow
           ctx.fillStyle = 'rgba(251,146,60,0.35)'; ctx.beginPath(); ctx.ellipse(u.x, u.y + u.radius * 0.8, u.radius * 1.3, u.radius * 0.65, 0, 0, Math.PI * 2); ctx.fill();
           ctx.strokeStyle = '#fb923c'; ctx.lineWidth = 2; ctx.stroke();
@@ -2650,7 +2690,9 @@
           if (spr) {
             const hero = u.type === 'cavalier' || u.type === 'acolyte';
             const size = u.radius * (hero ? 3.4 : 2.8);
-            ctx.drawImage(scaledSprite(spr, size, size, leaderOf(u.team).tint), -size / 2, -size * 0.6, size, size);
+            // v23: Banner art packs a small bearer next to a tall flag; draw it 1.7x (feet aligned) so the bearer is full wizard size
+            const big = u.aura ? 1.7 : 1, bs = size * big;
+            ctx.drawImage(scaledSprite(spr, bs, bs, leaderOf(u.team).tint), -bs / 2, size * 0.4 - bs, bs, bs);
             // v17: variant without its own art -> small weapon badge
             const slot = SLOT_OF[u.type];
             if (u.variant && slot && u.variant !== DEFAULT_LOADOUT[slot] && !VARIANT_ART.has(spriteKey(u) + '_' + u.variant + '_' + u.team)) {
@@ -2666,6 +2708,13 @@
 
         ctx.restore();
 
+        if (u.markUntil > state.gameTime) {                    // v23: marked by a pawn -> archers hit +35% (gold crosshair)
+          ctx.save(); ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1.5; const mr = u.radius * 0.75;
+          ctx.beginPath(); ctx.arc(u.x, u.y, mr, 0, Math.PI * 2); ctx.moveTo(u.x - mr - 4, u.y); ctx.lineTo(u.x + mr + 4, u.y); ctx.moveTo(u.x, u.y - mr - 4); ctx.lineTo(u.x, u.y + mr + 4); ctx.stroke(); ctx.restore();
+        }
+        if (u.scorchUntil > state.gameTime) {                  // v23: scorched by a Battle Mage -> brutes hit +30% (ember dots)
+          ctx.save(); ctx.fillStyle = '#f97316'; for (let k = 0; k < 3; k++) { const a = performance.now() / 200 + k * 2.1; ctx.beginPath(); ctx.arc(u.x + Math.cos(a) * u.radius, u.y - 4 + Math.sin(a) * u.radius * 0.5, 2.2, 0, Math.PI * 2); ctx.fill(); } ctx.restore();
+        }
         // Delayed Floating Health Bars
         if (u.type !== 'worker' || u.hp < u.effectiveMaxHp) {
           drawHealthBar(u.x, u.y - u.radius - 12, u.radius * 2, 4, u.hp, u.lagHp, u.effectiveMaxHp);
@@ -3252,7 +3301,7 @@
 
     // --- COMMANDS: every purchase/order goes through applyCommand(team, cmd) so the same code
     // serves the local player, the AI and (in multiplayer) the guest's network inputs. ---
-    const COSTS = { worker: 80, archers: 75, wizards: 150, brutes: 110, turret: 250, hero: 350 };   // v10: wizard 150, brute 110, hero 350 (one-time)
+    const COSTS = { worker: 80, archers: 75, wizards: 150, brutes: 120, turret: 250, hero: 350 };   // v10: wizard 150, brute 110, hero 350 (one-time)
     const CADENCE_INFO = {
       archers: ['+1 ARCHER CADENCE!', '#38bdf8'],
       wizards: ['+1 WIZARD CADENCE!', '#c084fc'],

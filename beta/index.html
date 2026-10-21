@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-  <title>Royal Blight BETA v23</title>
+  <title>Royal Blight BETA v23.1</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -303,7 +303,7 @@
     <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
       <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
       <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v23</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v23.1</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -928,11 +928,11 @@
         this.x = pad.x;
         this.y = pad.y;
         this.radius = 24;
-        this.maxHp = 2000;                             // v23: 1500->2000 (v19 1500, v17 750)
+        this.maxHp = 1500;                             // v23.1: back to 1500 (v23 had 2000)
         this.hp = this.maxHp;
         this.lagHp = this.maxHp;
         this.range = 190;                               // v17: outranges every archer (Longbow 178)
-        this.resist = { ranged: 0.60, magic: 0.30, physical: 0.20 };   // v23: +20% vs melee    // v17: strong vs arrows, some magic resistance
+        this.resist = { ranged: 0.70, magic: 0.30, physical: 0.20 };   // v23.1: arrows 60->70%; v23: +20% vs melee    // v17: strong vs arrows, some magic resistance
         this.tier = 1;                                  // v17: upgrades T2 (splash bolts) and T3 (second shot)
         this.attackInterval = 1.0;                      // v19: +20% attack speed (was 1.2)
         this.cooldown = 0.5;

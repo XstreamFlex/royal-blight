@@ -1,7 +1,7 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-beta-v23-1';   // BETA build (/royal-blight/beta/): own cache namespace
+const CACHE_VERSION = 'royal-blight-beta-v24';   // BETA build (/royal-blight/beta/): own cache namespace
 const CORE = [
-  './', './index.html', './manifest.json', './mp.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
+  './', './index.html', './manifest.json', './mp.js', './story.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/fonts/fonts.css',
   './assets/fonts/f0.woff2',
   './assets/fonts/f1.woff2',

@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-  <title>Royal Blight BETA v20</title>
+  <title>Royal Blight BETA v21</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -303,7 +303,7 @@
     <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
       <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
       <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v20</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v21</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -1013,7 +1013,7 @@
                 resist: { magic: 0.2 } },                                   // BALANCE v8: 20% vs wizard fireballs
       archer: { hp: 90,  speed: 42, atk: 22, range: 140, interval: 1.5 },   // BALANCE: 1.3s -> 1.5s
       wizard: { hp: 175, speed: 44, atk: 38, range: 125, interval: 1.4,     // BALANCE: dmg 34->38, speed 40->44
-                splash: 85,                                                 // BALANCE: blast 65 -> 85px
+                splash: 72,                                                 // v21: 85 -> 72px (was overtuned vs clumps; BALANCE: 65 -> 85)
                 resist: { ranged: 0.5, turret: 0.3, physical: -1.0 } },     // 50% arrows, 30% turret bolts; BALANCE v7: takes 2x melee
       brute:  { hp: 462, speed: 34, atk: 28, range: 26,  interval: 1.5, radius: 20,
                 resist: { magic: 0.70 } }                                   // BALANCE v7: 70% vs wizard fireballs, HP 462
@@ -1028,7 +1028,7 @@
       cavalier: { hp: 600, speed: 40, atk: 21, range: 30, interval: 1.0, radius: 19,
                   chargeSpeed: 150, chargeRange: 220, chargeMax: 300, overshoot: 60, windup: 1.8, hitRadius: 26,
                   resist: { ranged: 0.25 } },                                  // plate barding vs arrows
-      acolyte:  { hp: 300, speed: 42, atk: 34, range: 135, interval: 1.0, radius: 15,
+      acolyte:  { hp: 380, speed: 42, atk: 38,   /* v21: was 300 HP / 34 atk (Necro lost ~97% of equal Hard mirrors) */ range: 135, interval: 1.0, radius: 15,
                   raiseCap: 4, raiseHpPct: 0.7, raiseWindow: 3.0 }   // v12: 1s -> 3s
     });
     const HERO_OF = { blue: 'cavalier', red: 'acolyte' };
@@ -1240,13 +1240,14 @@
 
       applyAuras();
       // Step B: Unit Actions & State Machine
-      for (let i = state.units.length - 1; i >= 0; i--) {
-        const u = state.units[i];
-
-        if (u.dead) {
-          state.units.splice(i, 1);
-          continue;
-        }
+      // v21 FAIRNESS: the old loop ran last-to-first, and red units always sit after blue ones (blue spawns first
+      // each frame), so red struck first in every simultaneous trade. Now dead units are removed first and the
+      // update order alternates every frame, so neither army gets the first hit.
+      state.units = state.units.filter(u => !u.dead);
+      state.unitTick = (state.unitTick || 0) + 1;
+      const order = state.units.slice(); if (state.unitTick & 1) order.reverse();
+      for (const u of order) {
+        if (u.dead) continue;
 
         if (u.flash > 0) u.flash -= dt;
         if (u.auraT > 0) u.auraT -= dt;

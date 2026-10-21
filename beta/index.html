@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-  <title>Royal Blight BETA v19</title>
+  <title>Royal Blight BETA v20</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -303,7 +303,7 @@
     <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
       <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
       <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v19</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v20</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -1273,9 +1273,14 @@
         // Combat Minion Logic
         if (u.type === 'cavalier') updateCavalier(u, dt);
         else updateCombatMinion(u, dt);
+        clampToBounds(u);                                        // v20: never leave the playable lane
       }
     }
 
+    function clampToBounds(u) {          // v20: keep combat units on the road and inside the map (both teams)
+      clampToLane(u);
+      u.y = Math.max(20, Math.min(WORLD_H - 20, u.y));
+    }
     function clampToLane(u) {
       const m = LANE_HALF_W - 8; // stay on the cobblestones
       u.x = Math.max(LANE_X - m, Math.min(LANE_X + m, u.x));
@@ -1488,6 +1493,13 @@
       } else {
         // March down lane towards enemy citadel
         const marchDir = (u.team === 'blue') ? -1 : 1;
+        const eCore = (u.team === 'blue') ? state.cores.red : state.cores.blue;
+        const toCore = (eCore.y - u.y) * marchDir;              // v20: >0 core still ahead, <0 unit is behind it
+        if (toCore < 160) {                                      // v20: at/behind the nexus -> close in on it, never walk past
+          const cdx = eCore.x - u.x, cdy = eCore.y - u.y, cd = Math.hypot(cdx, cdy) || 1;
+          if (cd > u.range) { u.x += (cdx / cd) * spd * dt; u.y += (cdy / cd) * spd * dt; }
+          return;
+        }
         u.y += marchDir * spd * dt;
 
         // Softly anchor back towards assigned track to prevent drifting
@@ -2415,6 +2427,7 @@
           const ty = t.y + (isFlipped() ? -34 : 30), lbl = t.tier === 2 ? '\u2605\u2605' : '\u2605\u2605\u2605';
           ctx.save(); ctx.translate(t.x, ty); if (isFlipped()) ctx.rotate(Math.PI); ctx.strokeText(lbl, 0, 0); ctx.fillText(lbl, 0, 0); ctx.restore();
         }
+        drawUpgradeBadge(t);                                  // v20 visible upgrade button
         ctx.restore();
         return;
       }
@@ -3191,6 +3204,27 @@
       wizards: ['+1 WIZARD CADENCE!', '#c084fc'],
       brutes:  ['+1 BRUTE CADENCE!',  '#34d399']
     };
+    if (!CanvasRenderingContext2D.prototype.roundRect) CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };   // v20: old Safari
+    // v20: phone-friendly upgrade badge above each owned, upgradable turret ('⬆ 200g'); pulses when affordable
+    function upgradeBadgePos(t) { return { x: t.x, y: t.y + (isFlipped() ? 62 : -88) }; }
+    function drawUpgradeBadge(t) {
+      if (t.team !== myTeam() || t.dead || (t.tier || 1) >= 3) return;
+      const nt = TURRET_TIERS[(t.tier || 1) + 1]; if (!nt) return;
+      const ok = myGold() >= nt.cost, b = upgradeBadgePos(t);
+      const pulse = ok ? 1 + 0.08 * Math.sin(performance.now() / 160) : 1;
+      ctx.save(); ctx.translate(b.x, b.y); if (isFlipped()) ctx.rotate(Math.PI); ctx.scale(pulse, pulse);
+      const w = 64, h = 24;
+      if (ok) { ctx.fillStyle = 'rgba(250,204,21,0.35)'; ctx.beginPath(); ctx.roundRect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8, 14); ctx.fill(); }
+      ctx.fillStyle = ok ? '#f59e0b' : '#334155'; ctx.strokeStyle = ok ? '#fef3c7' : '#64748b'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 12); ctx.fill(); ctx.stroke();
+      ctx.font = 'bold 13px Fredoka, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = ok ? '#1c1917' : '#cbd5e1'; ctx.fillText('\u2B06 ' + nt.cost + 'g', 0, 1);
+      ctx.restore();
+    }
+    function upgradeBadgeHit(w) {        // generous touch target around the badge
+      return state.turretPads.find(p => p.team === myTeam() && p.turret && !p.turret.dead && (p.turret.tier || 1) < 3 &&
+        (() => { const b = upgradeBadgePos(p.turret); return Math.abs(w.x - b.x) <= 44 && Math.abs(w.y - b.y) <= 26; })());
+    }
     function turretUpgrade(team, padId) {                 // v17 turret upgrade (command 'tup')
       const gk = team === 'blue' ? 'blueGold' : 'redGold';
       const pad = state.turretPads.find(p => p.id === padId && p.team === team);
@@ -3364,7 +3398,7 @@
       if (!state.placingTurret) {                            // v17: tap your built turret to upgrade it
         if (e.target !== canvas) return;
         const own = state.turretPads.filter(p => p.team === myTeam() && p.turret && !p.turret.dead)
-          .find(p => Math.hypot(p.x - w.x, p.y - w.y) <= PAD_HIT_RADIUS);
+          .find(p => Math.hypot(p.x - w.x, p.y - w.y) <= PAD_HIT_RADIUS) || upgradeBadgeHit(w);
         if (own) {
           const tt = own.turret, nt = TURRET_TIERS[(tt.tier || 1) + 1];
           if (!nt) addFloatingText(own.x, own.y - 30, 'MAX TIER', '#94a3b8', 13, true);

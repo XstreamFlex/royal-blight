@@ -4,14 +4,15 @@
 (function () {
   'use strict';
   // ------------------------------------------------------------------ SAVE (localStorage, versioned)
-  const SAVE_KEY = 'royalBlight.story', SAVE_V = 1;
-  const freshSave = () => ({ v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:long', 'worker', 'turret'], seen: [], created: Date.now() });
+  const SAVE_KEY = 'royalBlight.story', SAVE_V = 2;   // v27: v2 = illustrated map + new color rules (mapV)
+  const freshSave = () => ({ v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:long', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2 });
   function migrate(s) {
     if (!s || typeof s !== 'object') return freshSave();
     const f = freshSave();
     const out = { v: SAVE_V, gold: Math.max(0, Math.floor(+s.gold || 0)), xp: Math.max(0, Math.floor(+s.xp || 0)),
       missions: {}, unlocks: Array.isArray(s.unlocks) ? s.unlocks.filter(x => typeof x === 'string').slice(0, 500) : f.unlocks,
-      seen: Array.isArray(s.seen) ? s.seen.filter(x => typeof x === 'string').slice(0, 500) : [], created: +s.created || Date.now() };
+      seen: Array.isArray(s.seen) ? s.seen.filter(x => typeof x === 'string').slice(0, 500) : [], created: +s.created || Date.now(),
+      mapV: 2, migratedFrom: (s.v | 0) < 2 ? (s.v | 0) || 1 : (s.migratedFrom || 0) };   // v1 -> v2: progress is derived from wins, so nothing is lost
     f.unlocks.forEach(u => { if (!out.unlocks.includes(u)) out.unlocks.push(u); });
     if (s.missions && typeof s.missions === 'object') for (const [id, m] of Object.entries(s.missions)) {
       if (!/^[A-Z0-9_]{2,8}$/.test(id) || !m) continue;
@@ -35,12 +36,12 @@
   // ------------------------------------------------------------------ WORLD DATA (from STORY_BIBLE.md)
   const G = { G1: 100, G2: 150, G3: 250, G4: 400, G5: 600 }, X = { X1: 50, X2: 80, X3: 120 };
   const REGIONS = {
-    paradale:  { name: 'Paradale',  ruler: 'King Rufus', dir: 'center', pos: [50, 50], missions: ['P0'], hub: true, cards: [] },
-    eastmarch: { name: 'Eastmarch', ruler: 'King Felix', dir: 'east', pos: [80, 50], missions: ['M01', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07'],
+    paradale:  { name: 'Paradale',  ruler: 'King Rufus', dir: 'center', pos: [50, 47], missions: ['P0'], hub: true, cards: [] },
+    eastmarch: { name: 'Eastmarch', ruler: 'King Felix', dir: 'east', pos: [84, 52], missions: ['M01', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07'],
                  cards: [['map:farmland', '\u{1F33E}', 'Burning Farmland map'], ['pawn:shield', '\u{1F6E1}', 'Sword & Shield pawn'], ['army:green', '\u{1F49A}', 'Green Army + King Felix'], ['archer:flame', '\u{1F525}', 'Flame Arrow archer'], ['hero:cavalier', '\u{1F40E}', 'The Cavalier']] },
-    westreach: { name: 'Westreach', ruler: 'King Glade', dir: 'west', pos: [20, 50], missions: [], count: 8, soon: true, cards: [['map:library', '\u{1F4DA}', '?'], ['wizard:base', '\u{1F52E}', '?']] },
-    northcrag: { name: 'Northcrag', ruler: 'King Cline', dir: 'north', pos: [50, 20], missions: [], count: 8, soon: true, cards: [['map:pass', '\u26F0', '?']] },
-    southmire: { name: 'Southmire', ruler: 'General Drevlar', dir: 'south', pos: [50, 80], missions: [], count: 8, soon: true, cards: [['map:swamp', '\u{1F480}', '?']] }
+    westreach: { name: 'Westreach', ruler: 'King Glade', dir: 'west', pos: [16, 50], missions: [], count: 8, soon: true, cards: [['map:library', '\u{1F4DA}', '?'], ['wizard:base', '\u{1F52E}', '?']] },
+    northcrag: { name: 'Northcrag', ruler: 'King Cline', dir: 'north', pos: [50, 15], missions: [], count: 8, soon: true, cards: [['map:pass', '\u26F0', '?']] },
+    southmire: { name: 'Southmire', ruler: 'General Drevlar', dir: 'south', pos: [50, 83], missions: [], count: 8, soon: true, cards: [['map:swamp', '\u{1F480}', '?']] }
   };
   // Mission definitions. Engine keys:
   //  ai {level, strat, income, think}, gold (start), cards (allowed player cards), cap (max player army), map,
@@ -111,14 +112,29 @@
   // ------------------------------------------------------------------ PROGRESS / COLORS
   const won = id => (SAVE.missions[id] && SAVE.missions[id].wins > 0);
   function regionColor(rk) {
-    const r = REGIONS[rk]; if (r.hub) return won('P0') ? 'blue' : 'blue';
-    const ms = r.missions, n = ms.length || r.count; if (!ms.length) return 'red';
+    // v27 color rules: every region starts GREEN (peace). After the Prologue the realm turns YELLOW (contact lost),
+    // except Eastmarch which goes RED (Felix's Green Army is burning it). Then red -> orange -> yellow -> lightgreen -> green.
+    const r = REGIONS[rk]; if (!won('P0')) return 'green';
+    if (r.hub) return 'blue';
+    const ms = r.missions, n = ms.length || r.count; if (!ms.length) return rk === 'eastmarch' ? 'red' : 'yellow';
     const w = ms.filter(won).length, final = ms[ms.length - 1];
     if (won(final)) return 'green';
     if (w === 0) return 'red';
     if (w === n - 1) return 'lightgreen';
     if (w >= Math.ceil(n / 2)) return 'yellow';
     return 'orange';
+  }
+  // v27 controlling army per region (border color). A freed region flies the Royal Blue of Paradale.
+  const ARMY = { paradale: ['Royal Blue', '#2563eb'], eastmarch: ['Green Army', '#22c55e'], westreach: ['Yellow Army', '#eab308'], northcrag: ['Silver Army', '#e5e7eb'], southmire: ['Grave Purple', '#9333ea'] };
+  function controller(rk) { const r = REGIONS[rk]; if (r.hub || (r.missions.length && won(r.missions[r.missions.length - 1]))) return ARMY.paradale; return ARMY[rk]; }
+  const MAP_C = [50, 47], DIRA = { east: 0, south: 90, west: 180, north: 270 };
+  function regionPath(rk) {             // wedge between the capital ring and the coast, in 0-100 map space
+    const r = REGIONS[rk], [cx, cy] = MAP_C, P = [];
+    if (r.hub) { for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; P.push([cx + Math.cos(a) * 17, cy + Math.sin(a) * 15]); } }
+    else { const a0 = (DIRA[r.dir] - 44) * Math.PI / 180, a1 = (DIRA[r.dir] + 44) * Math.PI / 180;
+      for (let i = 0; i <= 12; i++) { const a = a0 + (a1 - a0) * i / 12, w = 1 + 0.05 * Math.sin(i * 1.7); P.push([cx + Math.cos(a) * 45 * w, cy + Math.sin(a) * 44 * w]); }
+      for (let i = 12; i >= 0; i--) { const a = a0 + (a1 - a0) * i / 12; P.push([cx + Math.cos(a) * 19, cy + Math.sin(a) * 17]); } }
+    return 'M' + P.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L') + ' Z';
   }
   const COLOR = { red: '#dc2626', orange: '#f97316', yellow: '#facc15', lightgreen: '#86efac', green: '#16a34a', blue: '#3b82f6' };
   function missionOpen(id) { const m = M[id], ms = REGIONS[m.region].missions, i = ms.indexOf(id); return i <= 0 || won(ms[i - 1]); }
@@ -497,17 +513,22 @@
     $('modal-menu').classList.add('hidden'); $('modal-gameover').classList.add('hidden'); $('modal-story').classList.remove('hidden');
     $('st-purse').textContent = `\u{1FA99} ${SAVE.gold}  \u2B50 XP ${SAVE.xp} (Lv ${level()})`;
     const map = $('st-map');
-    const paths = Object.values(REGIONS).filter(r => !r.hub).map(r => `<line x1="50" y1="50" x2="${r.pos[0]}" y2="${r.pos[1]}" stroke="#a16207" stroke-width="0.8" stroke-dasharray="2 1.5"/>`).join('');
-    map.innerHTML = `<svg viewBox="0 0 100 100" class="absolute inset-0 w-full h-full">${paths}<circle cx="50" cy="50" r="46" fill="none" stroke="#e7e5e4" stroke-opacity="0.12" stroke-width="6" stroke-dasharray="3 4"/></svg>` +
+    // v27: illustrated kingdom map; each region = progress-tinted area with a border in its controlling army's color
+    const shapes = Object.keys(REGIONS).map(k => { const col = COLOR[regionColor(k)], [an, ac] = controller(k);
+      return `<path d="${regionPath(k)}" fill="${col}" fill-opacity="0.26" stroke="#000" stroke-opacity="0.45" stroke-width="2.4" stroke-linejoin="round"/>` +
+             `<path d="${regionPath(k)}" fill="none" stroke="${ac}" stroke-width="1.3" stroke-linejoin="round" stroke-dasharray="${REGIONS[k].hub ? 'none' : '3 1.2'}"><title>${an}</title></path>`; }).join('');
+    map.style.background = "url('assets/kingdom_map.jpg') center/cover"; map.style.borderRadius = '14px'; map.style.boxShadow = '0 6px 24px #0009';
+    map.innerHTML = `<svg viewBox="0 0 100 100" class="absolute inset-0 w-full h-full">${shapes}</svg>` +
       Object.entries(REGIONS).map(([k, r]) => {
         const col = regionColor(k), w = r.missions.filter(won).length, n = r.missions.length || r.count;
         const pulse = col === 'lightgreen' ? 'animation:stpulse 1.2s infinite' : '';
+        const [an, ac] = controller(k), sz = r.hub ? 40 : 34;
         return `<button data-region="${k}" class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style="left:${r.pos[0]}%;top:${r.pos[1]}%">
-          <div class="rounded-full border-4 border-black/40 shadow-xl flex items-center justify-center text-xl" style="width:${r.hub ? 64 : 56}px;height:${r.hub ? 64 : 56}px;background:${COLOR[col]};${pulse}">${r.hub ? '\u{1F3F0}' : r.soon ? '\u2601' : '\u{1F3F0}'}</div>
-          <div class="mt-0.5 px-1.5 rounded bg-black/70 text-[10px] font-black text-white leading-tight">${r.name}<br><span class="text-[9px] font-bold" style="color:${COLOR[col]}">${r.soon ? 'coming soon' : r.hub ? (won('P0') ? 'Prologue \u2713' : 'Prologue') : w + '/' + n}</span></div></button>`;
+          <div class="rounded-full shadow-xl flex items-center justify-center text-base" style="width:${sz}px;height:${sz}px;background:${COLOR[col]};border:3px solid ${ac};${pulse}">${r.hub ? '\u{1F3F0}' : r.soon ? '\u2601' : '\u2694'}</div>
+          <div class="mt-0.5 px-1.5 rounded bg-black/70 text-[10px] font-black text-white leading-tight">${r.name}<br><span class="text-[9px] font-bold" style="color:${COLOR[col]}">${r.soon ? 'coming soon' : r.hub ? (won('P0') ? 'Prologue \u2713' : 'Prologue') : w + '/' + n}</span><br><span class="text-[8px] font-bold" style="color:${ac}">${an}</span></div></button>`;
       }).join('') + `<style>@keyframes stpulse{0%,100%{box-shadow:0 0 0 0 #86efac}50%{box-shadow:0 0 0 10px #86efac00}}</style>`;
     map.querySelectorAll('button[data-region]').forEach(b => b.onclick = () => S.openRegion(b.dataset.region));
-    $('st-legend').innerHTML = [['red', 'Not started'], ['orange', '1+ win'], ['yellow', 'Last half'], ['lightgreen', 'Final left'], ['green', 'Cleared']].map(([c, t]) => `<span class="px-1.5 py-0.5 rounded" style="background:${COLOR[c]}33;border:1px solid ${COLOR[c]}">${t}</span>`).join('');
+    $('st-legend').innerHTML = (won('P0') ? [['red', 'Under attack'], ['orange', '1+ win'], ['yellow', 'Contested / no contact'], ['lightgreen', 'Final left'], ['green', 'Freed']] : [['green', 'At peace \u2014 play the Prologue']]).map(([c, t]) => `<span class="px-1.5 py-0.5 rounded" style="background:${COLOR[c]}33;border:1px solid ${COLOR[c]}">${t}</span>`).join('');
     S.openRegion(S.curRegion || (won('P0') ? 'eastmarch' : 'paradale'));
   };
   S.openRegion = function (rk) {

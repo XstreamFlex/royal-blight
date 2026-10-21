@@ -17,7 +17,7 @@
     const out = { v: SAVE_V, gold: Math.max(0, Math.floor(+s.gold || 0)), xp: Math.max(0, Math.floor(+s.xp || 0)),
       missions: {}, unlocks: Array.isArray(s.unlocks) ? s.unlocks.filter(x => typeof x === 'string').slice(0, 500) : f.unlocks,
       seen: Array.isArray(s.seen) ? s.seen.filter(x => typeof x === 'string').slice(0, 500) : [], created: +s.created || Date.now(),
-      diff: ['easy', 'normal', 'hard'].includes(s.diff) ? s.diff : 'normal', mapV: 2, replayStory: !!s.replayStory, power: typeof s.power === 'string' ? s.power : null, up: cleanUp(s.up), migratedFrom: (s.v | 0) < 2 ? (s.v | 0) || 1 : (s.migratedFrom || 0) };   // v1 -> v2: progress is derived from wins, so nothing is lost
+      diff: ['easy', 'normal', 'hard'].includes(s.diff) ? s.diff : 'normal', mapV: 2, replayStory: !!s.replayStory, cineAll: !!s.cineAll, power: typeof s.power === 'string' ? s.power : null, up: cleanUp(s.up), migratedFrom: (s.v | 0) < 2 ? (s.v | 0) || 1 : (s.migratedFrom || 0) };   // v1 -> v2: progress is derived from wins, so nothing is lost
     f.unlocks.forEach(u => { if (!out.unlocks.includes(u)) out.unlocks.push(u); });
     if (s.missions && typeof s.missions === 'object') for (const [id, m] of Object.entries(s.missions)) {
       if (!/^[A-Z0-9_]{2,8}$/.test(id) || !m) continue;
@@ -602,6 +602,8 @@
         <div id="st-region" class="w-full max-w-sm px-3 pb-3"></div>
         <div class="w-full max-w-sm px-3 pb-4 grid grid-cols-2 gap-2">
           <button id="st-cine" class="py-2 rounded-lg bg-indigo-800/80 text-indigo-100 font-black text-[10px] uppercase">\u{1F3AC} Cinematics</button>
+          <button id="st-prologue" class="py-2 rounded-lg bg-sky-800/80 text-sky-100 font-black text-[10px] uppercase">\u{1F3EE} Replay Prologue</button>
+          <button id="st-cineall" class="py-2 rounded-lg bg-fuchsia-900/80 text-fuchsia-100 font-black text-[10px] uppercase">\u{1F513} Unlock all cinematics (beta)</button>
           <button id="st-shop" class="py-2 rounded-lg bg-amber-800/80 text-amber-100 font-black text-[10px] uppercase">\u{1F4B0} Treasury</button>
           <button id="st-export" class="py-2 rounded-lg bg-slate-700 text-slate-100 font-black text-[10px] uppercase">Export save</button>
           <button id="st-import" class="py-2 rounded-lg bg-slate-700 text-slate-100 font-black text-[10px] uppercase">Import save</button>
@@ -613,6 +615,8 @@
     $('st-import').onclick = () => { const s = prompt('Paste a ' + (window.RB_TITLE || 'Royal Blight') + ' save (RB1....):'); if (!s) return; const r = importSave(s); alert(r === true ? 'Save imported!' : 'Could not import: ' + r); S.openMap(); };
     $('st-shop').onclick = () => openTreasury();
     $('st-cine').onclick = () => S.openCinematics();
+    $('st-prologue').onclick = () => S.brief('P0');                     // v34.2: tutorial/prologue always replayable
+    $('st-cineall').onclick = () => { SAVE.cineAll = true; persist(); S.openCinematics(); };
     // menu entry (keeps Quick Match + multiplayer intact)
     const menuBox = $('btn-loadout');
     menuBox.insertAdjacentHTML('beforebegin', `<button id="btn-story" class="w-full max-w-xs mb-2 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 text-slate-950 font-black text-sm uppercase tracking-wider shadow-lg active:scale-95">\u{1F4D6} Story <span class="normal-case font-bold text-[10px]">\u00B7 Act 1</span></button>`);
@@ -754,8 +758,12 @@
       one();
     });
   };
+  // v34.2: unlocked if watched, OR its mission was ever started/cleared (retroactive for old and cloud saves),
+  // OR it belongs to the Prologue (always open), OR the beta "unlock all" switch is on.
+  function cineUnlocked(c) { return SAVE.cineAll || c[1] === 'P0' || SAVE.seen.includes('cine:' + c[0]) || !!SAVE.missions[c[1]]; }
+  S.cineUnlocked = cineUnlocked;
   S.openCinematics = function () {
-    const seen = CINE.filter(c => SAVE.seen.includes('cine:' + c[0]));
+    const seen = CINE.filter(cineUnlocked);
     const h = `<p class="text-[11px] text-slate-300 mb-2 text-center">Cutscenes you have unlocked. They play the first time you start or clear a mission.</p><div class="grid grid-cols-2 gap-2">` +
       CINE.map(c => { const ok = seen.includes(c); return `<button data-cine="${c[0]}" ${ok ? '' : 'disabled'} class="rounded-xl overflow-hidden border-2 ${ok ? 'border-amber-500' : 'border-slate-700 opacity-50'} bg-slate-900 text-left">
         <div class="aspect-[9/16] max-h-32 w-full bg-black flex items-center justify-center" style="${ok ? `background:url('assets/cine/${c[0]}.jpg') center/cover` : ''}">${ok ? '<span class="text-2xl">\u25B6</span>' : '\u{1F512}'}</div>

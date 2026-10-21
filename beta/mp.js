@@ -320,13 +320,13 @@ const MP = (() => {
       nx: [spawnsAt('blue', state.waveCount + 1), spawnsAt('red', state.waveCount + 1)],
       u: state.units.filter(u => !u.dead).map(u => [u.id, UT.indexOf(u.type), u.team === 'blue' ? 0 : 1,
         Math.round(u.x), Math.round(u.y), Math.ceil(u.hp), u.effectiveMaxHp, u.flash > 0 ? 1 : 0, u.radius,
-        u.type === 'worker' ? (u.workerState === 'FLEEING' ? 1 : 0) : u.type === 'cavalier' ? (u.chargeDir < 0 ? 1 : 0) : 0, u.carriedGold || 0, u.heroKey || u.variant || 0, u.stunT > 0 ? 1 : 0]),
+        u.type === 'worker' ? (u.workerState === 'FLEEING' ? 1 : 0) : u.type === 'cavalier' ? (u.chargeDir < 0 ? 1 : 0) : 0, u.carriedGold || 0, u.heroKey || u.variant || 0, u.stunT > 0 ? 1 : 0, u.retreat ? 1 : u.rally ? 2 : 0]),
       p: state.projectiles.map(p => [PT.indexOf(p.type), p.team === 'blue' ? 0 : 1, Math.round(p.x), Math.round(p.y),
         Math.round(p.targetX || 0), Math.round(p.targetY || 0)]),
       co: [core(state.cores.blue), core(state.cores.red)],
       tp: state.turretPads.map(p => (p.turret && !p.turret.dead)
         ? [Math.ceil(p.turret.hp), p.turret.maxHp, p.turret.charge, p.turret.flash > 0 ? 1 : 0, r1(p.turret.rotation), p.turret.tier || 1] : 0),
-      go: state.gameOver ? state.winner : 0, tu: state.timeUp ? 1 : 0,
+      go: state.gameOver ? state.winner : 0, st: state.gameOver ? state.stats : 0, tu: state.timeUp ? 1 : 0,
       gm: state.goldMined ? [state.goldMined.blue, state.goldMined.red] : 0,
       sc: state.score ? [Math.floor(state.score.blue), Math.floor(state.score.red)] : 0,
       fx: fxQueue.splice(0)
@@ -365,7 +365,7 @@ const MP = (() => {
         id: u[0], type: UT[u[1]], team: u[2] ? 'red' : 'blue',
         x: p[3] + (u[3] - p[3]) * k, y: p[4] + (u[4] - p[4]) * k,
         hp: u[5], lagHp: u[5], effectiveMaxHp: u[6], maxHp: u[6], flash: u[7] ? 0.05 : 0, radius: u[8],
-        workerState: u[9] ? 'FLEEING' : 'TRAVEL', chargeDir: u[9] ? -1 : 1, carriedGold: u[10], variant: (u[11] && !HEROX[u[11]]) ? u[11] : null, heroKey: (u[11] && HEROX[u[11]]) ? u[11] : undefined, stunT: u[12] ? 0.1 : 0, walkAnim: w, attackAnimTimer: 0, dead: false
+        workerState: u[9] ? 'FLEEING' : 'TRAVEL', chargeDir: u[9] ? -1 : 1, carriedGold: u[10], variant: (u[11] && !HEROX[u[11]]) ? u[11] : null, heroKey: (u[11] && HEROX[u[11]]) ? u[11] : undefined, stunT: u[12] ? 0.1 : 0, retreat: u[13] === 1, rally: u[13] === 2, walkAnim: w, attackAnimTimer: 0, dead: false
       };
     });
     if (walk.size > 400) { const live = new Set(S.u.map(u => u[0])); [...walk.keys()].forEach(id => live.has(id) || walk.delete(id)); }
@@ -390,7 +390,7 @@ const MP = (() => {
     if (S.gm) state.goldMined = { blue: S.gm[0], red: S.gm[1] };
     if (S.sc) state.score = { blue: S.sc[0], red: S.sc[1] };
     if (S.tu) state.timeUp = true;
-    if (S.go && !state.gameOver) { state.gameOver = true; state.winner = S.go; showGameOver(S.go === myTeam()); }
+    if (S.go && !state.gameOver) { if (S.st) state.stats = S.st; state.gameOver = true; state.winner = S.go; showGameOver(S.go === myTeam()); }
   }
 
   // Forward combat sounds from the host simulation to the guest (purchase sounds are local)

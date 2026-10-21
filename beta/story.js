@@ -106,7 +106,7 @@
       ai: { level: 'normal', strat: 'balanced', income: 1.1 },
       brief: 'Felix himself takes the field. Three phases: arrow volleys, then fire-lines split the lane, then his Rain of Arrows. While Felix stands, his nexus is shielded.',
       objectives: [{ k: 'boss', name: 'King Felix' }, { k: 'nexus' }],
-      boss: { hp: 4200, atk: 32, range: 170, interval: 1.2, speed: 24, y: 300 },
+      boss: { hp: 1000, atk: 30, range: 170, interval: 1.2, speed: 24, y: 300 },
       stars: ['Defeat Felix', 'Nexus above 50%', 'Nexus never below 75%'],
       before: [['Felix', 'You want my fields? Come and take the ashes.']],
       after: [['Felix', '(tearful, eyes brown again) Rufus\u2026 I burned it. I burned everything.'], ['Rufus', 'Fields grow back. You\u2019re home now.'], ['Vesper', '(watching the hug) How\u2026 touching.'], ['Pip', 'The map\u2019s turning green, Your Majesty!']],
@@ -263,10 +263,29 @@
     if (o.k === 'vip') { st.u = storyUnit({ type: 'vip', team: 'blue', x: LANE_X, y: state.cores.blue.y - 90, hp: o.hp || 500, speed: o.speed || 18, radius: 15, label: o.name }); }
     if (o.k === 'survive' || o.k === 'deadline') { st.left = o.secs; }
   }
+  // v34 THREE-BAR BOSS: each health bar is one phase. When a bar empties the boss flees to his fortress (his nexus),
+  // untargetable, heals to full and returns with stronger powers. Only the 3rd bar kills him; then his nexus
+  // drops to turret-level HP. Bar HP scales with the story difficulty.
+  const BOSS_DIFF = { easy: 0.7, normal: 1, hard: 1.3 };
+  const BOSS_PH = { 1: { atk: 1, interval: 1, fx: { r: 40, f: 0.18 } }, 2: { atk: 1.1, interval: 0.9, fx: { r: 48, f: 0.22 } }, 3: { atk: 1.2, interval: 0.85, fx: { r: 56, f: 0.26 } } };
   function spawnBoss(b) {
-    const u = new Unit({ type: 'archer', team: 'red', lane: 'C', x: LANE_X, y: b.y, hp: b.hp, atk: b.atk, range: b.range, interval: b.interval, speed: b.speed, radius: 22, resist: { ranged: 0.3, magic: 0.3 } });
-    u.boss = true; u.variant = 'flame'; u.burn = [6, 3]; state.units.push(u); S.R.boss = u; S.R.phase = 1; S.R.rainT = 6;
+    const hp = Math.round(b.hp * (BOSS_DIFF[SAVE.diff] || 1));
+    const u = new Unit({ type: 'archer', team: 'red', lane: 'C', x: LANE_X, y: b.y, hp, atk: b.atk, range: b.range, interval: b.interval, speed: b.speed, radius: 22, resist: { ranged: 0.3, magic: 0.3 } });
+    u.boss = true; u.variant = 'flame'; u.burn = [6, 3]; u.baseAtk = b.atk; u.baseInt = b.interval; u.bossFx = Object.assign({ kind: 'flame' }, BOSS_PH[1].fx);
+    state.units.push(u); S.R.boss = u; S.R.phase = 1; S.R.rainT = 6;
   }
+  function bossPhase(u, ph) {
+    const P = BOSS_PH[ph]; S.R.phase = ph; u.atk = Math.round(u.baseAtk * P.atk); u.attackInterval = u.interval = u.baseInt * P.interval; u.bossFx = Object.assign({ kind: 'flame' }, P.fx);
+    if (u.stats) { u.stats.atk = u.atk; }
+  }
+  // called from dealDamage when the boss hits 0 HP; true = handled (he flees instead of dying)
+  S.bossDown = function (u) {
+    const R = S.R; if (!R || u !== R.boss || R.phase >= 3) return false;
+    u.hp = 1; u.lagHp = 1; u.retreat = true; u.untargetable = true; u.burnT = 0; u.stunT = 0; R.bossFlee = R.phase + 1;
+    createSparks(u.x, u.y, '#fb923c', 24); state.shake = Math.max(state.shake || 0, 0.4);
+    toast(R.phase === 1 ? 'FELIX FLEES TO HIS FORTRESS!' : 'FELIX FLEES AGAIN! ONE BAR LEFT', '#fde68a'); S.bark('felix_flee');
+    return true;
+  };
 
   S.allow = function (team, c) {           // limited army / unlock gating for the story player
     if (team !== 'blue' || !S.m) return true;
@@ -386,7 +405,7 @@
   S.onUnitDeath = function (u) {
     if (!u.story) return;
     if (u.evac) { u.evac.lost++; addFloatingText(u.x, u.y - 14, 'FARMER LOST', '#f87171', 13); }
-    if (u.wagon) { u.wagon.killed++; addFloatingText(u.x, u.y - 14, u.team === 'red' ? 'WAGON DESTROYED!' : 'WAGON LOST', u.team === 'red' ? '#4ade80' : '#f87171', 14); createSparks(u.x, u.y, '#f97316', 18); }
+    if (u.wagon) { u.wagon.killed++; addFloatingText(u.x, u.y - 14, u.team === 'red' ? 'WAGON DESTROYED!' : 'WAGON LOST', u.team === 'red' ? '#4ade80' : '#f87171', 14); createSparks(u.x, u.y, '#f97316', 18); (S.R.wrecks = S.R.wrecks || []).push({ x: u.x, y: u.y, t: state.gameTime }); state.shake = Math.max(state.shake || 0, 0.25); }
   };
   function tickHazard(h, i, dt) {
     const R = S.R, hz = R.hazards[i] = R.hazards[i] || { t: h.every * 0.6, lines: [] };
@@ -405,17 +424,23 @@
     });
   }
   function tickBoss(dt) {
-    const R = S.R, b = R.boss; if (b.dead) { if (!R.bossDown) { R.bossDown = true; toast('FELIX FALLS! HIS NEXUS IS EXPOSED', '#4ade80'); S.bark('felix_down'); } return; }
-    const f = b.hp / b.maxHp, cr = state.cores.red;
+    const R = S.R, b = R.boss, cr = state.cores.red;
+    if (b.dead) { if (!R.bossDown) { R.bossDown = true; cr.hp = Math.min(cr.hp, 1500); state.shake = 0.6; createSparks(cr.x, cr.y, '#4ade80', 30);   // nexus drops to turret-level HP
+      toast('FELIX FALLS! HIS NEXUS IS EXPOSED', '#4ade80'); S.bark('felix_down'); } return; }
     R.shieldHp = R.shieldHp || cr.hp; cr.hp = Math.max(cr.hp, R.shieldHp);          // nexus shielded while Felix stands
-    if (R.phase === 1 && f < 0.66) { R.phase = 2; toast('PHASE 2: FIRE-LINES SPLIT THE LANE', '#fb923c'); S.bark('phase2'); }
-    if (R.phase === 2 && f < 0.33) { R.phase = 3; toast('PHASE 3: RAIN OF ARROWS!', '#f87171'); S.bark('phase3'); }
+    if (R.bossFlee && !b.retreat) {                                               // healed at the fortress: back for the next phase
+      const ph = R.bossFlee; R.bossFlee = 0; b.rally = true; b.rallyT = 12; bossPhase(b, ph);
+      if (ph === 2) { toast('PHASE 2: FELIX RETURNS \u2014 FIRE-LINES SPLIT THE LANE', '#fb923c'); S.bark('phase2'); }
+      else { toast('PHASE 3: FELIX RETURNS \u2014 RAIN OF ARROWS!', '#f87171'); S.bark('phase3'); }
+    }
+    if (b.retreat) return;
     if (R.phase >= 2 && !S.m.hazards) S.m._hz = S.m._hz || { k: 'fireline', every: 9, warn: 2, dur: 3.5, dps: 16, h: 44 };
     if (R.phase >= 2) tickHazard(S.m._hz, 9, dt);
     if (R.phase >= 3) {
       R.rainT -= dt;
       if (R.rainT <= 0) { R.rainT = 6; const B = blueArmy(); if (B.length) { const t = B[Math.floor(Math.random() * B.length)]; R.rain = { x: t.x, y: t.y, warn: 1.6, r: 80 }; } }
-      if (R.rain) { R.rain.warn -= dt; if (R.rain.warn <= 0) { const rn = R.rain; state.units.forEach(u => { if (!u.dead && u.team === 'blue' && Math.hypot(u.x - rn.x, u.y - rn.y) < rn.r) dealDamage(u, 45, b, 'ranged'); }); createSparks(rn.x, rn.y, '#fb923c', 20); R.rain = null; } }
+      if (R.rain) { R.rain.warn -= dt; if (R.rain.warn <= 0) { const rn = R.rain; state.units.forEach(u => { if (!u.dead && u.team === 'blue' && Math.hypot(u.x - rn.x, u.y - rn.y) < rn.r) dealDamage(u, 45, b, 'ranged'); }); createSparks(rn.x, rn.y, '#fb923c', 30); createSparks(rn.x, rn.y, '#fde047', 16);
+          state.particles.push({ type: 'shockwave', color: '249,115,22', x: rn.x, y: rn.y, radius: 10, maxRadius: rn.r * 1.2, life: 0.5, maxLife: 0.5 }); state.shake = Math.max(state.shake || 0, 0.45); R.rain = null; } }
     }
     // Felix holds back near his archers
     if (b.y > 520) b.y = 520;
@@ -504,11 +529,25 @@
         const z = o.zone; c.fillStyle = 'rgba(56,189,248,0.16)'; c.fillRect(LANE_X - LANE_HALF_W - 40, z.y - z.h, (LANE_HALF_W + 40) * 2, z.h * 2);
         c.strokeStyle = '#38bdf8'; c.lineWidth = 3; c.setLineDash([10, 6]); c.strokeRect(LANE_X - LANE_HALF_W - 40, z.y - z.h, (LANE_HALF_W + 40) * 2, z.h * 2); c.setLineDash([]);
         label(c, '\u{1F3ED} ' + z.name + ' zone', LANE_X, z.y - z.h - 8);
+        // v34: the windmill itself stands beside the zone; it catches fire as the enemy holds it
+        const hurt = st.failed || st.enemyT >= o.maxEnemy * 0.4, wm = loadSprite(hurt ? 'windmill_burning' : 'windmill'), wx = LANE_X - LANE_HALF_W - 62;
+        if (wm) c.drawImage(wm, wx - 70, z.y - 140, 140, 140);
+        if (!hurt && st.enemyT > 0) { c.fillStyle = `rgba(249,115,22,${0.25 + 0.15 * Math.sin(now * 9)})`; c.beginPath(); c.arc(wx, z.y - 70, 40, 0, Math.PI * 2); c.fill(); }
       }
+      if (o.k === 'rescue') st.cages.forEach(cg => {   // v34: Garrow is locked in a prison wagon until freed; it bursts open on rescue
+        const x = cg.u.x, y = cg.c.y, open = cg.freed, img = loadSprite(open ? 'jailwagon_open' : 'jailwagon');
+        const sh = !open && cg.prog > 0 ? Math.sin(now * 40) * 2 * (cg.prog / 3) : 0;
+        if (img) c.drawImage(img, x - 48 + sh, y - 66, 96, 96);
+        if (!open && cg.c.hero) { const g = loadSprite('cavalier_blue'); if (g) c.drawImage(g, x - 22 + sh, y - 62, 44, 44); }
+        if (!open && cg.c.hero) { c.strokeStyle = '#3f3f46'; c.lineWidth = 3; for (let k = -16; k <= 16; k += 8) { c.beginPath(); c.moveTo(x + k + sh, y - 44); c.lineTo(x + k + sh, y - 6); c.stroke(); } }
+        if (open && !cg.boom) { cg.boom = 1; createSparks(x, y - 30, '#a8a29e', 26); createSparks(x, y - 30, '#facc15', 14); }
+        if (open) label(c, '\u2694 ' + cg.c.name + ' rides!', x, y - 74);
+      });
       if (o.k === 'beacons') o.ys.forEach((y, i) => {
-        const x = LANE_X + LANE_HALF_W + 22; c.fillStyle = '#44403c'; c.fillRect(x - 2, y - 26, 4, 26);
-        c.fillStyle = st.lit[i] ? `rgba(250,204,21,${0.8 + 0.2 * Math.sin(now * 6)})` : '#57534e';
-        c.beginPath(); c.arc(x, y - 30, 8, 0, Math.PI * 2); c.fill(); if (st.lit[i]) { c.fillStyle = 'rgba(250,204,21,0.25)'; c.beginPath(); c.arc(x, y - 30, 22, 0, Math.PI * 2); c.fill(); }
+        const x = LANE_X + LANE_HALF_W + 34, img = loadSprite(st.lit[i] ? 'lantern_on' : 'lantern_off');   // v34 lantern-post art
+        if (st.lit[i]) { c.fillStyle = `rgba(250,204,21,${0.22 + 0.08 * Math.sin(now * 6)})`; c.beginPath(); c.arc(x - 12, y - 44, 30, 0, Math.PI * 2); c.fill(); }
+        if (img) c.drawImage(img, x - 50, y - 100, 100, 100);
+        else { c.fillStyle = '#44403c'; c.fillRect(x - 2, y - 26, 4, 26); c.fillStyle = st.lit[i] ? '#facc15' : '#57534e'; c.beginPath(); c.arc(x, y - 30, 8, 0, Math.PI * 2); c.fill(); }
       });
     }
     // hazards
@@ -519,15 +558,22 @@
     (m.hazards || []).forEach((h, i) => drawLines(h, R.hazards[i]));
     if (m._hz) drawLines(m._hz, R.hazards[9]);
     if (R.rain) { c.strokeStyle = '#f87171'; c.lineWidth = 3; c.beginPath(); c.arc(R.rain.x, R.rain.y, R.rain.r * (1 - R.rain.warn / 1.6 * 0.3), 0, Math.PI * 2); c.stroke(); c.fillStyle = 'rgba(248,113,113,0.18)'; c.fill(); }
+    if (R.boss && !R.boss.dead && R.boss.retreat) { const cr = state.cores.red; label(c, '\u{1F3F0} Felix regroups at his fortress\u2026 ' + Math.round(100 * R.boss.hp / R.boss.maxHp) + '%', cr.x, cr.y + 110); }
     if (R.boss && !R.boss.dead) { const b = R.boss; c.strokeStyle = '#facc15'; c.lineWidth = 3; c.beginPath(); c.ellipse(b.x, b.y + 18, 30, 12, 0, 0, Math.PI * 2); c.stroke(); label(c, '\u{1F451} KING FELIX \u00B7 phase ' + R.phase, b.x, b.y - 52); }
     if (R.boss && !R.boss.dead) { const cr = state.cores.red; c.strokeStyle = `rgba(74,222,128,${0.5 + 0.3 * Math.sin(now * 3)})`; c.lineWidth = 4; c.beginPath(); c.arc(cr.x, cr.y, 70, 0, Math.PI * 2); c.stroke(); }
+    (R.wrecks || []).forEach(w => { const a = 1 - (state.gameTime - w.t) / 8, img = loadSprite('oilwagon_burnt'); if (a > 0 && img) { c.globalAlpha = a; c.drawImage(img, w.x - 34, w.y - 44, 68, 68); c.globalAlpha = 1; } });   // v34 wrecks smoulder, then fade
+    if (R.wrecks && R.wrecks.length > 12) R.wrecks.splice(0, R.wrecks.length - 12);
     // story units
     state.units.forEach(u => {
       if (!u.story || u.dead) return;
       const icon = { civilian: '\u{1F9D1}\u200D\u{1F33E}', wagon: u.team === 'red' ? '\u{1F6E2}' : '\u{1F6D2}', structure: '\u{1F3DB}', cage: '\u26D3', vip: '\u{1F451}' }[u.type] || '?';
       c.save(); c.translate(u.x, u.y + Math.sin(u.walkAnim) * 1.5);
-      if (u.type === 'wagon') { c.fillStyle = u.team === 'red' ? '#7c2d12' : '#1e3a8a'; c.fillRect(-16, -10, 32, 20); c.fillStyle = '#292524'; c.beginPath(); c.arc(-10, 11, 5, 0, 7); c.arc(10, 11, 5, 0, 7); c.fill(); }
-      if (u.type === 'cage') { c.strokeStyle = '#a8a29e'; c.lineWidth = 3; c.strokeRect(-16, -20, 32, 36); for (let k = -10; k <= 10; k += 7) { c.beginPath(); c.moveTo(k, -20); c.lineTo(k, 16); c.stroke(); } }
+      if (u.type === 'wagon') {   // v34 oil-wagon art: intact, then burning below half HP
+        const img = loadSprite(u.hp < u.maxHp * 0.5 ? 'oilwagon_burnt' : 'oilwagon');
+        if (img) { c.restore(); c.drawImage(img, u.x - 34, u.y - 44 + Math.sin(u.walkAnim) * 1.2, 68, 68); drawHealthBar(u.x, u.y - 46, u.radius * 2, 4, u.hp, u.lagHp, u.maxHp); return; }
+        c.fillStyle = u.team === 'red' ? '#7c2d12' : '#1e3a8a'; c.fillRect(-16, -10, 32, 20); c.fillStyle = '#292524'; c.beginPath(); c.arc(-10, 11, 5, 0, 7); c.arc(10, 11, 5, 0, 7); c.fill(); }
+      if (u.type === 'cage') { c.restore(); const cg = Object.values(S.R.obj).find(s => s.o.k === 'rescue'); const cc = cg && cg.cages.find(x => x.u === u); label(c, '\u26D3 ' + (cc ? cc.c.name : '') + (cc && cc.prog > 0 ? ' ' + Math.round(cc.prog / 3 * 100) + '%' : ''), u.x, u.y - 74); return; }
+      if (false) { c.strokeStyle = '#a8a29e'; c.lineWidth = 3; c.strokeRect(-16, -20, 32, 36); for (let k = -10; k <= 10; k += 7) { c.beginPath(); c.moveTo(k, -20); c.lineTo(k, 16); c.stroke(); } }
       c.font = (u.type === 'civilian' ? 20 : 22) + 'px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(icon, 0, u.type === 'wagon' ? -14 : 0);
       c.restore();
       if (u.type !== 'cage') drawHealthBar(u.x, u.y - u.radius - 14, u.radius * 2, 4, u.hp, u.lagHp, u.maxHp);
@@ -598,6 +644,7 @@
     phase2: ['Felix', 'You want fire? I will split this field in two!'],
     phase3: ['Felix', 'Rain, arrows! Rain on them all!'],
     felix_down: ['Felix', 'The fire... it is going out...'],
+    felix_flee: ['Felix', 'Not yet! Fall back to the fortress!'],
   };
   S.BARKS = BARKS;
   const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', '???': 'mystery' };
@@ -673,7 +720,8 @@
   // ---- v33 CINEMATICS: the voiced Ch1 cutscenes (assets/cine/<key>.mp4, 720p H.264/AAC, streamed, not precached)
   // 'start' plays after tapping Start on the first attempt; 'end' plays after the first clear. Seen ones go to the gallery.
   const CINE = [
-    ['prologue_lanterns', 'P0', 'start', 'Festival of Lanterns'], ['prologue_contact_lost', 'P0', 'end', 'Contact Lost'],
+    ['intro_realm', 'P0', 'start', 'The Lanternlands'], ['prologue_lanterns', 'P0', 'start', 'Festival of Lanterns'],
+    ['prologue_contact_lost', 'P0', 'end', 'Contact Lost'],
     ['ch1_m01_briefing', 'M01', 'start', 'Smoke on the Horizon'], ['ch1_m01_red_eyes', 'M01', 'end', 'Red Eyes'],
     ['ch1_m02_farmers', 'M02', 'start', 'Save the Harvest'], ['ch1_m03_wagons', 'M03', 'start', 'Fire-Oil Wagons'],
     ['ch1_m04_fields_reclaimed', 'M04', 'end', 'Fields Reclaimed'], ['ch1_m05_windmill', 'M05', 'start', 'The Windmill'],
@@ -775,7 +823,8 @@
     const dsel = guarded ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty \u00B7 barn guards per farm</div><div class="text-xs text-slate-200">${['easy', 'normal', 'hard'].map(d => d === SAVE.diff ? `<b class="text-amber-300">[${d} ${GUARDS[d]}]</b>` : d + ' ' + GUARDS[d]).join(' \u00B7 ')}</div><p class="text-[10px] text-slate-400">Felix musters pawns at half rate while his barn guards stand; each guard you kill raises it.</p>` : '';
     const replayed = !!(rec && rec.wins);   // v31: replays auto-skip the story unless 'Replay story' is on
     const rs = replayed ? `<button id="st-rs" class="mt-2 w-full py-2 rounded-lg border-2 text-[11px] font-black uppercase ${SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'}">\u{1F4D6} Replay story: ${SAVE.replayStory ? 'ON' : 'OFF'}</button>` : '';
-    const kP = showPanel(`${id}: ${esc(m.name)}`, html + dsel + rs, guarded ? [['Back', 'back'], ['Easy', 'd:easy'], ['Normal', 'd:normal'], ['Hard', 'd:hard'], ['\u2694 Start', 'go']] : [['Back', 'back'], ['\u2694 Start', 'go']]);
+    const bsel = m.boss ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty \u00B7 boss health per phase</div><div class="text-xs text-slate-200">${['easy', 'normal', 'hard'].map(d => d === SAVE.diff ? `<b class="text-amber-300">[${d} ${Math.round(BOSS_DIFF[d] * 100)}%]</b>` : d + ' ' + Math.round(BOSS_DIFF[d] * 100) + '%').join(' \u00B7 ')}</div><p class="text-[10px] text-slate-400">Three health bars. Each time Felix falls he flees to his fortress, heals, and returns stronger.</p>` : '';
+    const kP = showPanel(`${id}: ${esc(m.name)}`, html + dsel + bsel + rs, guarded || m.boss ? [['Back', 'back'], ['Easy', 'd:easy'], ['Normal', 'd:normal'], ['Hard', 'd:hard'], ['\u2694 Start', 'go']] : [['Back', 'back'], ['\u2694 Start', 'go']]);
     const rsb = $('st-rs'); if (rsb) rsb.onclick = () => { SAVE.replayStory = !SAVE.replayStory; persist(); rsb.textContent = '\u{1F4D6} Replay story: ' + (SAVE.replayStory ? 'ON' : 'OFF'); rsb.className = rsb.className.replace(SAVE.replayStory ? 'bg-slate-800 text-slate-300 border-slate-600' : 'bg-amber-500 text-slate-950 border-amber-300', SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'); };
     const k = await kP;
     if (k && k.startsWith('d:')) { SAVE.diff = k.slice(2); persist(); return S.brief(id); }
@@ -809,7 +858,7 @@
       <p class="text-center text-sm font-black mt-2"><span class="text-amber-300">+${r.gold}g</span> \u00B7 <span class="text-sky-300">+${r.xp} XP</span></p>
       ${r.win && m.unlock ? `<p class="text-center text-[11px] text-emerald-300 mt-1">${r.firstClear ? 'Unlocked: ' + m.unlock.map(u => (REGIONS[m.region].cards.find(c => c[0] === u) || [0, 0, u.replace('bonus:worker_east', '+1 starting worker in Eastmarch').replace('region:eastmarch', 'Eastmarch is free!')])[2]).join(', ') : ''}</p>` : ''}
       ${r.win ? `<div class="mt-2 border-t border-slate-700 pt-2">${m.cut && m.cut[m.cut.length - 1] && m.cut.length > 1 ? cutSlot(m.cut[m.cut.length - 1]) : ''}${beats(m.after || [])}</div>` : ''}`;
-    const k = await showPanel(r.win ? 'Victory!' : 'Defeat', html, [['Retry', 'retry'], ['Continue', 'map']]);
+    const k = await showPanel(r.win ? 'Victory!' : 'Defeat', html + (window.matchStatsHtml ? '<div class="mt-2 flex justify-center">' + matchStatsHtml() + '</div>' : ''), [['Retry', 'retry'], ['Continue', 'map']]);
     S.quit(); state.started = false; initGame();
     if (k === 'retry') S.start(r.id); else S.openMap();
   }

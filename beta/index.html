@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v33</title>
+  <title>Royal Blight BETA v34</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -310,7 +310,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v33</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v34</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -469,7 +469,7 @@
     </div>
 
     <!-- MATCH OVER MODAL -->
-    <div id="modal-gameover" class="hidden absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+    <div id="modal-gameover" class="hidden absolute inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-start overflow-y-auto p-6 text-center">
       <div id="modal-icon" class="w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-3 border-4 border-yellow-400 shadow-2xl">
         🏆
       </div>
@@ -1026,6 +1026,7 @@
       state.redCadence = { archers: 0, wizards: 0, brutes: 0 , hero: 0 };
 
       // Reset Cores
+      state.stats = newStats();
       state.cores.blue.maxHp = state.cores.red.maxHp = 2000;   // v31: story Walls raise it per match
       state.cores.blue.hp = state.cores.blue.maxHp;
       state.cores.red.hp = state.cores.red.maxHp;
@@ -1097,13 +1098,13 @@
     const HEROX = {   // v31 tuned with hero_mirror.py (equal-AI King vs Necro mirrors, Normal + Hard)
       wren:   { base: 'archer', name: 'Wren', icon: '\u{1F3AF}', desc: 'Heartpiercer: every 4th arrow pierces the whole line', hp: 430, speed: 44, atk: 30, range: 170, interval: 1.1, radius: 16,
                 pierceEvery: 4, pierceMul: 1.5, pierceLen: 190 },
-      nettle: { base: 'archer', name: 'Nettle', icon: '\u{1F9EA}', desc: 'Blightshot: poison arrows that spread to a 2nd foe', hp: 540, speed: 44, atk: 34, range: 170, interval: 1.1, radius: 16,
+      nettle: { base: 'archer', name: 'Nettle', icon: '\u{1F9EA}', desc: 'Blightshot: poison arrows that spread to a 2nd foe', hp: 560, speed: 44, atk: 35, range: 170, interval: 1.1, radius: 16,
                 burn: [13, 4], spreadR: 70 },
       bram:   { base: 'brute', name: 'Bram', icon: '\u{1F6F6}', desc: 'Oar Sweep knockback; allies near him take 6% less', hp: 1250, speed: 34, atk: 30, range: 30, interval: 1.3, radius: 22,
                 resist: { magic: 0.5, ranged: 0.15 }, sweepEvery: 6, sweepR: 75, sweepDmg: 28, sweepKb: 15, guardR: 90, guardDr: 0.06 },
       ossuar: { base: 'brute', name: 'Ossuar', icon: '\u{1F9B4}', desc: 'Bone Golem: huge HP, splits into 3 skeletons on death', hp: 1900, speed: 32, atk: 34, range: 30, interval: 1.3, radius: 23,
                 resist: { magic: 0.5, ranged: 0.15 }, split: 3, splitHp: 1.0 },
-      quill:  { base: 'wizard', name: 'Ember Quill', icon: '\u{1F525}', desc: 'Ember Script: fireballs leave foes burning', hp: 330, speed: 40, atk: 30, range: 150, interval: 1.6, radius: 16,
+      quill:  { base: 'wizard', name: 'Ember Quill', icon: '\u{1F525}', desc: 'Ember Script: fireballs leave foes burning', hp: 360, speed: 40, atk: 32, range: 150, interval: 1.6, radius: 16,
                 splash: 60, burn: [8, 3], resist: { ranged: 0.3 } },
       wail:   { base: 'wizard', name: 'Mother Wail', icon: '\u{1F47B}', desc: 'Grave Wail: every 5s a fear cone shoves foes back', hp: 480, speed: 40, atk: 48, range: 140, interval: 1.5, radius: 16,
                 splash: 60, resist: { ranged: 0.3 }, fearEvery: 5, fearR: 120, fearKb: 42, fearStun: 1.0 }
@@ -1178,7 +1179,7 @@
         const u = new Unit(Object.assign({ team, lane, x: laneCentreX(lane), y }, st));
         u.heroKey = type; u.hx = H; u.abilT = (H.sweepEvery || H.fearEvery || 0) * 0.5; u.shots = 0;
         if (H.burn) u.burn = H.burn; if (H.splash) u.splash = H.splash;
-        state.units.push(u); return u;
+        state.units.push(u); statsMade(u); return u;
       }
       const st = statsFor(type, team);
       const base = state.cores[team];
@@ -1186,7 +1187,7 @@
       const y = base.y + dir * (70 - back);             // ranged units spawn further back (backline)
       const u = new Unit(Object.assign({ type, team, lane, x: laneCentreX(lane), y }, st));
       if (type === 'cavalier') { u.chargeState = 'march'; u.chargeTimer = 0; u.chargeDir = 1; u.chargeLeft = 0; u.hitSet = new Set(); }
-      state.units.push(u);
+      state.units.push(u); statsMade(u);
       return u;
     }
     const heroAlive = team => { const h = heroOf(team); return state.units.some(u => !u.dead && u.team === team && (u.heroKey ? u.heroKey === h : u.type === h && !u.heroKey)); };
@@ -1262,6 +1263,7 @@
       const gb = BASE_PASSIVE_INCOME * dt * esc * mulOf('blue');
       const gr = BASE_PASSIVE_INCOME * dt * esc * mulOf('red');
       state.blueGold += gb; state.redGold += gr; addScore('blue', gb); addScore('red', gr);
+      statsTick(dt);
 
       updateSpawnQueue(dt);
       if (state.kp && (state.kp.blue || state.kp.red)) tickKingPowers(dt);
@@ -1363,6 +1365,8 @@
           u.lagHp -= (u.lagHp - u.hp) * 5 * dt;
         }
 
+        if (u.retreat) { heroRetreatTick(u, dt); clampToBounds(u); continue; }   // v34 hero falls back + heals
+        if (u.rally) heroRallyTick(u, dt);
         if (u.story) { if (window.Story) Story.unitTick(u, dt); continue; }   // v24 story units (farmers, wagons, cages...)
         // Worker Logic
         if (u.type === 'worker') {
@@ -1564,7 +1568,7 @@
       return true;
     }
     function updateCombatMinion(u, dt) {
-      const spd = u.speed * (u.auraT > 0 ? 1 + u.auraSpd : 1) * (state.decreeT && state.decreeT[u.team] > 0 ? 1 + KING_POWERS.decree.spd : 1);
+      const spd = u.speed * (u.rally ? HERO_RT.rally : 1) * (u.auraT > 0 ? 1 + u.auraSpd : 1) * (state.decreeT && state.decreeT[u.team] > 0 ? 1 + KING_POWERS.decree.spd : 1);
       // Find nearest enemy unit or turret within aggro threshold
       let target = null;
       if (u.type !== 'worker') state.turretPads.forEach(p => { const t = p.turret;   // v23 taunt: enemy turrets in range pull aggro
@@ -1632,7 +1636,7 @@
         const sc = (CAV_PRIORITY[kind] || 1) * 1000 - d;
         if (sc > bestScore) { bestScore = sc; best = t; }
       };
-      state.units.forEach(e => { if (!e.dead && e.team !== u.team && e.type !== 'worker') consider(e, e.type); });
+      state.units.forEach(e => { if (!e.dead && !e.untargetable && e.team !== u.team && e.type !== 'worker') consider(e, e.type); });
       state.turretPads.forEach(p => { const t = p.turret; if (t && !t.dead && t.team !== u.team) consider(t, 'turret'); });
       return best;
     }
@@ -1673,7 +1677,7 @@
         return;
       }
       if (cavPickTarget(u, st)) { u.chargeState = 'windup'; u.chargeTimer = st.windup; return; }
-      u.y += fwd * u.speed * dt;
+      u.y += fwd * u.speed * (u.rally ? HERO_RT.rally : 1) * dt;
       u.x += (laneCentreX(u.lane) - u.x) * 2.5 * dt;
     }
 
@@ -1804,13 +1808,14 @@
           damage: u.effectiveAtk,
           damageType: 'ranged',
           speed: 400,
-          src: u, burn: u.burn, pierce: u.pierce, fsplash: u.fsplash
+          src: u, burn: u.burn, pierce: u.pierce, fsplash: u.fsplash, big: window.__NOBIG ? null : (u.bossFx || null)
         });
+        if (u.bossFx) { const pr = state.projectiles[state.projectiles.length - 1]; pr.speed = 300; pr.trail = []; }
       } else if (u.type === 'acolyte') {
         // never the same target twice in a row if another enemy is in range
         if (target === u.lastTarget) {
           let alt = null, best = u.range;
-          state.units.forEach(e => { if (!e.dead && e.team !== u.team && e !== target) { const d = Math.hypot(e.x - u.x, e.y - u.y); if (d <= best) { best = d; alt = e; } } });
+          state.units.forEach(e => { if (!e.dead && !e.untargetable && e.team !== u.team && e !== target) { const d = Math.hypot(e.x - u.x, e.y - u.y); if (d <= best) { best = d; alt = e; } } });
           if (alt) target = alt;
         }
         u.lastTarget = target;
@@ -1846,6 +1851,7 @@
     // Damage types: 'physical' (melee), 'ranged' (arrows), 'magic' (wizard fireballs).
     // Untyped damage (turrets, cores, shockwave) ignores resistances, as before.
     function dealDamage(target, dmg, source, dmgType) {
+      if (target.retreat) return;                                   // v34: a retreating hero can't be hurt
       // v13 Ian: Cavalier fully blocks every 3rd incoming hit (any damage type)
       if (target.type === 'cavalier' && target.hp > 0 && dmg > 0 && dmgType !== 'burn') {
         target.hitsTaken = (target.hitsTaken || 0) + 1;
@@ -1877,7 +1883,7 @@
         if (window.dmgHook) window.dmgHook(owner, dealt, target);
       }
       if (target === state.cores.blue || target === state.cores.red) addScore(target.team === 'blue' ? 'red' : 'blue', Math.min(dmg, Math.max(0, target.hp)));
-      target.hp -= dmg;
+      target.hp -= dmg; statsDmg(target, dmg);
       target.flash = 0.08; // spec: 80ms white hit flash
       addFloatingText(target.x, target.y - 10, `-${dmg}`, '#ef4444', 13);
 
@@ -1891,8 +1897,12 @@
         }
       }
 
+      if (target.hp <= 0 && !target.dead && target.boss && window.Story && Story.bossDown && Story.bossDown(target)) return;   // v34 3-bar boss flees
+      if (target.hp <= 0 && !target.dead && isHeroUnit(target) && !target.retreat && !(window.Story && Story.active && Story.heroDies)) {
+        heroDefeated(target); return;                               // v34: heroes fall back to the nexus instead of dying
+      }
       if (target.hp <= 0 && !target.dead) {
-        target.dead = true;
+        target.dead = true; statsDeath(target);
         if (window.Story && Story.active) { if (target.story) Story.onUnitDeath(target); if (target instanceof Turret) Story.trackTurretLoss(target); }
         if (target instanceof Unit && target.type !== 'worker') kpCharge(target.team === 'blue' ? 'red' : 'blue', KP_RULES.kill * (target.heroKey || target.type === 'cavalier' || target.type === 'acolyte' ? 5 : 1));
         createDeathBones(target.x, target.y);
@@ -1902,6 +1912,80 @@
         }
         tryRaise(target);
       }
+    }
+
+    // v34 MATCH STATS (StarCraft-style end screen). Cheap counters only: gold deltas once per frame, a hook in
+    // spawn/damage/death, and an army sample every 3s for the graph. Host-side; sent to the MP guest at game over.
+    function newStats() { const s = () => ({ earned: 0, spent: 0, made: {}, lost: {}, kills: 0, dmgU: 0, dmgS: 0, turLost: 0, turUp: 0, retreats: 0, peak: 0 }); return { blue: s(), red: s(), samples: [], pg: null, st: 0 }; }
+    function statsTick(dt) {
+      const S = state.stats; if (!S || state.gameOver) return;
+      const g = { blue: state.blueGold, red: state.redGold };
+      if (S.pg) for (const t of ['blue', 'red']) { const d = g[t] - S.pg[t]; if (d > 0) S[t].earned += d; else S[t].spent -= d; }
+      S.pg = g; S.st -= dt;
+      if (S.st <= 0) { S.st = 3; const a = { blue: 0, red: 0 }; state.units.forEach(u => { if (!u.dead && !u.story && u.type !== 'worker' && a[u.team] !== undefined) a[u.team]++; });
+        S.blue.peak = Math.max(S.blue.peak, a.blue); S.red.peak = Math.max(S.red.peak, a.red);
+        if (S.samples.length < 400) S.samples.push([Math.round(state.gameTime), Math.round(S.blue.earned), Math.round(S.red.earned), a.blue, a.red]); }
+    }
+    function statsMade(u) { const S = state.stats; if (!S || !S[u.team] || u.story) return; const k = u.heroKey || u.type; S[u.team].made[k] = (S[u.team].made[k] || 0) + 1; }
+    function statsDmg(target, dmg) { const S = state.stats; if (!S || !(dmg > 0)) return; const by = target.team === 'blue' ? 'red' : target.team === 'red' ? 'blue' : null; if (!by) return; if (target instanceof Unit) S[by].dmgU += dmg; else S[by].dmgS += dmg; }
+    function statsDeath(t) { const S = state.stats; if (!S || !S[t.team]) return; const by = t.team === 'blue' ? 'red' : 'blue';
+      if (t instanceof Unit) { if (t.story) return; const k = t.heroKey || t.type; S[t.team].lost[k] = (S[t.team].lost[k] || 0) + 1; S[by].kills++; } else if (t instanceof Turret) S[t.team].turLost++; }
+    const STAT_NAMES = { pawn: 'Pawn', archer: 'Archer', wizard: 'Wizard', brute: 'Brute', worker: 'Worker', cavalier: 'Cavalier', acolyte: 'Acolyte' };
+    window.matchStatsHtml = function () {
+      const S = state.stats; if (!S) return '';
+      const me = myTeam(), op = me === 'blue' ? 'red' : 'blue', A = S[me], B = S[op], kp = state.kp || {};
+      const nm = t => t === 'blue' ? (leaderOf ? (leaderOf('blue').name || 'King') : 'King') : (leaderOf ? (leaderOf('red').name || 'Necro') : 'Necro');
+      const n = x => Math.round(x).toLocaleString(), sum = o => Object.values(o).reduce((a, b) => a + b, 0), tm = Math.floor(state.gameTime);
+      const row = (l, a, b) => `<tr><td class="py-0.5 text-right font-black ${a > b ? 'text-sky-300' : 'text-slate-200'}">${n(a)}</td><td class="px-2 text-center text-slate-400">${l}</td><td class="py-0.5 text-left font-black ${b > a ? 'text-rose-300' : 'text-slate-200'}">${n(b)}</td></tr>`;
+      const kinds = [...new Set([...Object.keys(A.made), ...Object.keys(B.made), ...Object.keys(A.lost), ...Object.keys(B.lost)])];
+      const kname = k => (typeof HEROX !== 'undefined' && HEROX[k] ? HEROX[k].name : STAT_NAMES[k] || k);
+      const ut = kinds.map(k => `<tr><td class="text-right">${A.made[k] || 0}<span class="text-slate-500">/${A.lost[k] || 0}</span></td><td class="px-2 text-center text-slate-400">${kname(k)}</td><td class="text-left">${B.made[k] || 0}<span class="text-slate-500">/${B.lost[k] || 0}</span></td></tr>`).join('');
+      // tiny SVG graph: gold earned (lines) + army size (dashed)
+      let svg = '';
+      if (S.samples.length > 2) {
+        const W = 260, H = 70, sm = S.samples, mx = Math.max(1, ...sm.map(s => Math.max(s[1], s[2]))), ma = Math.max(1, ...sm.map(s => Math.max(s[3], s[4]))), T = Math.max(1, sm[sm.length - 1][0]);
+        const pl = (i, m, dash, col) => `<polyline fill="none" stroke="${col}" stroke-width="2" ${dash ? 'stroke-dasharray="3 3"' : ''} points="${sm.map(s => `${(s[0] / T * W).toFixed(1)},${(H - s[i] / m * (H - 4)).toFixed(1)}`).join(' ')}"/>`;
+        const ib = me === 'blue' ? [1, 3] : [2, 4], ir = me === 'blue' ? [2, 4] : [1, 3];
+        svg = `<svg viewBox="0 0 ${W} ${H}" class="w-full h-16 mt-1 bg-slate-900/70 rounded">${pl(ib[0], mx, 0, '#38bdf8')}${pl(ir[0], mx, 0, '#fb7185')}${pl(ib[1], ma, 1, '#7dd3fc')}${pl(ir[1], ma, 1, '#fda4af')}</svg>
+          <div class="text-[9px] text-slate-400 text-center">solid = gold earned · dashed = army size</div>`;
+      }
+      return `<div id="match-stats" class="w-full max-w-xs bg-slate-800/90 rounded-xl p-2 border border-slate-700 text-[11px] text-slate-200 mb-3">
+        <div class="flex justify-between font-black text-[11px] mb-1"><span class="text-sky-300">${nm(me)}</span><span class="text-slate-400">⏱ ${Math.floor(tm / 60)}:${String(tm % 60).padStart(2, '0')}</span><span class="text-rose-300">${nm(op)}</span></div>
+        <table class="w-full"><tbody>
+        ${row('Gold earned', A.earned, B.earned)}${row('Gold spent', A.spent, B.spent)}${row('Units made', sum(A.made), sum(B.made))}${row('Units lost', sum(A.lost), sum(B.lost))}${row('Kills', A.kills, B.kills)}
+        ${row('Dmg to units', A.dmgU, B.dmgU)}${row('Dmg to turrets/nexus', A.dmgS, B.dmgS)}${row('Turrets lost', A.turLost, B.turLost)}${row('Turret upgrades', A.turUp, B.turUp)}
+        ${row('Hero retreats', A.retreats, B.retreats)}${row('King Power uses', (kp[me] && kp[me].uses) || 0, (kp[op] && kp[op].uses) || 0)}${row('Peak army', A.peak, B.peak)}
+        </tbody></table>
+        <details class="mt-1"><summary class="text-[10px] font-black text-amber-300 uppercase cursor-pointer">Units made / lost by type</summary><table class="w-full mt-1"><tbody>${ut}</tbody></table></details>
+        ${svg}</div>`;
+    };
+
+    // v34 HERO RETREAT: at 0 HP a hero (King or Necro, any type) is not killed. It turns untargetable and
+    // walks back to its own nexus, heals there like a resting miner, then rejoins with a rally speed buff
+    // until it reaches the front line. Identical for both sides.
+    const HERO_RT = { walk: 1.25, heal: 0.11, rally: 1.8, rallyMax: 18, home: 70 };
+    function isHeroUnit(u) { return u instanceof Unit && !u.story && (u.heroKey || u.type === 'cavalier' || u.type === 'acolyte'); }
+    function heroDefeated(u) {
+      kpCharge(u.team === 'blue' ? 'red' : 'blue', KP_RULES.kill * 5);
+      if (u.heroKey === 'ossuar') for (let k = 0; k < u.hx.split; k++) {
+        const sk = new Unit(Object.assign({ type: 'pawn', team: u.team, lane: ['L', 'R'][k % 2], x: u.x + (k ? 14 : -14), y: u.y }, UNIT_STATS.pawn));
+        sk.maxHp = Math.round(UNIT_STATS.pawn.hp * u.hx.splitHp); sk.hp = sk.lagHp = sk.maxHp; sk.raisedBy = u; state.units.push(sk);
+      }
+      u.hp = 1; u.lagHp = 1; u.retreat = true; u.untargetable = true; u.rally = false; u.burnT = 0; u.stunT = 0; u.hexT = 0; u.taunted = false;
+      if (u.type === 'cavalier') { u.chargeState = 'march'; u.chargeTimer = 0; u.chargeDir = 1; u.chargeLeft = 0; u.hitSet = new Set(); }
+      createSparks(u.x, u.y, '#e2e8f0', 12); addFloatingText(u.x, u.y - 30, 'RETREAT!', '#e2e8f0', 13);
+      u.retreats = (u.retreats || 0) + 1; if (state.stats && state.stats[u.team]) state.stats[u.team].retreats++; if (window.heroRetreatHook) window.heroRetreatHook(u);
+    }
+    function heroRetreatTick(u, dt) {
+      const core = state.cores[u.team], fwd = u.team === 'blue' ? -1 : 1, hy = core.y + fwd * HERO_RT.home, dy = hy - u.y, dx = LANE_X - u.x, d = Math.hypot(dx, dy);
+      if (d > 4) { const st = Math.min(d, u.speed * HERO_RT.walk * dt); u.x += dx / d * st; u.y += dy / d * st; return; }
+      u.hp = Math.min(u.effectiveMaxHp, u.hp + u.effectiveMaxHp * HERO_RT.heal * dt); u.lagHp = u.hp;
+      if (u.hp >= u.effectiveMaxHp) { u.retreat = false; u.untargetable = false; u.rally = true; u.rallyT = HERO_RT.rallyMax; addFloatingText(u.x, u.y - 30, 'RALLY!', '#fde68a', 13); }
+    }
+    function heroRallyTick(u, dt) {
+      u.rallyT -= dt;
+      const fwd = u.team === 'blue' ? -1 : 1, line = calculateBattlelineY();
+      if (u.rallyT <= 0 || (u.y - line) * fwd >= -40 || state.units.some(e => !e.dead && e.team !== u.team && e.type !== 'worker' && Math.hypot(e.x - u.x, e.y - u.y) < 120)) u.rally = false;
     }
 
     // Acolyte: a unit it hit within raiseWindow seconds of dying rises as a red skeleton pawn.
@@ -1949,7 +2033,7 @@
             fireTurretBolt(turret, enemy);
             if (turret.tier >= 3) {
               let alt = null, bd = turret.range;
-              state.units.forEach(e => { if (!e.dead && e.team !== turret.team && e !== enemy) { const d = Math.hypot(e.x - turret.x, e.y - turret.y); if (d < bd) { bd = d; alt = e; } } });
+              state.units.forEach(e => { if (!e.dead && !e.untargetable && e.team !== turret.team && e !== enemy) { const d = Math.hypot(e.x - turret.x, e.y - turret.y); if (d < bd) { bd = d; alt = e; } } });
               fireTurretBolt(turret, alt || enemy);
             }
             turret.charge++;
@@ -1998,7 +2082,7 @@
       // Knockback & damage all enemies in radius
       const blastRadius = 120; // spec: 120px, 70 dmg, 35px knockback (v11: 28px)
       state.units.forEach(u => {
-        if (!u.dead && u.team !== turret.team) {
+        if (!u.dead && !u.untargetable && u.team !== turret.team) {
           const dx = u.x - turret.x;
           const dy = u.y - turret.y;
           const dist = Math.hypot(dx, dy);
@@ -2041,16 +2125,29 @@
               targetX: target.x,
               targetY: target.y,
               damage: escalated() ? Math.round(core.atk * 0.5) : core.atk,   // escalation: retaliation halved
-              speed: 380
+              speed: 380, coreSplash: true
             });
           }
         }
       });
     }
 
+    function bossImpact(p) {
+      const fx = p.big; createSparks(p.x, p.y, '#f97316', 26); createSparks(p.x, p.y, '#fde047', 14);
+      state.particles.push({ type: 'shockwave', color: '249,115,22', x: p.x, y: p.y, radius: 10, maxRadius: fx.r * 1.3, life: 0.45, maxLife: 0.45 });
+      state.units.forEach(u => { if (!u.dead && u !== p.target && u.team !== p.team && u.type !== 'worker' && Math.hypot(u.x - p.x, u.y - p.y) <= fx.r) dealDamage(u, Math.round(p.damage * fx.f), p.src, 'ranged'); });
+      state.shake = Math.max(state.shake || 0, 0.3); if (sound.playMagicBurst) sound.playMagicBurst();
+    }
+    const CORE_SPLASH = { r: 30, f: 0.15, cap: 1 };   // v34: nexus bolts splash like a small Battle Mage hit (symmetric)
+    function coreSplash(p) {
+      state.units.filter(u => !u.dead && !u.untargetable && u !== p.target && u.team !== p.team && Math.hypot(u.x - p.x, u.y - p.y) <= CORE_SPLASH.r)
+        .sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y)).slice(0, CORE_SPLASH.cap)
+        .forEach(u => dealDamage(u, Math.round(p.damage * CORE_SPLASH.f), null, 'magic'));
+    }
     let SPLASH_STACK_WINDOW = 0.6, SPLASH_STACK_MULT = 0.35;
     // --- PROJECTILES TICK ---
     function updateProjectiles(dt) {
+      if (state.shake > 0) state.shake = Math.max(0, state.shake - dt);
       for (let i = state.projectiles.length - 1; i >= 0; i--) {
         const p = state.projectiles[i];
         const tx = (p.target && !p.target.dead) ? p.target.x : p.targetX;
@@ -2061,6 +2158,8 @@
         const dist = Math.hypot(dx, dy);
 
         if (dist < 18) {
+          if (p.big) bossImpact(p);                          // v34 boss signature shot: burst + splash + shake
+          if (p.coreSplash) coreSplash(p);                   // v34 nexus bolts splash a little
           if (p.holy) {                                        // v22 Priest holy burst
             const [hr, heal] = p.holy;
             state.particles.push({ type: 'shockwave', color: '250,204,21', x: p.x, y: p.y, radius: 8, maxRadius: hr, life: 0.4, maxLife: 0.4 });
@@ -2514,6 +2613,20 @@
     }
 
     // --- TUG OF WAR BATTLELINE MATH ---
+    function drawBossShot(p) {                 // v34 Felix's flaming great-arrow: glowing trail + big burning head
+      if (p.trail) { p.trail.push([p.x, p.y]); if (p.trail.length > 14) p.trail.shift(); }
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      (p.trail || []).forEach(([x, y], i, a) => { const k = (i + 1) / a.length; ctx.fillStyle = `rgba(249,115,22,${0.35 * k})`; ctx.beginPath(); ctx.arc(x, y, 4 + 9 * k, 0, Math.PI * 2); ctx.fill(); });
+      ctx.globalCompositeOperation = 'source-over';
+      const ang = Math.atan2(p.targetY - p.y, p.targetX - p.x); ctx.translate(p.x, p.y); ctx.rotate(ang);
+      ctx.strokeStyle = '#78350f'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-34, 0); ctx.lineTo(8, 0); ctx.stroke();
+      ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(4, -8); ctx.lineTo(4, 8); ctx.closePath(); ctx.fill();
+      const fl = 0.8 + 0.2 * Math.sin(performance.now() / 40);
+      const g = ctx.createRadialGradient(8, 0, 2, 8, 0, 22 * fl); g.addColorStop(0, 'rgba(254,240,138,0.95)'); g.addColorStop(0.5, 'rgba(249,115,22,0.7)'); g.addColorStop(1, 'rgba(239,68,68,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(8, 0, 22 * fl, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ef4444'; ctx.fillRect(-38, -6, 6, 4); ctx.fillRect(-38, 2, 6, 4);
+      ctx.restore();
+    }
     function calculateBattlelineY() {
       const combatUnits = state.units.filter(u => u.type !== 'worker' && !u.story);
       if (combatUnits.length === 0) return BRIDGE_Y; // River center
@@ -2527,6 +2640,7 @@
       ctx.save();
       ctx.scale(scale, scale);
       ctx.translate(0, -state.cameraY);
+      if (state.shake > 0 && !(window.SETTINGS && SETTINGS.reduceMotion)) { const m = 9 * Math.min(1, state.shake / 0.3); ctx.translate((Math.random() - 0.5) * m, (Math.random() - 0.5) * m); }
       if (isFlipped()) { ctx.translate(WORLD_W, WORLD_H); ctx.rotate(Math.PI); }
 
       // 1. Draw 3-Zone Environment: Cobblestone Road, River, Grass & Wildflowers
@@ -2915,7 +3029,12 @@
       return ['blue', 'red'].some(t => { const c = state.cores[t]; return Math.abs(u.y - c.y) < 160 && sy(u.y) < sy(c.y) + (isFlipped() ? 40 : 40); });
     }
     function drawUnits(filter) {
-      state.units.forEach(u => {
+      // v34 VISUAL STAGGER: overlapping units fan out by a small deterministic offset (from the unit id, so both
+      // phones in multiplayer agree). Draw-only: positions are shifted for this frame's drawing and put back,
+      // so combat, targeting and balance are untouched. Units are drawn back-to-front by on-screen y.
+      const list = state.units.slice().sort((a, b) => (a.y + stagger(a)[1]) * (isFlipped() ? -1 : 1) - (b.y + stagger(b)[1]) * (isFlipped() ? -1 : 1));
+      list.forEach(u => { const [ox, oy] = stagger(u); u.x += ox; u.y += oy; try { drawUnitBody(u); } finally { u.x -= ox; u.y -= oy; } });
+      function drawUnitBody(u) {
         if (filter && !filter(u)) return;
         if (u.story) return;                            // v24: drawn by Story.draw
         if (!onScreenY(u.y, 90)) return;               // v15: skip units outside the camera view
@@ -2943,6 +3062,9 @@
           ctx.fillStyle = 'rgba(251,146,60,0.35)'; ctx.beginPath(); ctx.ellipse(u.x, u.y + u.radius * 0.8, u.radius * 1.3, u.radius * 0.65, 0, 0, Math.PI * 2); ctx.fill();
           ctx.strokeStyle = '#fb923c'; ctx.lineWidth = 2; ctx.stroke();
         }
+        if (u.retreat) ctx.globalAlpha = 0.5;                  // v34 retreating hero: ghosted, untargetable
+        if (u.rally) { ctx.strokeStyle = 'rgba(253,230,138,0.7)'; ctx.lineWidth = 2; const bk = u.team === 'blue' ? 1 : -1;
+          for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.moveTo(u.x + k * 7, u.y + bk * (u.radius + 4)); ctx.lineTo(u.x + k * 7, u.y + bk * (u.radius + 16)); ctx.stroke(); } }
         if (u.type === 'cavalier' || u.type === 'acolyte' || u.heroKey) {   // hero aura
           const g = 0.5 + 0.5 * Math.sin(performance.now() / 260);
           ctx.strokeStyle = u.team === 'blue' ? `rgba(250,204,21,${0.45 + 0.4 * g})` : `rgba(163,230,53,${0.45 + 0.4 * g})`;
@@ -2987,6 +3109,7 @@
 
         ctx.restore();
 
+        ctx.globalAlpha = 1;
         if (u.markUntil > state.gameTime) {                    // v33: small "marked" pip above the head (was a big gold crosshair over the unit)
           // foe marked by my pawns = red-ish downward chevron; my unit marked by the foe = cyan hollow ring (shape + colour differ for colour-blind players)
           const mine = u.team === myTeam(), hy = u.y - u.radius - 15;
@@ -3002,10 +3125,16 @@
         if (u.type !== 'worker' || u.hp < u.effectiveMaxHp) {
           drawHealthBar(u.x, u.y - u.radius - 12, u.radius * 2, 4, u.hp, u.lagHp, u.effectiveMaxHp);
         }
-      });
+      }
     }
 
     // --- DETAILED CLASH ROYALE CHARACTER DRAW ROUTINES ---
+    function stagger(u) {
+      if (u.type === 'worker' || u.story || u.boss) return [0, 0];
+      const id = (typeof u.id === 'number' ? u.id : parseInt(String(u.id).replace(/\D/g, ''), 10) || 0);
+      const h = Math.imul(id + 1, 2654435761) >>> 0;
+      return [((h & 255) / 255 - 0.5) * 26, (((h >>> 8) & 255) / 255 - 0.5) * 22];   // ±13 px lateral, ±11 px depth
+    }
     function drawCharacterVector(u) {
       const isBlue = (u.team === 'blue');
       if (u.type === 'cavalier') {
@@ -3254,6 +3383,7 @@
 
     function drawProjectiles() {
       state.projectiles.forEach(p => {
+        if (p.big) { drawBossShot(p); return; }
         ctx.save();
         if (p.type === 'arrow') {
           // Ballistic arcing arrow rotated to vector
@@ -3580,6 +3710,7 @@
       document.getElementById('stat-waves').textContent = state.waveCount;
       document.getElementById('stat-gold').textContent = `${Math.floor((state.goldMined && state.goldMined[myTeam()]) || 0)}g`;
       document.getElementById('stat-upgrades').textContent = `+${state.blueUpgradeLevel * 20}%`;
+      { const old = document.getElementById('match-stats'); if (old) old.remove(); document.getElementById('btn-restart').insertAdjacentHTML('beforebegin', matchStatsHtml()); }
 
       modal.classList.remove('hidden');
     }
@@ -3630,7 +3761,7 @@
       if (!t || t.dead || t.tier >= 3) return false;
       const nt = TURRET_TIERS[t.tier + 1];
       if (state[gk] < nt.cost) return false;
-      t.tier++; t.maxHp += nt.hp; t.hp += nt.hp;
+      t.tier++; t.maxHp += nt.hp; t.hp += nt.hp; if (state.stats && state.stats[t.team]) state.stats[t.team].turUp++;
       state[gk] -= nt.cost;
       addFloatingText(t.x, t.y - 30, 'TIER ' + t.tier + ': ' + nt.label.toUpperCase(), '#facc15', 15);
       if (team === myTeam()) purchaseSound('turret');
@@ -4082,7 +4213,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v33';
+    window.APP_VERSION = 'v34';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

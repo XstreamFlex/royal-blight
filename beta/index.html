@@ -11,7 +11,13 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-  <title>Royal Blight BETA v29</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+  <script>
+    // v30: placeholder wordmark / game title. Change it HERE only; menu, tab title, credits and save prompts read it.
+    window.RB_TITLE = 'Royal Blight';
+    document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
+  </script>
+  <title>Royal Blight BETA v30</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -301,9 +307,10 @@
 
     <!-- START MENU -->
     <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
-      <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
-      <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v29</span></p>
+      <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
+      <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
+      <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v30</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -316,7 +323,7 @@
           <button data-diff="hard" class="diff-btn py-3 rounded-lg bg-rose-600 text-white font-black text-xs uppercase active:scale-95">Hard</button>
         </div>
       </div>
-      <button id="btn-loadout" class="w-full max-w-xs mb-2 py-2 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase tracking-wider active:scale-95">\u2694\uFE0F Leader, loadout &amp; map <span id="loadout-summary" class="normal-case font-bold text-[10px] text-slate-300"></span></button>
+      <button id="btn-loadout" class="w-full max-w-xs mb-2 py-2 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase tracking-wider active:scale-95">⚔️ Leader, loadout &amp; map <span id="loadout-summary" class="normal-case font-bold text-[10px] text-slate-300"></span></button>
       <button id="btn-settings" class="w-full max-w-xs mb-2 py-2 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase tracking-wider active:scale-95">⚙️ Game settings <span id="settings-summary" class="normal-case font-bold text-[10px] text-slate-300"></span></button>
       <button id="btn-friend" class="w-full max-w-xs py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 text-white font-black text-xs uppercase tracking-wider shadow-lg active:scale-95">
         Play vs Friend <span class="normal-case font-bold">(2 phones)</span>
@@ -814,6 +821,13 @@
     }
     // v24: story Chapter 1 enemy (Felix's Green Army) wears Kingdom art tinted green
     function artTeam(u) { return (u.team === 'red' && window.Story && Story.active && Story.m && Story.m.region === 'eastmarch') ? 'green' : u.team; }   // v26: real Green Army art
+    // v30: card icon = <img> of a unit sprite; falls back to the emoji already in the slot if the file is missing
+    function cardIcon(id, key) {
+      let el = document.getElementById(id); if (!el) return;
+      if (el.tagName === 'BUTTON') el = el.querySelector('.text-base'); if (!el || el.dataset.k === key) return;
+      el.dataset.k = key; const emoji = el.dataset.e || (el.dataset.e = el.textContent.trim());
+      el.innerHTML = `<img src="assets/${key}.png" alt="" draggable="false" style="height:28px;width:28px;object-fit:contain;margin:-3px auto;filter:drop-shadow(0 1px 1px #000a)" onerror="this.replaceWith(document.createTextNode('${emoji}'))">`;
+    }
     function spriteKey(u) {
       if (u.type === 'pawn') return artTeam(u) === 'red' ? 'skeleton' : 'knight';
       return u.type;
@@ -3298,6 +3312,13 @@
 
       // Card Dock Availability
       updateCard('btn-buy-worker', myGold() >= 80);
+      {   // v30: card icons are the unit's real sprite (army + variant)
+        const me = myTeam(), lo = loadoutOf(me);
+        const art = (k, v) => VARIANT_ART.has(k + '_' + v + '_' + me) ? k + '_' + v + '_' + me : k + '_' + me;
+        cardIcon('btn-buy-worker', 'worker_' + me); cardIcon('btn-buy-turret', 'turret_' + me);
+        cardIcon('icon-archer', art('archer', lo.archer)); cardIcon('icon-brute', art('brute', lo.brute)); cardIcon('icon-wizard', art('wizard', lo.wizard));
+        cardIcon('hero-icon', me === 'blue' ? 'cavalier_blue' : 'acolyte_red');
+      }
       {
         const me = myTeam(), lo = loadoutOf(me);
         [['archer', 'archers'], ['wizard', 'wizards'], ['brute', 'brutes']].forEach(([slot, k]) => {
@@ -3305,7 +3326,6 @@
           const nm = document.getElementById('name-' + slot), ic = document.getElementById('icon-' + slot), pr = document.getElementById('price-' + slot);
           const short = { 'Short Bow': 'Archer', 'Battle Mage': 'Wizard', 'Brute': 'Brute' }[v.name] || v.name.split(' ')[0];
           if (nm && nm.textContent !== short) nm.textContent = short;
-          if (ic && v.name !== 'Brute' && v.name !== 'Short Bow' && v.name !== 'Battle Mage') { if (ic.textContent !== v.icon) ic.textContent = v.icon; }
           if (pr && pr.textContent !== c + 'g') pr.textContent = c + 'g';
           updateCard('btn-buy-' + slot, myGold() >= c);
         });
@@ -3313,7 +3333,6 @@
       {
         const mine = myTeam(), cad = mine === 'blue' ? state.blueCadence : state.redCadence;
         document.getElementById('hero-name').textContent = mine === 'blue' ? 'Cavalier' : 'Acolyte';
-        document.getElementById('hero-icon').textContent = mine === 'blue' ? '🐎' : '💀';
         const badge = document.getElementById('hero-badge');
         if (cad.hero) {
           badge.textContent = heroAlive(mine) ? 'OWNED' : 'NEXT WAVE';
@@ -3765,10 +3784,12 @@
         const vs = Object.entries(VARIANTS[slot]);
         h += sec(slotName[slot], vs.map(([k, v]) => {
           const cost = slot === 'pawn' ? 'free' : (({ archer: COSTS.archers, brute: COSTS.brutes, wizard: COSTS.wizards })[slot] + (v.cost || 0)) + 'g';
-          return btn(lo[slot] === k, `data-slot="${slot}" data-var="${k}"`, `<div class="text-base">${v.icon}</div>${v.name}<div class="font-bold text-[8px] opacity-80 normal-case">${v.desc}</div><div class="text-[9px]">${cost}</div>`);
+          const base = slot === 'pawn' ? (army === 'blue' ? 'knight' : 'skeleton') : slot, vk = base + '_' + k + '_' + army;
+          const art = VARIANT_ART.has(vk) ? vk : (slot === 'pawn' ? base : base + '_' + army);   // v30: real sprite thumbnails
+          return btn(lo[slot] === k, `data-slot="${slot}" data-var="${k}"`, `<div class="h-10 flex items-center justify-center"><img src="assets/${art}.png" alt="" class="h-10 w-10 object-contain" onerror="this.replaceWith(document.createTextNode('${v.icon}'))"></div>${v.name}<div class="font-bold text-[8px] opacity-80 normal-case">${v.desc}</div><div class="text-[9px]">${cost}</div>`);
         }).join(''), vs.length);
       });
-      h += sec('Hero', `<div class="col-span-2 text-[10px] text-slate-300 p-1">${army === 'blue' ? '\u{1F40E} Cavalier' : '\u{1F480} Acolyte'} (350g, more heroes later)</div>`, 2);
+      h += sec('Hero', `<div class="col-span-2 text-[10px] text-slate-300 p-1 flex items-center gap-2"><img src="assets/${army === 'blue' ? 'cavalier_blue' : 'acolyte_red'}.png" class="h-10 w-10 object-contain" alt="">${army === 'blue' ? 'Cavalier' : 'Acolyte'} (350g, more heroes later)</div>`, 2);
       h += sec('Map <span class="normal-case font-bold text-slate-400">(vs Friend: host picks)</span>', Object.entries(MAPS).map(([k, m]) => btn((SETTINGS.map || 'arena') === k, `data-map="${k}"`, m.name)).join(''), 2);
       const body = document.getElementById('lo-body'); body.innerHTML = h;
       body.querySelectorAll('[data-leader]').forEach(b => b.onclick = () => { SETTINGS.leader[army] = b.dataset.leader; saveSettings(); renderLoadout(); });
@@ -3893,7 +3914,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v29';
+    window.APP_VERSION = 'v30';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

@@ -518,7 +518,7 @@
       <div id="modal-brief" class="hidden absolute inset-0 z-[59] bg-black/90 backdrop-blur-md flex flex-col items-center justify-start overflow-y-auto p-4 text-center"></div>`);
     $('st-back').onclick = () => { $('modal-story').classList.add('hidden'); $('modal-menu').classList.remove('hidden'); };
     $('st-export').onclick = () => { const s = exportSave(); try { navigator.clipboard && navigator.clipboard.writeText(s); } catch (e) {} prompt('Your story save (copied). Keep it somewhere safe:', s); };
-    $('st-import').onclick = () => { const s = prompt('Paste a Royal Blight save (RB1....):'); if (!s) return; const r = importSave(s); alert(r === true ? 'Save imported!' : 'Could not import: ' + r); S.openMap(); };
+    $('st-import').onclick = () => { const s = prompt('Paste a ' + (window.RB_TITLE || 'Royal Blight') + ' save (RB1....):'); if (!s) return; const r = importSave(s); alert(r === true ? 'Save imported!' : 'Could not import: ' + r); S.openMap(); };
     $('st-shop').onclick = () => showPanel('\u{1F4B0} Royal Treasury', `<p class="text-slate-300 text-xs mb-2">Gold ${SAVE.gold} \u00B7 XP ${SAVE.xp} \u00B7 Level ${level()}</p><p class="text-slate-400 text-xs">The shop opens in a later update. Cleared regions will sell their units, maps, armies and kings for story gold + XP level. No real money, ever.</p>`);
     // menu entry (keeps Quick Match + multiplayer intact)
     const menuBox = $('btn-loadout');
@@ -616,13 +616,13 @@
     clearTimeout(barkT); barkT = setTimeout(() => { el.style.display = 'none'; }, 3800);
   };
   const CREDITS_HTML = `<div class="text-xs text-slate-200 space-y-2">
-    <p><b class="text-amber-300">Royal Blight</b> \u00B7 design, code &amp; art direction: XstreamFlex</p>
+    <p><b class="text-amber-300">${esc(window.RB_TITLE || 'Royal Blight')}</b> \u00B7 design, code &amp; art direction: XstreamFlex</p>
     <div><div class="text-[10px] font-black text-amber-300 uppercase">Character voices</div>
     <p>Voices synthesized with <b>Piper</b> (rhasspy/piper, piper-tts 1.8.0, GPL-3.0; used offline, not shipped).</p>
     <p>Voices synthesized with Piper using the <b>LibriTTS-R dataset (CC BY 4.0)</b>, Koizumi et al., derived from LibriVox / LibriTTS. Voice model en_US-libritts_r-medium (Ruphene, Vesper, Felix, Garrow, Farmer, Narrator, ???). <a class="underline text-sky-300" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">License</a></p>
     <p>en_US-joe-medium (Rufus): CC0 \u00B7 en_US-kristin-medium (Pip): public domain.</p>
     <p class="text-slate-400">Voice lines were rendered with pitch, tempo and echo filters (ffmpeg).</p></div>
-    <div><div class="text-[10px] font-black text-amber-300 uppercase">Art</div><p>Sprites, portraits and maps generated and edited for Royal Blight.</p></div></div>`;
+    <div><div class="text-[10px] font-black text-amber-300 uppercase">Art</div><p>Sprites, portraits and maps generated and edited for ${esc(window.RB_TITLE || 'Royal Blight')}.</p></div></div>`;
   const BIG_CUTS = { prologue_contact_lost: 1, ch1_m01_red_eyes: 1, ch1_m07_apology: 1, ch1_m07_cold_smile: 1 };   // v29: video slots only for big story moments
   const cutSlot = key => BIG_CUTS[key] ? cutSlot0(key) : '';
   const cutSlot0 = key => `<div class="my-2 mx-auto rounded-lg border border-dashed border-amber-500/60 bg-black/60 flex flex-col items-center justify-center text-amber-200/80" style="width:120px;aspect-ratio:9/16" data-cutscene="${key}"><div class="text-2xl">\u{1F3AC}</div><div class="text-[9px] font-bold px-1">Cutscene<br>${esc(key)}<br>(9:16, coming)</div></div>`;

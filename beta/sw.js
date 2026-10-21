@@ -13,7 +13,7 @@ const CORE = [
   './assets/fonts/f7.woff2',
   './assets/fonts/f8.woff2',
   './assets/fonts/f9.woff2',
-  './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/apple-touch-icon.png'
+  './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/icons/apple-touch-icon.png', './assets/icons/favicon-32.png', './assets/icons/maskable-192.png', './assets/icons/maskable-512.png', './assets/logo_crest.webp'
 ];
 // Optional sprites: cached if present, ignored if missing.
 const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromancer', 'nexus_necromancer_back', 'turret_blue', 'turret_red', 'turret_pad', 'mine_safe', 'mine_mid', 'mine_far', 'cavalier_blue', 'cavalier_blue_back', 'acolyte_red', 'acolyte_red_back',

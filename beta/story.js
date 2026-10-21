@@ -742,7 +742,7 @@
         const k = keys[i], meta = CINE.find(c => c[0] === k) || [k, '', '', k];
         if (!SAVE.seen.includes('cine:' + k)) { SAVE.seen.push('cine:' + k); persist(); }
         el.innerHTML = `<video playsinline webkit-playsinline preload="auto" src="assets/cine/${k}.mp4" poster="assets/cine/${k}.jpg" class="h-full w-full object-contain bg-black"></video>
-          <button data-c="skip" class="absolute top-3 right-3 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-500 text-xs font-black text-white uppercase">Skip \u23ED</button>
+          <button data-c="skip" class="absolute z-10 top-3 right-3 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-500 text-xs font-black text-white uppercase">Skip \u23ED</button>
           <div data-c="tap" class="absolute inset-0 flex flex-col items-center justify-center bg-black/40"><div class="w-20 h-20 rounded-full bg-amber-500 text-slate-950 text-4xl flex items-center justify-center shadow-2xl">\u25B6</div>
           <div class="mt-3 text-amber-200 font-black text-sm uppercase tracking-wider">${esc(meta[3])}</div><div class="text-slate-300 text-[11px]">Tap to watch</div></div>`;
         const v = el.querySelector('video'), tap = el.querySelector('[data-c=tap]');

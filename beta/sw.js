@@ -1,7 +1,7 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-beta-v27';   // BETA build (/royal-blight/beta/): own cache namespace
+const CACHE_VERSION = 'royal-blight-beta-v27-cloud1';   // BETA build (/royal-blight/beta/): own cache namespace
 const CORE = [
-  './', './index.html', './manifest.json', './mp.js', './story.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
+  './', './index.html', './manifest.json', './mp.js', './story.js', './cloud.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/kingdom_map.jpg', './assets/fonts/fonts.css',
   './assets/fonts/f0.woff2',
   './assets/fonts/f1.woff2',
@@ -31,12 +31,12 @@ const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromance
   // v26: Green Army (story) + Felix boss + heroes
   ['knight','knight_mace','knight_hammer','knight_shield','archer','archer_long','archer_flame','archer_hunting','brute','brute_light','brute_heavy','brute_spiked',
    'wizard','wizard_priest','wizard_banner','worker','cavalier'].flatMap(k => [k + '_green', k + '_green_back'])
-    .concat(['felix_boss', 'felix_boss_back', 'cavalier_blue', 'cavalier_blue_back', 'acolyte_red', 'acolyte_red_back'])
+    .concat(['felix_boss', 'felix_boss_back', 'barn', 'barn_burnt', 'cavalier_blue', 'cavalier_blue_back', 'acolyte_red', 'acolyte_red_back'])
 ).map(n => './assets/' + n + (/^arena_/.test(n) ? '.jpg' : '.png'));
 
 // v24.1: app shell is NETWORK-FIRST (cache only as offline fallback) so a new deploy shows on the next load;
 // images/fonts/libs stay cache-first. skipWaiting + clients.claim make a new worker take over at once.
-const NET_FIRST = /\/(index\.html|sw\.js|story\.js|mp\.js|manifest\.json|version\.json)?$/;
+const NET_FIRST = /\/(index\.html|sw\.js|story\.js|cloud\.js|mp\.js|manifest\.json|version\.json)?$/;
 self.addEventListener('install', e => {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE_VERSION).then(async c => {

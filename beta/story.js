@@ -5,14 +5,14 @@
   'use strict';
   // ------------------------------------------------------------------ SAVE (localStorage, versioned)
   const SAVE_KEY = 'royalBlight.story', SAVE_V = 2;   // v27: v2 = illustrated map + new color rules (mapV)
-  const freshSave = () => ({ v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:long', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2 });
+  const freshSave = () => ({ v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:long', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2, diff: 'normal' });
   function migrate(s) {
     if (!s || typeof s !== 'object') return freshSave();
     const f = freshSave();
     const out = { v: SAVE_V, gold: Math.max(0, Math.floor(+s.gold || 0)), xp: Math.max(0, Math.floor(+s.xp || 0)),
       missions: {}, unlocks: Array.isArray(s.unlocks) ? s.unlocks.filter(x => typeof x === 'string').slice(0, 500) : f.unlocks,
       seen: Array.isArray(s.seen) ? s.seen.filter(x => typeof x === 'string').slice(0, 500) : [], created: +s.created || Date.now(),
-      mapV: 2, migratedFrom: (s.v | 0) < 2 ? (s.v | 0) || 1 : (s.migratedFrom || 0) };   // v1 -> v2: progress is derived from wins, so nothing is lost
+      diff: ['easy', 'normal', 'hard'].includes(s.diff) ? s.diff : 'normal', mapV: 2, migratedFrom: (s.v | 0) < 2 ? (s.v | 0) || 1 : (s.migratedFrom || 0) };   // v1 -> v2: progress is derived from wins, so nothing is lost
     f.unlocks.forEach(u => { if (!out.unlocks.includes(u)) out.unlocks.push(u); });
     if (s.missions && typeof s.missions === 'object') for (const [id, m] of Object.entries(s.missions)) {
       if (!/^[A-Z0-9_]{2,8}$/.test(id) || !m) continue;
@@ -81,7 +81,7 @@
     M04: { region: 'eastmarch', name: 'Recapture the Farms', type: 'ATK + CUR', map: 'farmland', gold: 180, reward: ['G2', 'X1'], unlock: ['bonus:worker_east'],
       ai: { level: 'normal', strat: 'turtle', income: 0.85 },
       brief: 'Take back the scorched farmland one farmstead at a time. Push into each farm and hold it to replant it; every held farm pays bonus gold. Watch for fire-lines flaring across the rows.',
-      objectives: [{ k: 'hold', name: 'Farmsteads', secs: 14, mode: 'sequence', pay: 60, zones: [{ y: 1420, h: 80, name: 'South farm' }, { y: 1110, h: 80, name: 'Mill farm' }, { y: 800, h: 80, name: 'East farm' }] }],
+      objectives: [{ k: 'hold', name: 'Farmsteads', guards: true, secs: 14, mode: 'sequence', pay: 60, zones: [{ y: 1420, h: 80, name: 'South farm' }, { y: 1110, h: 80, name: 'Mill farm' }, { y: 800, h: 80, name: 'East farm' }] }],
       hazards: [{ k: 'fireline', every: 16, warn: 2.2, dur: 4, dps: 14, h: 46 }], noNexusWin: true, timeLimit: 900,
       stars: ['Recapture all 3 farms', 'Nexus above 50%', 'Hold all 3 farms at the same time'],
       before: [['Vesper', 'Take the south farm first. Felix never guards it.']], after: [['Farmer', '(presses one seed into the ash)'], ['Rufus', 'That\u2019s how it starts. One field at a time.']], cut: ['ch1_m04_fields_reclaimed'] },
@@ -184,9 +184,32 @@
     setTimeout(() => toast(m.name.toUpperCase(), '#fde68a'), 500);
     return true;
   };
+  // v28 guarded barns: enemy pawns stand guard at every farmstead. Felix's pawns muster at HALF rate while the
+  // guards hold; each guard killed raises the enemy pawn rate one step, back to full when all are down.
+  // Guards per farm by difficulty: Easy 1, Normal 2, Hard 3 (step = 50% / total guards).
+  const GUARDS = { easy: 1, normal: 2, hard: 3 };
+  function spawnBarnGuards(o) {
+    const R = S.R, per = GUARDS[SAVE.diff] || 2; R.guards = []; R.barnRate = 0.5; R.pawnAcc = 0; R.guardsDown = 0;
+    o.zones.forEach((z, zi) => { for (let g = 0; g < per; g++) {
+      const u = spawnUnit('pawn', 'red', 'C', 0); u.x = LANE_X + (g - (per - 1) / 2) * 34; u.y = z.y - 10 + (g % 2) * 14;
+      u.speed = 0; u.guard = zi; u.variant = 'shield'; u.maxHp = u.hp = Math.round(u.hp * 1.8); u.lagHp = u.hp; u.atk *= 1.2; u.resist = Object.assign({}, u.resist, { ranged: Math.max(u.resist.ranged || 0, 0.3) }); R.guards.push(u); } });
+    const inc = { easy: 1.0, normal: 1.3, hard: 1.6 }[SAVE.diff] || 1.3;   // v28: barn missions scale the enemy economy with difficulty
+    AI_LEVELS.story.income *= inc; if (SAVE.diff === 'hard') AI_LEVELS.story.think = AI_LEVELS.hard.think;
+  }
+  S.pawnsFor = function (team) {           // pawns per wave (index.html triggerWave hook)
+    const R = S.R; if (!R || team !== 'red' || R.barnRate == null) return 4;
+    R.pawnAcc += 4 * R.barnRate; const n = Math.floor(R.pawnAcc + 1e-6); R.pawnAcc -= n; return n;
+  };
+  function tickGuards() {
+    const R = S.R; if (!R.guards) return;
+    const down = R.guards.filter(u => u.dead).length;
+    if (down > R.guardsDown) { R.guardsDown = down; R.barnRate = 0.5 + 0.5 * down / R.guards.length;
+      toast(down === R.guards.length ? 'Last guard down! Felix musters at full strength.' : `Guard down! Felix musters faster (${Math.round(R.barnRate * 100)}%)`, '#fb923c'); }
+  }
   function setupObjective(o, i) {
     const R = S.R, st = R.obj[i] = { o, done: false, failed: false };
-    if (o.k === 'hold') { st.idx = 0; st.held = o.zones.map(() => 0); st.owned = o.zones.map(() => false); st.loseT = o.zones.map(() => 0); st.allAtOnce = false; }
+    if (o.k === 'hold') { st.idx = 0; st.held = o.zones.map(() => 0); st.owned = o.zones.map(() => false); st.loseT = o.zones.map(() => 0); st.allAtOnce = false;
+      if (o.guards) spawnBarnGuards(o); }
     if (o.k === 'defend') { st.enemyT = 0; }
     if (o.k === 'beacons') { st.lit = o.ys.map(() => false); }
     if (o.k === 'evac') { st.spawned = 0; st.saved = 0; st.lost = 0; st.next = 3; }
@@ -224,6 +247,7 @@
     for (const st of Object.values(R.obj)) tickObjective(st, dt, B, Rd);
     (m.hazards || []).forEach((h, i) => tickHazard(h, i, dt));
     if (R.boss) tickBoss(dt);
+    tickGuards();
     if ((R.hudT = (R.hudT || 0) - dt) <= 0) { R.hudT = 0.25; S.renderHud(); }
   };
   function tickObjective(st, dt, B, Rd) {
@@ -422,6 +446,8 @@
     for (const st of Object.values(R.obj)) {
       const o = st.o;
       if (o.k === 'hold') o.zones.forEach((z, i) => {
+        { const img = loadSprite(st.owned[i] ? 'barn' : 'barn_burnt'), bx = i % 2 ? LANE_X - LANE_HALF_W - 70 : LANE_X + LANE_HALF_W + 70;   // v28 barns
+          if (img) c.drawImage(img, bx - 62, z.y - 92, 124, 124); }
         const active = o.mode !== 'sequence' || i <= st.idx || st.owned[i];
         c.fillStyle = st.owned[i] ? 'rgba(74,222,128,0.22)' : active ? 'rgba(250,204,21,0.18)' : 'rgba(148,163,184,0.10)';
         c.fillRect(LANE_X - LANE_HALF_W - 40, z.y - z.h, (LANE_HALF_W + 40) * 2, z.h * 2);
@@ -557,7 +583,10 @@
       <div class="text-[10px] font-black text-amber-300 uppercase">Stars</div><ul class="text-xs text-slate-200 mb-2">${m.stars.map((s, i) => `<li>${rec && rec.starSet[i] ? '\u2B50' : '\u2606'} ${esc(s)}</li>`).join('')}</ul>
       ${m.tips ? `<div class="text-[10px] font-black text-sky-300 uppercase">Drill notes</div><ul class="list-disc ml-4 text-[11px] text-slate-300 mb-2">${m.tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
       <div class="text-[11px] text-slate-300">Reward: <b class="text-amber-300">${G[m.reward[0]]}g</b> + <b class="text-sky-300">${X[m.reward[1]]} XP</b>${rec && rec.wins ? ' (replay: half, + new stars)' : ''}${m.cards ? ' \u00B7 Limited army: ' + m.cards.join(', ') : ''}</div>`;
-    const k = await showPanel(`${id}: ${esc(m.name)}`, html, [['Back', 'back'], ['\u2694 Start', 'go']]);
+    const guarded = (m.objectives || []).some(o => o.guards);
+    const dsel = guarded ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty \u00B7 barn guards per farm</div><div class="text-xs text-slate-200">${['easy', 'normal', 'hard'].map(d => d === SAVE.diff ? `<b class="text-amber-300">[${d} ${GUARDS[d]}]</b>` : d + ' ' + GUARDS[d]).join(' \u00B7 ')}</div><p class="text-[10px] text-slate-400">Felix musters pawns at half rate while his barn guards stand; each guard you kill raises it.</p>` : '';
+    const k = await showPanel(`${id}: ${esc(m.name)}`, html + dsel, guarded ? [['Back', 'back'], ['Easy', 'd:easy'], ['Normal', 'd:normal'], ['Hard', 'd:hard'], ['\u2694 Start', 'go']] : [['Back', 'back'], ['\u2694 Start', 'go']]);
+    if (k && k.startsWith('d:')) { SAVE.diff = k.slice(2); persist(); return S.brief(id); }
     if (k === 'go') { $('modal-story').classList.add('hidden'); S.start(id); }
   };
   function objText(o, m) {
@@ -601,6 +630,7 @@
       if (o.k === 'evac') rows.push(`${ck} Farmers safe ${st.saved}/${o.count} \u00B7 lost ${st.lost}/${o.lossMax}`);
       if (o.k === 'intercept') rows.push(`${ck} Wagons destroyed ${st.killed}/${o.need} \u00B7 arrived ${st.arrived}/${o.count - o.need}`);
       if (o.k === 'escort') rows.push(`${ck} Wagons delivered ${st.arrived}/${o.need} \u00B7 lost ${st.killed}`);
+      if (o.k === 'hold' && R.guards) rows.push(`\u{1F6E1} Barn guards ${R.guards.length - R.guardsDown}/${R.guards.length} \u00B7 enemy muster ${Math.round(R.barnRate * 100)}%`);
       if (o.k === 'hold') rows.push(`${ck} Farms held ${st.owned.filter(Boolean).length}/${o.zones.length}` + (st.idx < o.zones.length && !st.owned[st.idx] ? ` \u00B7 ${o.zones[st.idx].name} ${Math.round(100 * st.held[st.idx] / o.secs)}%` : ''));
       if (o.k === 'defend') rows.push(`${ck} Hold ${o.zone.name} ${fmt(st.left)} \u00B7 enemy ${Math.round(st.enemyT)}/${o.maxEnemy}s`);
       if (o.k === 'rescue') rows.push(`${ck} Free ${o.cages.map(c => c.name).join(', ')}`);
@@ -616,7 +646,7 @@
   };
   const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 
-  S.save = () => SAVE; S.missions = M; S.regions = REGIONS; S.regionColor = regionColor; S.exportSave = exportSave; S.importSave = importSave;
+  S.save = () => SAVE; S.setDiff = d => { SAVE.diff = d; persist(); }; S.missions = M; S.regions = REGIONS; S.regionColor = regionColor; S.exportSave = exportSave; S.importSave = importSave;
   S.reset = () => { SAVE = freshSave(); persist(); };
   S.setSave = o => { SAVE = migrate(o); persist(); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectUI); else injectUI();

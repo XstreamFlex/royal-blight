@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-  <title>Royal Blight BETA v27</title>
+  <title>Royal Blight BETA v28</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -303,7 +303,7 @@
     <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
       <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
       <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v27</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v28</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -880,7 +880,7 @@
       Object.values(MAPS).forEach(m => loadSprite(m.bg));
       VARIANT_ART.forEach(n => { loadSprite(n); loadSprite(n + '_back'); });
       ['knight','archer','wizard','brute','worker','cavalier'].forEach(k => { loadSprite(k + '_green'); loadSprite(k + '_green_back'); });   // v26 Green Army
-      loadSprite('felix_boss'); loadSprite('felix_boss_back');
+      loadSprite('felix_boss'); loadSprite('felix_boss_back'); loadSprite('barn'); loadSprite('barn_burnt');
     }, 300));
     loadSprite('cavalier_blue'); loadSprite('cavalier_blue_back'); loadSprite('acolyte_red'); loadSprite('acolyte_red_back');
     ['turret_blue', 'turret_red', 'turret_pad', 'mine_safe', 'mine_mid', 'mine_far'].forEach(loadSprite);
@@ -1153,7 +1153,7 @@
       sound.playHorn();
       ['blue', 'red'].forEach(team => {
         const q = state.spawnQ[team];
-        q.push('pawn', 'pawn', 'pawn', 'pawn');
+        { const np = (window.Story && Story.active && Story.pawnsFor) ? Story.pawnsFor(team) : 4; for (let i = 0; i < np; i++) q.push('pawn'); }   // v28: story can throttle pawns (guarded barns)
         const due = { archers: 0, wizards: 0, brutes: 0 };
         state.orders[team].forEach(o => { if (o.next === state.waveCount) { due[o.k]++; o.next += o.every; } });
         for (let i = 0; i < due.brutes; i++) q.push('brute');
@@ -3890,9 +3890,10 @@
   <script src="assets/lib/peerjs.min.js"></script>
   <script src="mp.js"></script>
   <script src="story.js"></script>
+  <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v27';
+    window.APP_VERSION = 'v28';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

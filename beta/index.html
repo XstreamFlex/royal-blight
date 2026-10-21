@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-  <title>Royal Blight BETA v25</title>
+  <title>Royal Blight BETA v26</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -221,7 +221,7 @@
           <div class="flex flex-col items-end">
             <div class="flex items-center justify-between text-[10px] font-black text-rose-300 uppercase leading-none w-full">
               <span id="necro-hp-num">2500</span>
-              <span>Necro</span>
+              <span id="enemy-name">Necro</span>
             </div>
             <div class="w-16 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700 mt-0.5">
               <div id="necro-hp-bar" class="h-full bg-rose-500 transition-all duration-200" style="width: 100%;"></div>
@@ -303,7 +303,7 @@
     <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
       <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
       <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v25</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v26</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -813,9 +813,9 @@
       return null;
     }
     // v24: story Chapter 1 enemy (Felix's Green Army) wears Kingdom art tinted green
-    function artTeam(u) { return (u.team === 'red' && window.Story && Story.active && Story.m && Story.m.region === 'eastmarch') ? 'blue' : u.team; }
+    function artTeam(u) { return (u.team === 'red' && window.Story && Story.active && Story.m && Story.m.region === 'eastmarch') ? 'green' : u.team; }   // v26: real Green Army art
     function spriteKey(u) {
-      if (u.type === 'pawn') return artTeam(u) === 'blue' ? 'knight' : 'skeleton';
+      if (u.type === 'pawn') return artTeam(u) === 'red' ? 'skeleton' : 'knight';
       return u.type;
     }
     // Facing: the army at the bottom of this screen walks away from the camera, so it is
@@ -848,7 +848,7 @@
     // paints a neutral ground), arena only if the file really failed. All maps are also preloaded at boot.
     function mapBgKey() { const m = MAPS[state.map] || MAPS.arena; if (!SPRITES[m.bg]) loadSprite(m.bg); return SPRITES[m.bg] ? m.bg : (SPRITE_FAILED.has(m.bg) ? 'arena_bg' : null); }
     // variant art that exists in assets/ (others fall back to the base sprite + a weapon badge)
-    const VARIANT_ART = new Set(["archer_flame_blue", "archer_flame_red", "archer_hunting_blue", "archer_hunting_red", "archer_long_blue", "archer_long_red", "brute_heavy_blue", "brute_heavy_red", "brute_light_blue", "brute_light_red", "brute_spiked_blue", "brute_spiked_red", "knight_hammer_blue", "knight_mace_blue", "knight_shield_blue", "skeleton_hammer_red", "skeleton_mace_red", "skeleton_shield_red", "wizard_banner_blue", "wizard_banner_red", "wizard_priest_blue", "wizard_priest_red"]);
+    const VARIANT_ART = new Set(["archer_flame_blue", "archer_flame_red", "archer_hunting_blue", "archer_hunting_red", "archer_long_blue", "archer_long_red", "brute_heavy_blue", "brute_heavy_red", "brute_light_blue", "brute_light_red", "brute_spiked_blue", "brute_spiked_red", "knight_hammer_blue", "knight_mace_blue", "knight_shield_blue", "skeleton_hammer_red", "skeleton_mace_red", "skeleton_shield_red", "wizard_banner_blue", "wizard_banner_red", "wizard_priest_blue", "wizard_priest_red", "archer_flame_green", "archer_hunting_green", "archer_long_green", "brute_heavy_green", "brute_light_green", "brute_spiked_green", "knight_hammer_green", "knight_mace_green", "knight_shield_green", "wizard_banner_green", "wizard_priest_green"]);   // v26: + Green Army variants
 
     function getUnitSprite(u) {
       let k = spriteKey(u);
@@ -860,7 +860,10 @@
       // variant/back view used to return null and fall through to the old vector drawing. Now walk a fallback
       // chain of real sprites; while any is still loading return PENDING (draw nothing that frame) and only
       // use the vector art if every file genuinely failed.
-      const chain = (away ? [k + '_' + at + '_back', k + '_' + at, base + '_' + at + '_back', base + '_' + at] : [k + '_' + at, base + '_' + at]).concat([base]);
+      if (u.boss) return loadSprite(away ? 'felix_boss_back' : 'felix_boss') || loadSprite('felix_boss') || SPRITE_PENDING;   // v26 dedicated boss art
+      let chain = (away ? [k + '_' + at + '_back', k + '_' + at, base + '_' + at + '_back', base + '_' + at] : [k + '_' + at, base + '_' + at]);
+      if (at === 'green') chain = chain.concat(chain.map(n => n.replace('_green', '_red')));   // red-only heroes (acolyte) keep their art
+      chain = chain.concat([base]);
       let pending = false;
       for (const n of chain) { const img = loadSprite(n); if (img) return img; if (!SPRITE_FAILED.has(n)) pending = true; }
       return pending ? SPRITE_PENDING : null;
@@ -876,6 +879,8 @@
     window.addEventListener('load', () => setTimeout(() => {
       Object.values(MAPS).forEach(m => loadSprite(m.bg));
       VARIANT_ART.forEach(n => { loadSprite(n); loadSprite(n + '_back'); });
+      ['knight','archer','wizard','brute','worker','cavalier'].forEach(k => { loadSprite(k + '_green'); loadSprite(k + '_green_back'); });   // v26 Green Army
+      loadSprite('felix_boss'); loadSprite('felix_boss_back');
     }, 300));
     loadSprite('cavalier_blue'); loadSprite('cavalier_blue_back'); loadSprite('acolyte_red'); loadSprite('acolyte_red_back');
     ['turret_blue', 'turret_red', 'turret_pad', 'mine_safe', 'mine_mid', 'mine_far'].forEach(loadSprite);
@@ -2788,11 +2793,11 @@
           const spr = getUnitSprite(u);
           if (spr === SPRITE_PENDING) { /* v25: still loading -> skip this frame rather than draw old shapes */ }
           else if (spr) {
-            const hero = u.type === 'cavalier' || u.type === 'acolyte';
+            const hero = u.type === 'cavalier' || u.type === 'acolyte' || u.boss;
             const size = u.radius * (hero ? 3.4 : 2.8);
             // v23: Banner art packs a small bearer next to a tall flag; draw it 1.7x (feet aligned) so the bearer is full wizard size
             const big = u.aura ? 1.7 : 1, bs = size * big;
-            ctx.drawImage(scaledSprite(spr, bs, bs, leaderOf(u.team).tint), -bs / 2, size * 0.4 - bs, bs, bs);
+            ctx.drawImage(scaledSprite(spr, bs, bs, (artTeam(u) === 'green' || u.boss) ? '' : leaderOf(u.team).tint), -bs / 2, size * 0.4 - bs, bs, bs);   // v26: green art is already green
             // v17: variant without its own art -> small weapon badge
             const slot = SLOT_OF[u.type];
             if (u.variant && slot && u.variant !== DEFAULT_LOADOUT[slot] && !VARIANT_ART.has(spriteKey(u) + '_' + u.variant + '_' + u.team)) {
@@ -3270,6 +3275,7 @@
       document.getElementById('necro-hp-bar').style.width = `${necroPct}%`;
       document.getElementById('king-hp-num').textContent = Math.max(0, Math.ceil(state.cores.blue.hp));
       document.getElementById('necro-hp-num').textContent = Math.max(0, Math.ceil(state.cores.red.hp));
+      { const en = document.getElementById('enemy-name'); const nm = (window.Story && Story.active && Story.m) ? (Story.m.region === 'eastmarch' ? (Story.m.objectives.some(o => o.k === 'boss') ? 'Felix' : 'Green Army') : leaderOf('red').name) : 'Necro'; if (en.textContent !== nm) { en.textContent = nm; en.style.marginLeft = '4px'; en.style.whiteSpace = 'nowrap'; en.style.fontSize = nm.length > 6 ? '9px' : ''; en.style.color = (window.Story && Story.active && Story.m && Story.m.region === 'eastmarch') ? '#86efac' : ''; } }
 
       // Wave Counter
       document.getElementById('wave-num').textContent = state.waveCount;
@@ -3886,7 +3892,7 @@
   <script src="story.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v25';
+    window.APP_VERSION = 'v26';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

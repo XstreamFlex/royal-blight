@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-  <title>Royal Blight BETA v24.1</title>
+  <title>Royal Blight BETA v25</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -303,7 +303,7 @@
     <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
       <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
       <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v24.1</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v25</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -802,13 +802,14 @@
     // Units look up "<key>_<team>.png" first, then "<key>.png" (key: knight, skeleton, archer, wizard, brute, worker).
     const SPRITES = {};
     const SPRITE_FAILED = new Set();
+    const assetExt = n => /^arena_/.test(n) ? '.jpg' : '.png';   // v25: map backgrounds are JPEG (7MB PNG -> ~0.9MB)
     function loadSprite(name) {
       if (name in SPRITES) return SPRITES[name];
       const img = new Image();
       SPRITES[name] = null;
       img.onload = () => { SPRITES[name] = img; };
       img.onerror = () => { SPRITES[name] = null; SPRITE_FAILED.add(name); };
-      img.src = (window.__INLINE_ASSETS && window.__INLINE_ASSETS[name]) || ('assets/' + name + '.png');
+      img.src = (window.__INLINE_ASSETS && window.__INLINE_ASSETS[name]) || ('assets/' + name + assetExt(name));
       return null;
     }
     // v24: story Chapter 1 enemy (Felix's Green Army) wears Kingdom art tinted green
@@ -842,26 +843,40 @@
       library:  { name: 'Library District',  bg: 'arena_library' },
       pass:     { name: 'Mountain Pass',     bg: 'arena_pass' }
     };
-    function mapBgKey() { const m = MAPS[state.map] || MAPS.arena; if (!SPRITES[m.bg]) loadSprite(m.bg); return SPRITES[m.bg] ? m.bg : 'arena_bg'; }
+    // v25 BUG FIX (old map under a new map at match start): while the chosen map was still loading this returned
+    // 'arena_bg' (or the procedural ground), which got cached and drawn first. Now: null while loading (drawEnvironment
+    // paints a neutral ground), arena only if the file really failed. All maps are also preloaded at boot.
+    function mapBgKey() { const m = MAPS[state.map] || MAPS.arena; if (!SPRITES[m.bg]) loadSprite(m.bg); return SPRITES[m.bg] ? m.bg : (SPRITE_FAILED.has(m.bg) ? 'arena_bg' : null); }
     // variant art that exists in assets/ (others fall back to the base sprite + a weapon badge)
     const VARIANT_ART = new Set(["archer_flame_blue", "archer_flame_red", "archer_hunting_blue", "archer_hunting_red", "archer_long_blue", "archer_long_red", "brute_heavy_blue", "brute_heavy_red", "brute_light_blue", "brute_light_red", "brute_spiked_blue", "brute_spiked_red", "knight_hammer_blue", "knight_mace_blue", "knight_shield_blue", "skeleton_hammer_red", "skeleton_mace_red", "skeleton_shield_red", "wizard_banner_blue", "wizard_banner_red", "wizard_priest_blue", "wizard_priest_red"]);
 
     function getUnitSprite(u) {
       let k = spriteKey(u);
-      const at = artTeam(u);
+      const at = artTeam(u), base = k;
       if (u.variant && VARIANT_ART.has(k + '_' + u.variant + '_' + at)) k = k + '_' + u.variant;
-      const front = loadSprite(k + '_' + at) || (SPRITE_FAILED.has(k + '_' + at) ? loadSprite(k) : null);
       let away = isBottomTeam(u.team);
       if (u.type === 'cavalier' && u.chargeDir < 0) away = !away;   // riding back toward its own side
-      if (away) return loadSprite(k + '_' + at + '_back') || front;
-      return front;
+      // v25 BUG FIX (old shape graphics on spawn): sprites load lazily, so the first frames of a newly seen
+      // variant/back view used to return null and fall through to the old vector drawing. Now walk a fallback
+      // chain of real sprites; while any is still loading return PENDING (draw nothing that frame) and only
+      // use the vector art if every file genuinely failed.
+      const chain = (away ? [k + '_' + at + '_back', k + '_' + at, base + '_' + at + '_back', base + '_' + at] : [k + '_' + at, base + '_' + at]).concat([base]);
+      let pending = false;
+      for (const n of chain) { const img = loadSprite(n); if (img) return img; if (!SPRITE_FAILED.has(n)) pending = true; }
+      return pending ? SPRITE_PENDING : null;
     }
+    const SPRITE_PENDING = { pending: true };
     ['knight','skeleton','archer','wizard','brute','worker'].forEach(k => {
       // knight = King-only, skeleton = Necromancer-only; generic "<key>.png" is loaded lazily as a fallback
       const teams = k === 'knight' ? ['blue'] : k === 'skeleton' ? ['red'] : ['blue', 'red'];
       teams.forEach(t => { loadSprite(k + '_' + t); loadSprite(k + '_' + t + '_back'); });
     });
     loadSprite('arena_bg');
+    // v25: preload every map + unit/variant/back sprite at boot so nothing is fetched mid-match
+    window.addEventListener('load', () => setTimeout(() => {
+      Object.values(MAPS).forEach(m => loadSprite(m.bg));
+      VARIANT_ART.forEach(n => { loadSprite(n); loadSprite(n + '_back'); });
+    }, 300));
     loadSprite('cavalier_blue'); loadSprite('cavalier_blue_back'); loadSprite('acolyte_red'); loadSprite('acolyte_red_back');
     ['turret_blue', 'turret_red', 'turret_pad', 'mine_safe', 'mine_mid', 'mine_far'].forEach(loadSprite);
     loadSprite('nexus_king');        // blue nexus (front)
@@ -2364,7 +2379,9 @@
     }
 
     function drawEnvironment() {
-      const bg = SPRITES[mapBgKey()];
+      const bk = mapBgKey();
+      if (bk === null) { ctx.fillStyle = '#3b3a2a'; ctx.fillRect(0, 0, WORLD_W, WORLD_H); return; }   // v25: map still loading
+      const bg = SPRITES[bk];
       if (bg) {
         const bc = getBgCache(), k = bc.width / WORLD_W;
         // visible world rows (camera works in un-flipped coordinates; the flip mirrors the whole world)
@@ -2769,7 +2786,8 @@
         } else {
           // Sprite if provided in assets/, else detailed procedural rendering
           const spr = getUnitSprite(u);
-          if (spr) {
+          if (spr === SPRITE_PENDING) { /* v25: still loading -> skip this frame rather than draw old shapes */ }
+          else if (spr) {
             const hero = u.type === 'cavalier' || u.type === 'acolyte';
             const size = u.radius * (hero ? 3.4 : 2.8);
             // v23: Banner art packs a small bearer next to a tall flag; draw it 1.7x (feet aligned) so the bearer is full wizard size
@@ -3782,7 +3800,7 @@
         const inline = {};
         for (const name of Object.keys(SPRITES)) {
           if (!SPRITES[name]) continue;
-          const r = await fetch('assets/' + name + '.png'); if (r.ok) inline[name] = await blobToDataURL(await r.blob());
+          const r = await fetch('assets/' + name + assetExt(name)); if (r.ok) inline[name] = await blobToDataURL(await r.blob());
         }
         const tw = await (await fetch('assets/tailwind.js')).text();
         let css = await (await fetch('assets/fonts/fonts.css')).text();
@@ -3868,7 +3886,7 @@
   <script src="story.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v24.1';
+    window.APP_VERSION = 'v25';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

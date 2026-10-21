@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-beta-v24-1';   // BETA build (/royal-blight/beta/): own cache namespace
+const CACHE_VERSION = 'royal-blight-beta-v25';   // BETA build (/royal-blight/beta/): own cache namespace
 const CORE = [
   './', './index.html', './manifest.json', './mp.js', './story.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/fonts/fonts.css',
@@ -27,7 +27,7 @@ const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromance
     .flatMap(k => [k + '_blue', k + '_red', k + '_blue_back', k + '_red_back'])
     .filter(n => !/^knight_red|^skeleton_blue/.test(n))
     .concat(['knight', 'skeleton'])
-).map(n => './assets/' + n + '.png');
+).map(n => './assets/' + n + (/^arena_/.test(n) ? '.jpg' : '.png'));
 
 // v24.1: app shell is NETWORK-FIRST (cache only as offline fallback) so a new deploy shows on the next load;
 // images/fonts/libs stay cache-first. skipWaiting + clients.claim make a new worker take over at once.

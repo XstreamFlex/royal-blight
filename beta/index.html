@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
-  <title>Royal Blight BETA v24</title>
+  <title>Royal Blight BETA v24.1</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -303,7 +303,7 @@
     <div id="modal-menu" class="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
       <div class="text-5xl mb-2">👑 ⚔️ 💀</div>
       <h1 class="text-3xl font-black text-amber-400 uppercase tracking-wider">Royal Blight</h1>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v24</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v24.1</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -3867,9 +3867,49 @@
   <script src="mp.js"></script>
   <script src="story.js"></script>
   <script>
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-    }
+    // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
+    window.APP_VERSION = 'v24.1';
+    (function () {
+      const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
+      let shown = false;
+      function reloadOnce(tag) {
+        const k = 'rb-reload-' + tag, last = +sessionStorage.getItem(k) || 0;
+        if (Date.now() - last < 15000) return false;                     // loop guard
+        sessionStorage.setItem(k, Date.now()); location.reload(); return true;
+      }
+      function banner(v) {
+        if (shown) return; shown = true;
+        const b = document.createElement('button'); b.id = 'update-banner';
+        b.textContent = '\u2B06 Update ready (' + v + ') \u2013 tap to reload';
+        b.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 8px);transform:translateX(-50%);z-index:9999;padding:8px 14px;border-radius:999px;background:#f59e0b;color:#0f172a;font:900 12px sans-serif;box-shadow:0 4px 14px #0008;border:2px solid #fde68a';
+        b.onclick = () => { sessionStorage.removeItem('rb-reload-ver'); location.reload(); };
+        document.body.appendChild(b);
+      }
+      function onNewer(v) { if (!busy() && reloadOnce('ver')) return; banner(v); }
+      async function checkVersion() {
+        try {
+          const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
+          const j = await r.json(); if (j && j.version && j.version !== window.APP_VERSION) onNewer(j.version);
+        } catch (e) {}
+      }
+      window.checkVersion = checkVersion;
+      if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+        const hadController = !!navigator.serviceWorker.controller;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!hadController) return;                                     // first install: nothing to refresh
+          if (busy()) banner('new'); else reloadOnce('sw');
+        });
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+            window.swReg = reg; reg.update().catch(() => {});
+            const again = () => { reg.update().catch(() => {}); checkVersion(); };
+            document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') again(); });
+            window.addEventListener('focus', again);
+          }).catch(() => {});
+        });
+      }
+      window.addEventListener('load', checkVersion);
+    })();
   </script>
 </body>
 </html>

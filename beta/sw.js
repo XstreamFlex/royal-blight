@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-beta-v24';   // BETA build (/royal-blight/beta/): own cache namespace
+const CACHE_VERSION = 'royal-blight-beta-v24-1';   // BETA build (/royal-blight/beta/): own cache namespace
 const CORE = [
   './', './index.html', './manifest.json', './mp.js', './story.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/fonts/fonts.css',
@@ -29,11 +29,15 @@ const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromance
     .concat(['knight', 'skeleton'])
 ).map(n => './assets/' + n + '.png');
 
+// v24.1: app shell is NETWORK-FIRST (cache only as offline fallback) so a new deploy shows on the next load;
+// images/fonts/libs stay cache-first. skipWaiting + clients.claim make a new worker take over at once.
+const NET_FIRST = /\/(index\.html|sw\.js|story\.js|mp\.js|manifest\.json|version\.json)?$/;
 self.addEventListener('install', e => {
+  self.skipWaiting();
   e.waitUntil(caches.open(CACHE_VERSION).then(async c => {
-    await c.addAll(CORE);
+    await c.addAll(CORE.map(u => new Request(u, { cache: 'reload' })));
     await Promise.all(OPTIONAL.map(u => fetch(u).then(r => r.ok ? c.put(u, r) : null).catch(() => null)));
-  }).then(() => self.skipWaiting()));
+  }));
 });
 self.addEventListener('activate', e => {
   // only clean up OLD BETA caches; the live game's caches share this origin and must not be touched
@@ -41,11 +45,13 @@ self.addEventListener('activate', e => {
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
-  e.respondWith(caches.open(CACHE_VERSION).then(c => c.match(e.request, { ignoreSearch: true })).then(hit => hit || fetch(e.request).then(r => {
-    if (r.ok && new URL(e.request.url).origin === location.origin) {
-      const copy = r.clone(); caches.open(CACHE_VERSION).then(c => c.put(e.request, copy));
-    }
-    return r;
-  }).catch(() => hit)));
+  const req = e.request, url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin) return;
+  const store = r => { if (r && r.ok) { const copy = r.clone(); caches.open(CACHE_VERSION).then(c => c.put(req, copy)); } return r; };
+  const fromCache = () => caches.open(CACHE_VERSION).then(c => c.match(req, { ignoreSearch: true }).then(h => h || (req.mode === 'navigate' ? c.match('./index.html') : undefined)));
+  if (req.mode === 'navigate' || NET_FIRST.test(url.pathname)) {
+    e.respondWith(fetch(req, { cache: 'no-store' }).then(store).catch(() => fromCache()));
+    return;
+  }
+  e.respondWith(fromCache().then(hit => hit || fetch(req).then(store)));
 });

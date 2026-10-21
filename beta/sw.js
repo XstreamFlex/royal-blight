@@ -33,7 +33,8 @@ const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromance
    'wizard','wizard_priest','wizard_banner','worker','cavalier'].flatMap(k => [k + '_green', k + '_green_back'])
     .concat(['felix_boss', 'felix_boss_back', 'barn', 'barn_burnt', 'cavalier_blue', 'cavalier_blue_back', 'acolyte_red', 'acolyte_red_back'])
 ).map(n => './assets/' + n + (/^arena_/.test(n) ? '.jpg' : '.png'))
-  .concat(['rufus','ruphene','vesper','garrow','felix','pip','farmer','mystery'].map(n => './assets/portraits/' + n + '.webp'), ['./assets/vo/index.json']);   // v29 portraits (voice .ogg cached on first play)
+  .concat(['rufus','ruphene','vesper','garrow','felix','pip','farmer','mystery'].map(n => './assets/portraits/' + n + '.webp'), ['./assets/vo/index.json'],
+    ['wren_blue','bram_blue','quill_blue','nettle_red','ossuar_red','wail_red'].flatMap(n => ['./assets/' + n + '.png', './assets/' + n + '_back.png']));   // v31 heroes   // v29 portraits (voice .ogg cached on first play)
 
 // v24.1: app shell is NETWORK-FIRST (cache only as offline fallback) so a new deploy shows on the next load;
 // images/fonts/libs stay cache-first. skipWaiting + clients.claim make a new worker take over at once.

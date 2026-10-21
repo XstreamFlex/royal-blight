@@ -5,14 +5,19 @@
   'use strict';
   // ------------------------------------------------------------------ SAVE (localStorage, versioned)
   const SAVE_KEY = 'royalBlight.story', SAVE_V = 2;   // v27: v2 = illustrated map + new color rules (mapV)
-  const freshSave = () => ({ v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:long', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2, diff: 'normal' });
+  const freshSave = () => ({ v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:long', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2, diff: 'normal', up: {}, power: null, replayStory: false });
+  function cleanUp(u) {   // v31 region upgrades { region: { mines, walls, barracks, hall } }, 0..3 each
+    const o = {}; if (!u || typeof u !== 'object') return o;
+    for (const [r, t] of Object.entries(u)) { if (!/^[a-z]{3,12}$/.test(r) || !t) continue; o[r] = {}; for (const k of ['mines', 'walls', 'barracks', 'hall']) o[r][k] = Math.max(0, Math.min(3, t[k] | 0)); }
+    return o;
+  }
   function migrate(s) {
     if (!s || typeof s !== 'object') return freshSave();
     const f = freshSave();
     const out = { v: SAVE_V, gold: Math.max(0, Math.floor(+s.gold || 0)), xp: Math.max(0, Math.floor(+s.xp || 0)),
       missions: {}, unlocks: Array.isArray(s.unlocks) ? s.unlocks.filter(x => typeof x === 'string').slice(0, 500) : f.unlocks,
       seen: Array.isArray(s.seen) ? s.seen.filter(x => typeof x === 'string').slice(0, 500) : [], created: +s.created || Date.now(),
-      diff: ['easy', 'normal', 'hard'].includes(s.diff) ? s.diff : 'normal', mapV: 2, migratedFrom: (s.v | 0) < 2 ? (s.v | 0) || 1 : (s.migratedFrom || 0) };   // v1 -> v2: progress is derived from wins, so nothing is lost
+      diff: ['easy', 'normal', 'hard'].includes(s.diff) ? s.diff : 'normal', mapV: 2, replayStory: !!s.replayStory, power: typeof s.power === 'string' ? s.power : null, up: cleanUp(s.up), migratedFrom: (s.v | 0) < 2 ? (s.v | 0) || 1 : (s.migratedFrom || 0) };   // v1 -> v2: progress is derived from wins, so nothing is lost
     f.unlocks.forEach(u => { if (!out.unlocks.includes(u)) out.unlocks.push(u); });
     if (s.missions && typeof s.missions === 'object') for (const [id, m] of Object.entries(s.missions)) {
       if (!/^[A-Z0-9_]{2,8}$/.test(id) || !m) continue;
@@ -159,6 +164,41 @@
   }
   function toast(text, color) { addFloatingText(LANE_X, state.cameraY + 300, text, color || '#fde68a', 15, true); }
 
+  // ---- v31 Region Upgrades + King Powers (STORY_BIBLE 10) ----
+  const UP = {
+    tracks: [['mines', 'Mines', '+10% battle gold per level'], ['walls', 'Walls', '+5% nexus HP per level'], ['barracks', 'Barracks', '-5g signature unit per level'], ['hall', 'Hall', '+10% battle XP per level']],
+    cost: { mines: [100, 150, 250], walls: [100, 150, 250], barracks: [150, 250, 400], hall: [150, 250, 400] },
+    names: { paradale: { mines: 'Royal Treasury', walls: 'Lantern Walls', barracks: "Knights' Yard", hall: 'Festival Square', sig: 'brutes', power: 'decree' },
+             eastmarch: { mines: 'Golden Granary', walls: 'Hedgerow Forts', barracks: 'Archery Butts', hall: 'Harvest Hall', sig: 'archers', power: 'volley' } }
+  };
+  S.UP = UP;
+  const upOf = rk => (SAVE.up && SAVE.up[rk]) || { mines: 0, walls: 0, barracks: 0, hall: 0 };
+  const canUpgrade = rk => rk === 'paradale' ? won('P0') : regionColor(rk) === 'green';
+  const powerOpen = rk => UP.tracks.every(([k]) => upOf(rk)[k] >= 3);
+  S.powerOpen = powerOpen;
+  S.buyUpgrade = function (rk, k) {
+    const u = SAVE.up[rk] = Object.assign({ mines: 0, walls: 0, barracks: 0, hall: 0 }, SAVE.up[rk] || {});
+    if (!canUpgrade(rk) || u[k] >= 3) return false; const c = UP.cost[k][u[k]]; if (SAVE.gold < c) return false;
+    SAVE.gold -= c; u[k]++; if (powerOpen(rk) && !SAVE.power) SAVE.power = UP.names[rk].power; persist(); return true;
+  };
+  function openTreasury() {
+    let h = `<p class="text-slate-300 text-xs mb-2 text-center">Gold <b class="text-amber-300">${SAVE.gold}</b> \u00B7 XP ${SAVE.xp} \u00B7 Level ${level()}</p>`;
+    for (const rk of Object.keys(UP.names)) {
+      const N = UP.names[rk], u = upOf(rk), open = canUpgrade(rk), P = KING_POWERS[N.power];
+      h += `<div class="rounded-xl border border-slate-600 bg-slate-800/80 p-2 mb-2"><div class="flex justify-between text-xs font-black"><span class="text-amber-200">${REGIONS[rk].name}</span><span class="text-[10px] ${open ? 'text-emerald-300' : 'text-slate-500'}">${open ? 'free \u2014 upgrade' : rk === 'paradale' ? 'win the Prologue' : 'free the region first'}</span></div>`;
+      for (const [k, nm, ds] of UP.tracks) { const lv = u[k], c = lv < 3 ? UP.cost[k][lv] : 0;
+        h += `<div class="flex items-center justify-between mt-1"><div class="text-[11px] text-slate-200 leading-tight"><b>${esc(N[k])}</b> <span class="text-amber-300">${'\u2605'.repeat(lv)}${'\u2606'.repeat(3 - lv)}</span><br><span class="text-[9px] text-slate-400">${nm}: ${ds}</span></div>` +
+          (lv >= 3 ? '<span class="text-[10px] font-black text-emerald-300">MAX</span>' : `<button data-up="${rk}:${k}" ${open && SAVE.gold >= c ? '' : 'disabled'} class="px-2 py-1 rounded-lg text-[10px] font-black ${open && SAVE.gold >= c ? 'bg-amber-500 text-slate-950' : 'bg-slate-700 text-slate-400'}">${c}g</button>`) + `</div>`; }
+      const po = powerOpen(rk);
+      h += `<div class="mt-2 rounded-lg p-1.5 ${po ? 'bg-amber-500/20 border border-amber-400' : 'bg-slate-900/60 border border-slate-700'} flex items-center justify-between"><div class="text-[10px] leading-tight"><b class="${po ? 'text-amber-200' : 'text-slate-400'}">${P.icon} King Power: ${P.name}</b><br><span class="text-slate-400">${po ? esc(P.desc) : 'All 4 tracks at \u2605\u2605\u2605 to unlock'}</span></div>` +
+        (po ? `<button data-pw="${N.power}" class="px-2 py-1 rounded-lg text-[10px] font-black ${SAVE.power === N.power ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-100'}">${SAVE.power === N.power ? 'EQUIPPED' : 'EQUIP'}</button>` : '') + `</div></div>`;
+    }
+    h += `<p class="text-[10px] text-slate-400">Upgrades boost that region's battles. One King Power per battle; its meter fills from kills and gold mined.</p>`;
+    showPanel('\u{1F4B0} Royal Treasury', h).then(() => {});
+    const b = $('modal-brief');
+    b.querySelectorAll('[data-up]').forEach(x => x.onclick = () => { const [rk, k] = x.dataset.up.split(':'); if (S.buyUpgrade(rk, k)) { openTreasury(); $('st-purse').textContent = `\u{1FA99} ${SAVE.gold}  \u2B50 XP ${SAVE.xp} (Lv ${level()})`; } });
+    b.querySelectorAll('[data-pw]').forEach(x => x.onclick = () => { SAVE.power = SAVE.power === x.dataset.pw ? null : x.dataset.pw; persist(); openTreasury(); });
+  }
   S.start = function (id) {
     const m = M[id]; if (!m || !missionOpen(id)) return false;
     AI_LEVELS.story = Object.assign({}, AI_LEVELS[m.ai.level || 'normal'], { income: m.ai.income || 1, think: m.ai.think || AI_LEVELS[m.ai.level || 'normal'].think, heroWave: 99, heroArmy: 99 });
@@ -171,6 +211,10 @@
     state.leaders = { blue: 'rufus', red: m.region === 'eastmarch' ? 'felix' : 'necro' };
     AIS.red.strat = AIS.red.strat0 = m.ai.strat || 'balanced'; AIS.red.switches = 0;
     state.blueGold = m.gold || 100;
+    { const u = upOf(m.region), N = UP.names[m.region];   // v31 region upgrades for this region's battles
+      if (u.walls) { const c = state.cores.blue; c.maxHp = Math.round(c.maxHp * (1 + 0.05 * u.walls)); c.hp = c.maxHp; }
+      state.costMod = { blue: N && u.barracks ? { [N.sig]: 5 * u.barracks } : {} };
+      if (SAVE.power && KING_POWERS[SAVE.power] && Object.keys(UP.names).some(rk => UP.names[rk].power === SAVE.power && powerOpen(rk))) setKingPowers({ blue: SAVE.power, red: null }); }
     if (m.region === 'eastmarch' && unlocked('bonus:worker_east')) spawnWorker('blue', 'MID');     // M04 reward: +1 starting worker
     const R = S.R = { t: 0, obj: {}, lost: 0, minCoreFrac: 1, turretsLost: 0, spent: 0, jousts: 0, lastJoust: -9, hazards: [], done: null, msgs: [] };
     (m.objectives || []).forEach((o, i) => setupObjective(o, i));
@@ -425,6 +469,7 @@
       const g = G[m.reward[0]], x = X[m.reward[1]];
       gold = firstClear ? g : Math.round(g * 0.5); xp = firstClear ? x : Math.round(x * 0.5);   // replays still pay: grinding never punished
       gold += newStars * 25; xp += newStars * 10;
+      { const u = upOf(m.region); gold = Math.round(gold * (1 + 0.1 * u.mines)); xp = Math.round(xp * (1 + 0.1 * u.hall)); }
       (m.unlock || []).forEach(u => { if (!SAVE.unlocks.includes(u)) SAVE.unlocks.push(u); });
     } else { xp = 10; }                                                                          // a loss still teaches something
     SAVE.gold += gold; SAVE.xp += xp; persist();
@@ -519,7 +564,7 @@
     $('st-back').onclick = () => { $('modal-story').classList.add('hidden'); $('modal-menu').classList.remove('hidden'); };
     $('st-export').onclick = () => { const s = exportSave(); try { navigator.clipboard && navigator.clipboard.writeText(s); } catch (e) {} prompt('Your story save (copied). Keep it somewhere safe:', s); };
     $('st-import').onclick = () => { const s = prompt('Paste a ' + (window.RB_TITLE || 'Royal Blight') + ' save (RB1....):'); if (!s) return; const r = importSave(s); alert(r === true ? 'Save imported!' : 'Could not import: ' + r); S.openMap(); };
-    $('st-shop').onclick = () => showPanel('\u{1F4B0} Royal Treasury', `<p class="text-slate-300 text-xs mb-2">Gold ${SAVE.gold} \u00B7 XP ${SAVE.xp} \u00B7 Level ${level()}</p><p class="text-slate-400 text-xs">The shop opens in a later update. Cleared regions will sell their units, maps, armies and kings for story gold + XP level. No real money, ever.</p>`);
+    $('st-shop').onclick = () => openTreasury();
     // menu entry (keeps Quick Match + multiplayer intact)
     const menuBox = $('btn-loadout');
     menuBox.insertAdjacentHTML('beforebegin', `<button id="btn-story" class="w-full max-w-xs mb-2 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 text-slate-950 font-black text-sm uppercase tracking-wider shadow-lg active:scale-95">\u{1F4D6} Story <span class="normal-case font-bold text-[10px]">\u00B7 Act 1</span></button>`);
@@ -678,9 +723,13 @@
       <div class="text-[11px] text-slate-300">Reward: <b class="text-amber-300">${G[m.reward[0]]}g</b> + <b class="text-sky-300">${X[m.reward[1]]} XP</b>${rec && rec.wins ? ' (replay: half, + new stars)' : ''}${m.cards ? ' \u00B7 Limited army: ' + m.cards.join(', ') : ''}</div>`;
     const guarded = (m.objectives || []).some(o => o.guards);
     const dsel = guarded ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty \u00B7 barn guards per farm</div><div class="text-xs text-slate-200">${['easy', 'normal', 'hard'].map(d => d === SAVE.diff ? `<b class="text-amber-300">[${d} ${GUARDS[d]}]</b>` : d + ' ' + GUARDS[d]).join(' \u00B7 ')}</div><p class="text-[10px] text-slate-400">Felix musters pawns at half rate while his barn guards stand; each guard you kill raises it.</p>` : '';
-    const k = await showPanel(`${id}: ${esc(m.name)}`, html + dsel, guarded ? [['Back', 'back'], ['Easy', 'd:easy'], ['Normal', 'd:normal'], ['Hard', 'd:hard'], ['\u2694 Start', 'go']] : [['Back', 'back'], ['\u2694 Start', 'go']]);
+    const replayed = !!(rec && rec.wins);   // v31: replays auto-skip the story unless 'Replay story' is on
+    const rs = replayed ? `<button id="st-rs" class="mt-2 w-full py-2 rounded-lg border-2 text-[11px] font-black uppercase ${SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'}">\u{1F4D6} Replay story: ${SAVE.replayStory ? 'ON' : 'OFF'}</button>` : '';
+    const kP = showPanel(`${id}: ${esc(m.name)}`, html + dsel + rs, guarded ? [['Back', 'back'], ['Easy', 'd:easy'], ['Normal', 'd:normal'], ['Hard', 'd:hard'], ['\u2694 Start', 'go']] : [['Back', 'back'], ['\u2694 Start', 'go']]);
+    const rsb = $('st-rs'); if (rsb) rsb.onclick = () => { SAVE.replayStory = !SAVE.replayStory; persist(); rsb.textContent = '\u{1F4D6} Replay story: ' + (SAVE.replayStory ? 'ON' : 'OFF'); rsb.className = rsb.className.replace(SAVE.replayStory ? 'bg-slate-800 text-slate-300 border-slate-600' : 'bg-amber-500 text-slate-950 border-amber-300', SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'); };
+    const k = await kP;
     if (k && k.startsWith('d:')) { SAVE.diff = k.slice(2); persist(); return S.brief(id); }
-    if (k === 'go') { $('modal-story').classList.add('hidden'); await S.dialogue(m.before, id + '_b'); S.start(id); }
+    if (k === 'go') { $('modal-story').classList.add('hidden'); if (!replayed || SAVE.replayStory) await S.dialogue(m.before, id + '_b'); S.start(id); }
   };
   function objText(o, m) {
     switch (o.k) {
@@ -703,7 +752,7 @@
   }
   async function showResults(r) {
     const m = M[r.id];
-    if (r.win) await S.dialogue(m.after, r.id + '_a');
+    if (r.win && (r.firstClear || SAVE.replayStory)) await S.dialogue(m.after, r.id + '_a');
     const html = `<div class="text-center text-3xl mb-1">${r.win ? r.stars.map(s => s ? '\u2B50' : '\u2606').join('') : '\u{1F480}'}</div>
       <p class="text-center text-xs text-slate-300 mb-2">${r.win ? 'Victory in ' + Math.floor(r.t / 60) + ':' + String(r.t % 60).padStart(2, '0') : 'Defeat. Regroup and try again: losses still earn XP.'}</p>
       ${r.win ? m.stars.map((s, i) => `<p class="text-xs ${r.stars[i] ? 'text-amber-200' : 'text-slate-500'}">${r.stars[i] ? '\u2B50' : '\u2606'} ${esc(s)}</p>`).join('') : ''}

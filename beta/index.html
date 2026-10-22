@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v34.5</title>
+  <title>Royal Blight BETA v34.6</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -55,6 +55,7 @@
       overscroll-behavior: none;
       -webkit-touch-callout: none;
       padding-top: env(safe-area-inset-top);
+      padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);   /* v34.6 landscape notch */
       /* Safari (not installed): keep the HUD clear of the floating bottom tab bar */
       padding-bottom: calc(env(safe-area-inset-bottom) + var(--browser-bar-pad, 0px));
       height: 100vh;                      /* old browsers */
@@ -166,7 +167,6 @@
 
       <!-- FLOATING QUICK UTILITIES (Sound, Speed, Emergency Camera Ping) -->
       <div class="absolute right-2 top-3 z-10 flex flex-col space-y-2 pointer-events-auto">
-        <button id="btn-pause" aria-label="Menu" class="w-9 h-9 rounded-full bg-slate-900/90 border-2 border-slate-600 text-white flex items-center justify-center shadow-lg active:scale-95 text-base font-black">&#9776;</button>
         <button id="btn-sound" class="hidden w-9 h-9 rounded-full bg-slate-900/90 border-2 border-slate-600 text-white flex items-center justify-center shadow-lg active:scale-95 text-sm">
           🔊
         </button>
@@ -206,7 +206,7 @@
           </div>
         </div>
 
-        <!-- Gold (+3/s), match clock, Save HTML -->
+        <!-- Gold (+3/s), match clock, ☰ menu (v34.6: sits where Save HTML was) -->
         <div class="flex flex-col items-center">
           <div class="flex items-center space-x-1">
             <div class="flex items-center space-x-1 cr-gold-pill px-2 py-0.5 rounded-full">
@@ -219,7 +219,7 @@
           <div class="flex items-center space-x-1 mt-0.5">
             <span id="match-clock" class="text-[11px] font-black text-slate-200 tabular-nums">00:00</span>
             <span class="text-[9px] text-slate-300 font-bold">⛏<span id="worker-count-txt" class="text-yellow-400 font-black">1</span></span>
-            <button id="btn-save-html" class="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-300/60 active:scale-95">Save HTML</button>
+            <button id="btn-pause" aria-label="Menu" style="touch-action:manipulation;min-width:44px;min-height:28px;margin:-6px -8px;padding:6px 8px;position:relative;z-index:30" class="flex items-center justify-center"><span class="text-[12px] leading-none font-black px-2 py-0.5 rounded bg-slate-700 text-white border border-slate-400/60 active:scale-95">&#9776;</span></button>
           </div>
         </div>
 
@@ -311,7 +311,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v34.5</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v34.6</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -3972,6 +3972,7 @@
         ${mp ? '' : b('pm-restart', '\u21BB Restart', 'bg-slate-700 text-slate-100')}
         <div class="grid grid-cols-2 gap-2">${b('pm-sfx', sound.muted ? '\u{1F507} SFX off' : '\u{1F50A} SFX on', 'bg-slate-800 text-slate-100 text-xs')}${b('pm-vo', vo ? '\u{1F5E3} Voices on' : '\u{1F507} Voices off', 'bg-slate-800 text-slate-100 text-xs')}</div><div class="flex items-center gap-2 mt-2">${b('pm-mus', (SETTINGS.musicOff ? '\u{1F507} Music off' : '\u{1F3B5} Music on'), 'bg-slate-800 text-slate-100 text-xs')}<input id="pm-musvol" type="range" min="0" max="1" step="0.05" value="${SETTINGS.musicVol == null ? 0.5 : SETTINGS.musicVol}" class="flex-1 accent-amber-500"></div>
         ${b('pm-exit', mp ? 'Leave match' : (window.Story && Story.active ? 'Exit to map' : 'Exit to menu'), 'bg-rose-800 text-rose-50')}
+        ${b('pm-save', '\u2B07 Download offline copy (.html)', 'bg-emerald-800 text-emerald-50 text-xs')}
         ${mp ? b('pm-close', 'Close', 'bg-slate-700 text-slate-100') : ''}</div>`;
     }
     function setPaused(p) {
@@ -3999,6 +4000,7 @@
         if (window.Story && Story.active && Story.m) { const id = Story.m.id; Story.quit(); state.paused = false; Story.start(id); }
         else { state.paused = false; initGame(); }
       };
+      $p('pm-save').onclick = () => saveHTML();
       $p('pm-exit').onclick = () => {
         if (!confirm(mp ? 'Leave the match? This counts as a forfeit.' : 'Exit the match? You will get no reward.')) return;
         closePause(false);
@@ -4177,7 +4179,7 @@
       return new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
     }
     async function saveHTML() {
-      const btn = document.getElementById('btn-save-html');
+      const btn = document.getElementById('pm-save') || { textContent: '', disabled: false };
       const label = btn.textContent; btn.textContent = 'Saving…'; btn.disabled = true;
       try {
         let html = await (await fetch('index.html', { cache: 'no-cache' })).text();
@@ -4208,7 +4210,7 @@
         btn.textContent = label; btn.disabled = false;
       }
     }
-    document.getElementById('btn-save-html').addEventListener('click', saveHTML);
+    window.saveHTML = saveHTML;   // v34.6: lives in the \u2630 menu
 
     // --- MAIN TICK LOOP ---
     // Fixed 60 Hz simulation steps (deterministic regardless of frame rate); rendering capped at 30 fps in
@@ -4272,7 +4274,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v34.5';
+    window.APP_VERSION = 'v34.6';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

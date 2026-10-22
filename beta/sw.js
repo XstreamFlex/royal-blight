@@ -54,6 +54,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin) return;
+  if (url.pathname.includes('/assets/music/')) return;   // v34.5 music streams from the network, never cached
   const store = r => { if (r && r.ok) { const copy = r.clone(); caches.open(CACHE_VERSION).then(c => c.put(req, copy)); } return r; };
   const fromCache = () => caches.open(CACHE_VERSION).then(c => c.match(req, { ignoreSearch: true }).then(h => h || (req.mode === 'navigate' ? c.match('./index.html') : undefined)));
   if (req.mode === 'navigate' || NET_FIRST.test(url.pathname)) {

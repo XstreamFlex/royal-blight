@@ -1,0 +1,3 @@
+Royal Blight music (v34.5): original procedural compositions (music/compose.py), rendered with FluidSynth using FluidR3_GM.sf2 (Frank Wen, MIT licence).
+Vocal layers come from the game's existing TTS voices: Kokoro-82M af_heart and bm_fable (Apache-2.0) and Piper en_US-joe-medium (see its model card), pitched and harmonised with rubberband/sox.
+No third-party recordings or samples are used.

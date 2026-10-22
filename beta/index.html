@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v34.4</title>
+  <title>Royal Blight BETA v34.5</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -311,7 +311,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v34.4</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v34.5</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -379,6 +379,9 @@
           </div>
           <p class="text-[10px] text-slate-400 leading-snug mt-1">Off by default. When on, both sides get the same power; its meter fills from kills and gold mined. Story unlocks powers by fully upgrading a region.</p>
         </div>
+        <div><div class="text-[11px] font-black uppercase text-slate-300 mb-1">🎵 Music</div>
+          <div class="flex items-center gap-2"><button id="set-music" class="px-3 py-2 rounded-lg border-2 border-slate-600 font-black text-[10px] text-slate-100">On</button>
+          <input id="set-musvol" type="range" min="0" max="1" step="0.05" class="flex-1 accent-amber-500"></div></div>
         <p class="text-[10px] text-slate-300 leading-snug">Score = all gold collected (mining + passive) + 1 per point of damage to the enemy nexus. A destroyed nexus still wins at once. Escalation: from half time (Classic: from 8:00) passive income is +50% and nexus retaliation is halved. In Play vs Friend the host's settings are used.</p>
       </div>
       <button id="settings-done" class="w-full max-w-xs mt-4 py-3 rounded-xl bg-amber-500 text-slate-950 font-black text-sm uppercase">Done</button>
@@ -3967,7 +3970,7 @@
         <h2 class="text-xl font-black text-amber-300 uppercase tracking-widest mb-1">${mp ? 'Match menu' : 'Paused'}</h2>
         ${mp ? '<p class="text-[11px] text-slate-300 -mt-1 mb-1">Two-phone match keeps running.</p>' : b('pm-resume', '\u25B6 Resume', 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950')}
         ${mp ? '' : b('pm-restart', '\u21BB Restart', 'bg-slate-700 text-slate-100')}
-        <div class="grid grid-cols-2 gap-2">${b('pm-sfx', sound.muted ? '\u{1F507} SFX off' : '\u{1F50A} SFX on', 'bg-slate-800 text-slate-100 text-xs')}${b('pm-vo', vo ? '\u{1F5E3} Voices on' : '\u{1F507} Voices off', 'bg-slate-800 text-slate-100 text-xs')}</div>
+        <div class="grid grid-cols-2 gap-2">${b('pm-sfx', sound.muted ? '\u{1F507} SFX off' : '\u{1F50A} SFX on', 'bg-slate-800 text-slate-100 text-xs')}${b('pm-vo', vo ? '\u{1F5E3} Voices on' : '\u{1F507} Voices off', 'bg-slate-800 text-slate-100 text-xs')}</div><div class="flex items-center gap-2 mt-2">${b('pm-mus', (SETTINGS.musicOff ? '\u{1F507} Music off' : '\u{1F3B5} Music on'), 'bg-slate-800 text-slate-100 text-xs')}<input id="pm-musvol" type="range" min="0" max="1" step="0.05" value="${SETTINGS.musicVol == null ? 0.5 : SETTINGS.musicVol}" class="flex-1 accent-amber-500"></div>
         ${b('pm-exit', mp ? 'Leave match' : (window.Story && Story.active ? 'Exit to map' : 'Exit to menu'), 'bg-rose-800 text-rose-50')}
         ${mp ? b('pm-close', 'Close', 'bg-slate-700 text-slate-100') : ''}</div>`;
     }
@@ -3988,6 +3991,8 @@
       if ($p('pm-resume')) $p('pm-resume').onclick = () => closePause(true);
       if ($p('pm-close')) $p('pm-close').onclick = () => closePause(false);
       $p('pm-sfx').onclick = () => { sound.muted = !sound.muted; SETTINGS.sfxOff = sound.muted; saveSettings(); $p('pm-sfx').textContent = sound.muted ? '\u{1F507} SFX off' : '\u{1F50A} SFX on'; };
+      $p('pm-mus').onclick = () => { SETTINGS.musicOff = !SETTINGS.musicOff; saveSettings(); $p('pm-mus').textContent = SETTINGS.musicOff ? '\u{1F507} Music off' : '\u{1F3B5} Music on'; if (window.Music) Music.tick(); };
+      $p('pm-musvol').oninput = e => { SETTINGS.musicVol = +e.target.value; saveSettings(); if (window.Music) Music.tick(); };
       $p('pm-vo').onclick = () => { if (!window.Story) return; Story.setVoMute(!Story.voMuted()); $p('pm-vo').textContent = Story.voMuted() ? '\u{1F507} Voices off' : '\u{1F5E3} Voices on'; };
       if ($p('pm-restart')) $p('pm-restart').onclick = () => {
         closePause(false);
@@ -4154,6 +4159,9 @@
     document.querySelectorAll('.army-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.army = b.dataset.army; saveSettings(); }));
     document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.matchMode = b.dataset.mode; saveSettings(); }));
     document.querySelectorAll('.len-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.minutes = +b.dataset.min; saveSettings(); }));
+    { const mb = document.getElementById('set-music'), mv = document.getElementById('set-musvol'), sync = () => { mb.textContent = SETTINGS.musicOff ? 'Off' : 'On'; mv.value = SETTINGS.musicVol == null ? 0.5 : SETTINGS.musicVol; };   // v34.5 music
+      sync(); mb.addEventListener('click', () => { SETTINGS.musicOff = !SETTINGS.musicOff; saveSettings(); sync(); if (window.Music) Music.tick(); });
+      mv.addEventListener('input', () => { SETTINGS.musicVol = +mv.value; saveSettings(); if (window.Music) Music.tick(); }); }
     document.querySelectorAll('.kp-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.kingPowers = b.dataset.kp !== 'off'; if (SETTINGS.kingPowers) SETTINGS.kpPick = b.dataset.kp; saveSettings(); }));
     document.querySelectorAll('.bat-btn').forEach(b => b.addEventListener('click', () => { SETTINGS.battery = b.dataset.bat === '1'; saveSettings(); applyPowerMode(); }));
     document.getElementById('btn-settings').addEventListener('click', () => document.getElementById('modal-settings').classList.remove('hidden'));
@@ -4260,10 +4268,11 @@
   <script src="assets/lib/peerjs.min.js"></script>
   <script src="mp.js"></script>
   <script src="story.js"></script>
+  <script src="music.js"></script>
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v34.4';
+    window.APP_VERSION = 'v34.5';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

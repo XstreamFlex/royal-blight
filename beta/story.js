@@ -62,8 +62,8 @@
       tips: ['Pawns march every 15s for free.', 'Tap ARCHER to add archers to every 2nd wave.', 'Workers mine gold; the FAR mine pays most but is risky.', 'A TURRET (250g) taunts nearby enemies.'],
       objectives: [{ k: 'nexus' }, { k: 'beacons', ys: [1560, 1110, 660], name: 'Lanterns' }],
       stars: ['Win the drill', 'Nexus above 50%', 'Light all 3 lanterns'],
-      before: [['Ruphene', 'One for every friend we\u2019ve got. We\u2019re gonna need more lanterns.'], ['Vesper', 'Enjoy the lanterns, Majesty. I\u2019ll see to the birds myself.']],
-      after: [['Pip', 'Your Majesty\u2026 no one\u2019s answering.'], ['', 'The map flickers. East, west, north and south turn red, one by one.'], ['???', 'Everything you love\u2026 I will take.']],
+      before: [['Ruphene', 'One for every friend we\u2019ve got. We\u2019re gonna need more lanterns.'], ['Vesper', 'Sir Garrow\u2019s squad is ready, Majesty. Give the crowd a show.']],
+      after: [['Vesper', 'Go rest, King Rufus, you look exhausted. King Felix left hours ago. I\u2019ll tend to the messenger birds.'], ['', 'Days later\u2026'], ['Rufus', 'It\u2019s been days since any of my allies returned my messages. Only Felix has answered\u2026 with a threat.'], ['Vesper', 'Someone must be operating from the shadows, my lord. I\u2019ll get to the bottom of this.']],
       cut: ['prologue_lanterns', 'prologue_contact_lost'] },
     M01: { region: 'eastmarch', name: 'Smoke on the Horizon', type: 'STD', map: 'farmland', gold: 120, reward: ['G1', 'X1'], par: 420,
       ai: { level: 'normal', strat: 'balanced', income: 0.6 },
@@ -657,6 +657,7 @@
   fetch('assets/vo/index.json').then(r => r.json()).then(j => VO = j).catch(() => {});
   S.voMuted = () => localStorage.getItem('rb.voMute') === '1';
   S.setVoMute = m => { localStorage.setItem('rb.voMute', m ? '1' : '0'); if (m && voAudio) voAudio.pause(); };
+  S.pauseVo = p => { if (!voAudio) return; if (p) voAudio.pause(); else if (!S.voMuted() && !voAudio.ended) voAudio.play().catch(() => {}); };
   function playVo(key) {
     if (voAudio) { voAudio.pause(); voAudio = null; }
     if (S.voMuted() || !VO || !VO[key]) return null;
@@ -724,7 +725,7 @@
   // ---- v33 CINEMATICS: the voiced Ch1 cutscenes (assets/cine/<key>.mp4, 720p H.264/AAC, streamed, not precached)
   // 'start' plays after tapping Start on the first attempt; 'end' plays after the first clear. Seen ones go to the gallery.
   const CINE = [
-    ['intro_realm', 'P0', 'start', 'The Lanternlands'], ['prologue_lanterns', 'P0', 'start', 'Festival of Lanterns'],
+    ['intro_realm', 'P0', 'start', 'The Lanternlands'], ['prologue_lanterns', 'P0', 'end', 'Festival of Lanterns'],
     ['prologue_contact_lost', 'P0', 'end', 'Contact Lost'],
     ['ch1_m01_briefing', 'M01', 'start', 'Smoke on the Horizon'], ['ch1_m01_red_eyes', 'M01', 'end', 'Red Eyes'],
     ['ch1_m02_farmers', 'M02', 'start', 'Save the Harvest'], ['ch1_m03_wagons', 'M03', 'start', 'Fire-Oil Wagons'],

@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v34.2</title>
+  <title>Royal Blight BETA v34.3</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -166,7 +166,8 @@
 
       <!-- FLOATING QUICK UTILITIES (Sound, Speed, Emergency Camera Ping) -->
       <div class="absolute right-2 top-3 z-10 flex flex-col space-y-2 pointer-events-auto">
-        <button id="btn-sound" class="w-9 h-9 rounded-full bg-slate-900/90 border-2 border-slate-600 text-white flex items-center justify-center shadow-lg active:scale-95 text-sm">
+        <button id="btn-pause" aria-label="Menu" class="w-9 h-9 rounded-full bg-slate-900/90 border-2 border-slate-600 text-white flex items-center justify-center shadow-lg active:scale-95 text-base font-black">&#9776;</button>
+        <button id="btn-sound" class="hidden w-9 h-9 rounded-full bg-slate-900/90 border-2 border-slate-600 text-white flex items-center justify-center shadow-lg active:scale-95 text-sm">
           🔊
         </button>
         <button id="btn-speed" class="w-9 h-9 rounded-full bg-slate-900/90 border-2 border-slate-600 text-amber-300 font-black flex items-center justify-center shadow-lg active:scale-95 text-xs">
@@ -310,7 +311,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v34.2</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v34.3</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -3958,6 +3959,54 @@
       document.getElementById('btn-sound').textContent = sound.muted ? '🔇' : '🔊';
     });
 
+    // v34.3 in-match menu (t87u): pause (cpu/story only), restart, exit, SFX/voice toggles
+    function pauseHtml() {
+      const mp = state.mode !== 'cpu', vo = !(window.Story && Story.voMuted && Story.voMuted());
+      const b = (id, txt, cls) => `<button id="${id}" class="w-full py-3 rounded-xl font-black text-sm uppercase tracking-wider active:scale-95 ${cls}">${txt}</button>`;
+      return `<div class="w-full max-w-xs flex flex-col gap-2">
+        <h2 class="text-xl font-black text-amber-300 uppercase tracking-widest mb-1">${mp ? 'Match menu' : 'Paused'}</h2>
+        ${mp ? '<p class="text-[11px] text-slate-300 -mt-1 mb-1">Two-phone match keeps running.</p>' : b('pm-resume', '\u25B6 Resume', 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950')}
+        ${mp ? '' : b('pm-restart', '\u21BB Restart', 'bg-slate-700 text-slate-100')}
+        <div class="grid grid-cols-2 gap-2">${b('pm-sfx', sound.muted ? '\u{1F507} SFX off' : '\u{1F50A} SFX on', 'bg-slate-800 text-slate-100 text-xs')}${b('pm-vo', vo ? '\u{1F5E3} Voices on' : '\u{1F507} Voices off', 'bg-slate-800 text-slate-100 text-xs')}</div>
+        ${b('pm-exit', mp ? 'Leave match' : (window.Story && Story.active ? 'Exit to map' : 'Exit to menu'), 'bg-rose-800 text-rose-50')}
+        ${mp ? b('pm-close', 'Close', 'bg-slate-700 text-slate-100') : ''}</div>`;
+    }
+    function setPaused(p) {
+      if (state.mode !== 'cpu') return;
+      state.paused = p;
+      try { if (sound.ctx) { if (p) sound.ctx.suspend(); else sound.ctx.resume(); } } catch (e) {}
+      if (window.Story && Story.pauseVo) Story.pauseVo(p);
+    }
+    function closePause(resume) { const m = document.getElementById('modal-pause'); if (m) m.classList.add('hidden'); if (resume) setPaused(false); }
+    function openPause() {
+      if (!state.started || state.gameOver) return;
+      let m = document.getElementById('modal-pause');
+      if (!m) { m = document.createElement('div'); m.id = 'modal-pause'; m.className = 'absolute inset-0 z-[70] bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center'; document.getElementById('btn-pause').closest('body').appendChild(m); }
+      setPaused(true);
+      m.innerHTML = pauseHtml(); m.classList.remove('hidden');
+      const $p = id => document.getElementById(id), mp = state.mode !== 'cpu';
+      if ($p('pm-resume')) $p('pm-resume').onclick = () => closePause(true);
+      if ($p('pm-close')) $p('pm-close').onclick = () => closePause(false);
+      $p('pm-sfx').onclick = () => { sound.muted = !sound.muted; SETTINGS.sfxOff = sound.muted; saveSettings(); $p('pm-sfx').textContent = sound.muted ? '\u{1F507} SFX off' : '\u{1F50A} SFX on'; };
+      $p('pm-vo').onclick = () => { if (!window.Story) return; Story.setVoMute(!Story.voMuted()); $p('pm-vo').textContent = Story.voMuted() ? '\u{1F507} Voices off' : '\u{1F5E3} Voices on'; };
+      if ($p('pm-restart')) $p('pm-restart').onclick = () => {
+        closePause(false);
+        if (window.Story && Story.active && Story.m) { const id = Story.m.id; Story.quit(); state.paused = false; Story.start(id); }
+        else { state.paused = false; initGame(); }
+      };
+      $p('pm-exit').onclick = () => {
+        if (!confirm(mp ? 'Leave the match? This counts as a forfeit.' : 'Exit the match? You will get no reward.')) return;
+        closePause(false);
+        if (mp) { if (window.MP) MP.leave(); backToMenu(); return; }
+        const story = window.Story && Story.active;
+        if (story) Story.quit();
+        backToMenu();
+        if (story && Story.openMap) { document.getElementById('modal-menu').classList.add('hidden'); Story.openMap(); }
+      };
+    }
+    document.getElementById('btn-pause').addEventListener('click', openPause);
+    window.openPause = openPause;
+
     document.getElementById('btn-speed').addEventListener('click', () => {
       if (state.mode !== 'cpu') return; // fixed speed in multiplayer
       if (state.timeSpeed === 1) {
@@ -3983,6 +4032,7 @@
     const SETTINGS = Object.assign({ army: 'blue', matchMode: 'timed', minutes: 12, battery: true, map: 'arena',
       loadout: { pawn: 'sword', archer: 'short', brute: 'base', wizard: 'battle' }, leader: { blue: 'rufus', red: 'necro' } },
       (() => { try { return JSON.parse(localStorage.getItem('rb-settings') || '{}'); } catch (e) { return {}; } })());
+    try { setTimeout(() => { if (SETTINGS.sfxOff) sound.muted = true; }, 0); } catch (e) {}
     function saveSettings() { try { localStorage.setItem('rb-settings', JSON.stringify(SETTINGS)); } catch (e) {} renderSettings(); }
     function renderSettings() {
       const on = (el, yes) => { el.classList.toggle('bg-amber-500', yes); el.classList.toggle('text-slate-950', yes); el.classList.toggle('border-amber-300', yes);
@@ -4213,7 +4263,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v34.2';
+    window.APP_VERSION = 'v34.3';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

@@ -656,14 +656,16 @@
   const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', '???': 'mystery' };
   const LEFT = { Rufus: 1, Ruphene: 1, Garrow: 1, Pip: 1, Farmer: 1, Vesper: 1 };
   let VO = null, voAudio = null;
+  const VO_LINE = {"P0_b0": "p0_ruphene_01.m4a?fc4d0b", "P0_b1": "p0_rufus_01.m4a?b00906", "P0_b2": "p0_ruphene_02.m4a?f9a5a8", "P0_b3": "p0_vesper_02.m4a?c5df9a", "P0_b4": "p0_garrow_01.m4a?88faaa", "P0_b5": "p0_garrow_02.m4a?601911", "bark_lantern": "p0_ruphene_03.m4a?58913c", "bark_lantern_2": "p0_ruphene_04.m4a?5f445f", "bark_lantern_3": "p0_ruphene_05.m4a?14f3fc", "P0_a0": "p0_vesper_03.m4a?3b1b70", "P0_a1": "p0_rufus_02.m4a?cda406"};
   fetch('assets/vo/index.json').then(r => r.json()).then(j => VO = j).catch(() => {});
   S.voMuted = () => localStorage.getItem('rb.voMute') === '1';
   S.setVoMute = m => { localStorage.setItem('rb.voMute', m ? '1' : '0'); if (m && voAudio) voAudio.pause(); };
   S.pauseVo = p => { if (!voAudio) return; if (p) voAudio.pause(); else if (!S.voMuted() && !voAudio.ended) voAudio.play().catch(() => {}); };
   function playVo(key) {
     if (voAudio) { voAudio.pause(); voAudio = null; }
-    if (S.voMuted() || !VO || !VO[key]) return null;
-    try { voAudio = new Audio('assets/vo/' + key + '.m4a?' + VO[key].h); voAudio.volume = 0.95; voAudio.play().catch(() => {}); } catch (e) { voAudio = null; }
+    const fx = VO_LINE[key];   // v34.9: Cut's recorded lines (lineId files) override old Piper VO
+    if (S.voMuted() || (!fx && (!VO || !VO[key]))) return null;
+    try { voAudio = new Audio('assets/vo/' + (fx || key + '.m4a?' + VO[key].h)); voAudio.volume = 0.95; voAudio.play().catch(() => {}); } catch (e) { voAudio = null; }
     return voAudio;
   }
   const portraitHtml = (who, size) => { const p = PORTRAIT[who];

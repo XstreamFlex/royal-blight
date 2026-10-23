@@ -63,7 +63,7 @@
       objectives: [{ k: 'nexus' }, { k: 'beacons', ys: [1560, 1110, 660], name: 'Lanterns' }],
       stars: ['Win the drill', 'Nexus above 50%', 'Light all 3 lanterns'],
       before: [['Ruphene', 'One for every friend we\u2019ve got. We\u2019re gonna need more lanterns.'], ['Vesper', 'Sir Garrow\u2019s squad is ready, Majesty. Give the crowd a show.']],
-      after: [['Vesper', 'Go rest, King Rufus, you look exhausted. King Felix left hours ago. I\u2019ll tend to the messenger birds.'], ['', 'Days later\u2026'], ['Rufus', 'It\u2019s been days since any of my allies returned my messages. Only Felix has answered\u2026 with a threat.'], ['Vesper', 'Someone must be operating from the shadows, my lord. I\u2019ll get to the bottom of this.']],
+      after: [['Vesper', 'A fine show, Majesty. The crowd\u2019s still cheering, and the feast is just starting. King Felix is saving you a seat at the high table.'], ['Rufus', 'Then let\u2019s not keep him waiting. Bring the gifts!']],
       cut: ['prologue_lanterns', 'prologue_contact_lost'] },
     M01: { region: 'eastmarch', name: 'Smoke on the Horizon', type: 'STD', map: 'farmland', gold: 120, reward: ['G1', 'X1'], par: 420,
       ai: { level: 'normal', strat: 'balanced', income: 0.6 },

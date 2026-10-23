@@ -45,7 +45,7 @@
     eastmarch: { name: 'Eastmarch', ruler: 'King Felix', dir: 'east', pos: [84, 52], missions: ['M01', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07'],
                  cards: [['map:farmland', '\u{1F33E}', 'Burning Farmland map'], ['pawn:shield', '\u{1F6E1}', 'Sword & Shield pawn'], ['army:green', '\u{1F49A}', 'Green Army + King Felix'], ['archer:flame', '\u{1F525}', 'Flame Arrow archer'], ['hero:cavalier', '\u{1F40E}', 'The Cavalier']] },
     westreach: { name: 'Westreach', ruler: 'King Glade', dir: 'west', pos: [16, 50], missions: [], count: 8, soon: true, cards: [['map:library', '\u{1F4DA}', '?'], ['wizard:base', '\u{1F52E}', '?']] },
-    northcrag: { name: 'Northcrag', ruler: 'King Cline', dir: 'north', pos: [50, 15], missions: [], count: 8, soon: true, cards: [['map:pass', '\u26F0', '?']] },
+    northcrag: { name: 'Northcrag', ruler: 'Light Keeper Cline', dir: 'north', pos: [50, 15], missions: [], count: 8, soon: true, cards: [['map:pass', '\u26F0', '?']] },
     southmire: { name: 'Southmire', ruler: 'General Drevlar', dir: 'south', pos: [50, 83], missions: [], count: 8, soon: true, cards: [['map:swamp', '\u{1F480}', '?']] }
   };
   // Mission definitions. Engine keys:
@@ -58,58 +58,58 @@
   const M = {
     P0: { region: 'paradale', name: 'Festival of Lanterns', type: 'STD + LIM', map: 'arena', gold: 150, reward: ['G1', 'X1'],
       ai: { level: 'easy', strat: 'balanced', income: 0.55 }, cards: ['worker', 'archers', 'turret'], enemy: 'drill',
-      brief: 'A friendly drill for the festival crowd. Sir Garrow\u2019s practice squad holds the far end of the Royal Arena. Light the three lanterns along the lane by marching your troops past them, then break the practice nexus.',
+      brief: 'The Festival of Lanterns: a thousand years since the clans of light marched together. The crowd wants a show. General Garrow\u2019s practice squad holds the far end of the Royal Arena. March past the three pact lanterns to light them (Eastmarch, Westreach, Northcrag), then break the practice nexus. Nobody gets hurt. Garrow promised.',
       tips: ['Pawns march every 15s for free.', 'Tap ARCHER to add archers to every 2nd wave.', 'Workers mine gold; the FAR mine pays most but is risky.', 'A TURRET (250g) taunts nearby enemies.'],
       objectives: [{ k: 'nexus' }, { k: 'beacons', ys: [1560, 1110, 660], name: 'Lanterns' }],
       stars: ['Win the drill', 'Nexus above 50%', 'Light all 3 lanterns'],
-      before: [['Ruphene', 'One for every friend we\u2019ve got. We\u2019re gonna need more lanterns.'], ['Vesper', 'Sir Garrow\u2019s squad is ready, Majesty. Give the crowd a show.']],
+      before: [['Ruphene', 'Three lanterns, lit from mine. Like the clans did. Don\u2019t trip, brother.'], ['Rufus', 'Felix brought wheat, Glade brought books. Cline\u2019s on the wall at Highwatch again. He\u2019s the Light Keeper, Ru. Somebody has to watch the pass.'], ['Ruphene', 'I married him, Rufus. I know where he is.'], ['Vesper', 'General Garrow\u2019s squad is ready, Majesty. Give them a show.'], ['Garrow', 'My soldiers are instructed to lose gracefully. Within reason.'], ['Garrow', 'A thousand years of peace, and they made me a drill captain.']],
       after: [['Vesper', 'A fine show, Majesty. The crowd\u2019s still cheering, and the feast is just starting. King Felix is saving you a seat at the high table.'], ['Rufus', 'Then let\u2019s not keep him waiting. Bring the gifts!']],
       cut: ['prologue_lanterns', 'prologue_contact_lost'] },
     M01: { region: 'eastmarch', name: 'Smoke on the Horizon', type: 'STD', map: 'farmland', gold: 120, reward: ['G1', 'X1'], par: 420,
       ai: { level: 'normal', strat: 'balanced', income: 0.6 },
-      brief: 'Felix\u2019s Green Army is burning the haystacks of Eastmarch. Meet them in the fields and destroy their nexus.',
+      brief: 'Felix\u2019s threat came true. Three days\u2019 ride east, at dawn. Felix\u2019s Green Army is burning the haystacks of Eastmarch. Meet them in the fields and break their nexus.',
       objectives: [{ k: 'nexus' }], stars: ['Win', 'Nexus above 50%', 'Win under 7:00 (par)'],
-      before: [['Vesper', 'He\u2019ll fire the western rows first. Trust me, Majesty. I know the way.'], ['Rufus', 'Felix grew those fields with his own hands. Why is he burning them?']],
-      after: [['Felix', '(cold, eyes glowing red) Paradale takes everything. Not this time.']], cut: ['ch1_m01_briefing', 'ch1_m01_red_eyes'] },
+      before: [['Vesper', 'He\u2019ll start with the western rows. He always does, Majesty. Trust me.'], ['Rufus', 'Felix planted half those rows himself. Why burn them?']],
+      after: [['Rufus', 'Felix\u2026 the letter. Tell me someone forged it.'], ['Felix', 'I wrote every word.'], ['Rufus', 'Why? I forgave your tithe!'], ['Felix', 'In front of every king at that table. Like a beggar. Never again, Rufus.']], cut: ['ch1_m01_briefing', 'ch1_m01_red_eyes'] },
     M02: { region: 'eastmarch', name: 'Save the Harvest', type: 'EVAC', map: 'farmland', gold: 150, reward: ['G1', 'X1'], unlock: ['pawn:shield'],
       ai: { level: 'normal', strat: 'balanced', income: 0.6 },
-      brief: 'Farmers are fleeing across the rows toward your nexus. Escort them home: lose no more than 3.',
+      brief: 'Noon. Smoke over the rows. Farmers are running toward your lines with what they could carry. Bring them home; lose no more than 3.',
       objectives: [{ k: 'evac', count: 10, every: 8, lossMax: 3, fromY: 1180, name: 'Farmers' }], noNexusWin: true,
       stars: ['Evacuate the farmers', 'Lose at most 1 farmer', 'Lose zero farmers'],
-      before: [['Rufus', 'Farmers first. Fields can wait.']], after: [['Farmer', 'Bless you, Majesty. My son\u2019s shield is yours, if you\u2019ll have it.']], cut: ['ch1_m02_farmers'] },
+      before: [['Rufus', 'Farmers first. Fields can wait.'], ['Garrow', 'Fields can\u2019t run, Majesty. Farmers can. Cover them.']], after: [['Farmer', 'I\u2019m Tam. My shield\u2019s yours. The fire took the rest.'], ['Rufus', 'Then I\u2019ll carry it until you want it back.']], cut: ['ch1_m02_farmers'] },
     M03: { region: 'eastmarch', name: 'Fire-Oil Wagons', type: 'INT', map: 'farmland', gold: 180, reward: ['G2', 'X1'], unlock: ['army:green'],
       ai: { level: 'normal', strat: 'balanced', income: 0.7 },
-      brief: 'Eight wagons are hauling fire-oil to Felix\u2019s archers. Destroy at least 6 before they reach his nexus. Every wagon that arrives makes his army hit harder.',
+      brief: 'Dusk. Garrow\u2019s outriders say the oil wagons come up the east road when the light goes. Eight are hauling fire-oil to Felix\u2019s archers. Stop at least 6.',
       objectives: [{ k: 'intercept', count: 8, need: 6, every: 20, name: 'Wagons' }], noNexusWin: true,
       stars: ['Destroy 6 wagons', 'Destroy 7 wagons', 'Destroy all 8'],
-      before: [['Vesper', 'The oil comes up the east road at dusk. Always at dusk.']], after: [['Rufus', 'No more fire for his arrows tonight.']], cut: ['ch1_m03_wagons'] },
+      before: [['Garrow', 'Eight wagons at dusk. My riders counted them three nights running.']], after: [['Rufus', 'No more fire for his arrows tonight.'], ['Garrow', 'Or ever, ideally.']], cut: ['ch1_m03_wagons'] },
     M04: { region: 'eastmarch', name: 'Recapture the Farms', type: 'ATK + CUR', map: 'farmland', gold: 180, reward: ['G2', 'X1'], unlock: ['bonus:worker_east'],
       ai: { level: 'normal', strat: 'turtle', income: 0.85 },
-      brief: 'Take back the scorched farmland one farmstead at a time. Push into each farm and hold it to replant it; every held farm pays bonus gold. Watch for fire-lines flaring across the rows.',
+      brief: 'Next morning. Ash where the wheat was. Take back the farmsteads one at a time. Watch the fire-lines.',
       objectives: [{ k: 'hold', name: 'Farmsteads', guards: true, secs: 14, mode: 'sequence', pay: 60, zones: [{ y: 1420, h: 80, name: 'South farm' }, { y: 1110, h: 80, name: 'Mill farm' }, { y: 800, h: 80, name: 'East farm' }] }],
       hazards: [{ k: 'fireline', every: 16, warn: 2.2, dur: 4, dps: 14, h: 46 }], noNexusWin: true, timeLimit: 900,
       stars: ['Recapture all 3 farms', 'Nexus above 50%', 'No farm lost, under 4:00'],
-      before: [['Vesper', 'Take the south farm first. Felix never guards it.']], after: [['Farmer', '(presses one seed into the ash)'], ['Rufus', 'That\u2019s how it starts. One field at a time.']], cut: ['ch1_m04_fields_reclaimed'] },
+      before: [['Garrow', 'South farm\u2019s barely guarded.'], ['Vesper', 'Then start there, Majesty.'], ['Garrow', 'I\u2019ll find Felix\u2019s camp at first light.']], after: [['Rufus', 'One field at a time.']], cut: ['ch1_m04_fields_reclaimed'] },
     M05: { region: 'eastmarch', name: 'Windmill Ridge', type: 'DEF', map: 'farmland', gold: 260, reward: ['G2', 'X2'], unlock: ['archer:flame'],
       ai: { level: 'normal', strat: 'push', income: 1.0 },
-      brief: 'Hold the windmill zone while flame arrows set the ground alight. Keep the enemy out of the zone until the timer runs out.',
+      brief: 'Night wind from the east. Garrow rode out at first light and hasn\u2019t come back. The windmill on the ridge grinds grain for half the valley. Hold it until the wind turns.',
       objectives: [{ k: 'defend', zone: { y: 1460, h: 110, name: 'Windmill' }, secs: 240, maxEnemy: 25 }], hazards: [{ k: 'fireline', every: 22, warn: 2.2, dur: 3, dps: 10, h: 40, minY: 1250, maxY: 1700 }],
       noNexusWin: true, stars: ['Hold the windmill', 'Enemy holds it under 10s', 'Lose no turrets'],
-      before: [['Rufus', 'If the windmill burns, the whole valley starves.']], after: [['Pip', 'The flames went out! The mill\u2019s still turning!']], cut: ['ch1_m05_windmill'] },
+      before: [['Rufus', 'If the windmill burns, the whole valley starves.'], ['Vesper', 'And Garrow, Majesty?'], ['Rufus', 'Garrow can take care of himself. The mill can\u2019t.']], after: [['Farmer', 'Fire\u2019s out. Mill\u2019s still turning.'], ['Rufus', 'Good. Now let\u2019s find my general.']], cut: ['ch1_m05_windmill'] },
     M06: { region: 'eastmarch', name: 'The Cavalier\u2019s Charge', type: 'RSC', map: 'farmland', gold: 220, reward: ['G2', 'X2'], unlock: ['hero:cavalier'],
       ai: { level: 'normal', strat: 'pulse', income: 1.0 }, cards: ['worker', 'archers', 'brutes', 'wizards', 'turret'],
-      brief: 'Sir Garrow was captured while scouting. Push the tug to his cage; free him and he rides with you as a trial hero. Then break the nexus.',
-      objectives: [{ k: 'rescue', cages: [{ y: 760, hero: true, name: 'Sir Garrow' }] }, { k: 'nexus' }],
+      brief: 'Day four. As usual, General Garrow rode ahead to scout Felix\u2019s camp. He didn\u2019t ride back. Push to his jail-wagon, free him, then break the nexus.',
+      objectives: [{ k: 'rescue', cages: [{ y: 760, hero: true, name: 'General Garrow' }] }, { k: 'nexus' }],
       stars: ['Win', 'Free Garrow', 'The Cavalier lands 3 jousts'],
-      before: [['Vesper', 'Garrow always did ride too far ahead.']], after: [['Garrow', 'I *meant* to get captured. Tactically. \u2026Mostly.']], cut: ['ch1_m06_garrow'] },
+      before: [['Vesper', 'Garrow always did ride too far ahead.'], ['Rufus', 'So nobody else has to.'], ['Vesper', 'I\u2019d trust him with my life.']], after: [['Garrow', 'I meant to get captured. Tactically. \u2026Mostly.'], ['Garrow', 'Felix cries in his tent. Every night. Holds that amulet like it\u2019s choking him.']], cut: ['ch1_m06_garrow'] },
     M07: { region: 'eastmarch', name: 'BOSS: The Scorched King', type: 'BOSS + CUR', map: 'farmland', gold: 260, reward: ['G3', 'X2'], unlock: ['region:eastmarch'], final: true,
       ai: { level: 'normal', strat: 'balanced', income: 1.1 },
-      brief: 'Felix himself takes the field. Three phases: arrow volleys, then fire-lines split the lane, then his Rain of Arrows. While Felix stands, his nexus is shielded.',
+      brief: 'The fourth night. Felix takes the field himself. His nexus is shielded while he stands; break him three times as he falls back to his fortress. Free him. Don\u2019t kill him.',
       objectives: [{ k: 'boss', name: 'King Felix' }, { k: 'nexus' }],
       boss: { hp: 1000, atk: 30, range: 170, interval: 1.2, speed: 24, y: 300 },
       stars: ['Defeat Felix', 'Nexus above 50%', 'Nexus never below 75%'],
-      before: [['Felix', 'You want my fields? Come and take the ashes.']],
-      after: [['Felix', '(tearful, eyes brown again) Rufus\u2026 I burned it. I burned everything.'], ['Rufus', 'Fields grow back. You\u2019re home now.'], ['Vesper', '(watching the hug) How\u2026 touching.'], ['Pip', 'The map\u2019s turning green, Your Majesty!']],
+      before: [['Felix', 'You want my fields? Come and take the ashes.'], ['Rufus', 'I don\u2019t want your fields, Felix. I want my friend.']],
+      after: [['Felix', 'Rufus\u2026 I wrote it. I meant it, while I wrote it. And I burned everything.'], ['Rufus', 'Fields grow back. You\u2019re home now.'], ['Vesper', 'How\u2026 touching.'], ['Garrow', 'I\u2019ll send word to the Loft. They can pin Eastmarch green.'], ['Felix', 'Send a bird home for me, Chancellor.'], ['Vesper', 'Of course.']],
       cut: ['ch1_m07_apology', 'ch1_m07_cold_smile'] }
   };
   Object.entries(M).forEach(([id, m]) => { m.id = id; });
@@ -334,7 +334,7 @@
       st.left = Math.max(0, o.secs - R.t);
       if (st.enemyT >= o.maxEnemy) st.failed = true; else if (st.left <= 0) st.done = true;
     } else if (o.k === 'beacons') {
-      o.ys.forEach((y, i) => { if (!st.lit[i] && B.some(u => Math.abs(u.y - y) < 30)) { st.lit[i] = true; toast('Lantern lit! (' + st.lit.filter(Boolean).length + '/3)', '#fde68a'); S.bark('lantern'); createSparks(LANE_X + 80, y, '#facc15', 16); } });
+      o.ys.forEach((y, i) => { if (!st.lit[i] && B.some(u => Math.abs(u.y - y) < 30)) { st.lit[i] = true; const nLit = st.lit.filter(Boolean).length; toast('Lantern lit! (' + nLit + '/3)', '#fde68a'); S.bark(nLit >= 3 ? 'lantern_3' : nLit === 2 ? 'lantern_2' : 'lantern'); createSparks(LANE_X + 80, y, '#facc15', 16); } });
       st.done = st.lit.every(Boolean);
     } else if (o.k === 'evac') {
       st.next -= dt;
@@ -638,17 +638,19 @@
 
   // ---- v29: dialogue (portraits + speech bubbles + pre-rendered Piper voice) ----
   const BARKS = {
-    farm_won: ['Farmer', 'Bless you, Majesty! The rows will grow again.'],
-    farm_lost: ['Pip', 'They took a farm back! Hurry!'],
+    farm_won: ['Farmer', 'That\u2019s my father\u2019s barn! Plant it, plant it!'],
+    farm_lost: ['Farmer', 'They took a farm back! Hurry!'],
     guard_down: ['Garrow', 'One less guard. Felix will feel that.'],
-    lantern: ['Ruphene', 'One more lantern lit!'],
-    freed: ['Garrow', 'Free at last! Now, where is my horse?'],
+    lantern: ['Ruphene', 'That one\u2019s for Eastmarch!'],
+    lantern_2: ['Ruphene', 'Westreach! Somebody tell Glade to look up from his book!'],
+    lantern_3: ['Ruphene', 'And Northcrag. Wherever you are, love.'],
+    freed: ['Garrow', 'Free! Where\u2019s my horse? \u2026Where\u2019s my sword?'],
     reinf: ['Ruphene', 'Reinforcements! Right on time.'],
-    wagon_in: ['Felix', 'More oil! Burn it all!'],
-    phase2: ['Felix', 'You want fire? I will split this field in two!'],
-    phase3: ['Felix', 'Rain, arrows! Rain on them all!'],
-    felix_down: ['Felix', 'The fire... it is going out...'],
-    felix_flee: ['Felix', 'Not yet! Fall back to the fortress!'],
+    wagon_in: ['Felix', 'More oil! Burn it all. Nobody gets it.'],
+    phase2: ['Felix', 'I\u2019ll cut this field in two. Pick a side, Rufus.'],
+    phase3: ['Felix', 'Archers! Rain on everything Paradale ever touched!'],
+    felix_down: ['Felix', 'The fire\u2026 it\u2019s going out\u2026 why is it so cold\u2026'],
+    felix_flee: ['Felix', 'Not yet! Back to the walls!'],
   };
   S.BARKS = BARKS;
   const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', '???': 'mystery' };

@@ -627,20 +627,35 @@
       pr.then(() => S.openMap());
     };
     // v29: voices toggle + credits
-    $('btn-friend').insertAdjacentHTML('afterend', `<div class="w-full max-w-xs grid grid-cols-2 gap-2 mt-2"><button id="btn-vo" class="py-2 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase active:scale-95"></button><button id="btn-credits" class="py-2 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase active:scale-95">\u{1F4DC} Credits</button></div>`);
-    // v35.5: home order Story, Skirmish, Multiplayer, Options; everything else below as secondary
+    // v35.6: home = exactly Story, Skirmish (accordion: army, difficulty, loadout), Multiplayer, Options.
+    //        Loadout also reachable from Multiplayer; Voices + Credits live in Options.
     (() => {
-      const menu = $('modal-menu'), skirm = menu.querySelector('.diff-btn').closest('#modal-menu > div');
-      const lbl = skirm.querySelector('div'); if (lbl) lbl.textContent = '\u2694\uFE0F Skirmish \u00B7 vs Computer';
-      skirm.classList.remove('mb-4'); skirm.classList.add('mb-2');
-      const fr = $('btn-friend'); fr.classList.add('mb-2'); fr.innerHTML = '\u{1F465} Multiplayer <span class="normal-case font-bold">(2 phones)</span>';
+      const menu = $('modal-menu'), card = menu.querySelector('.diff-btn').closest('#modal-menu > div');
+      const lbl = card.querySelector('div'); if (lbl) lbl.remove();
+      card.querySelectorAll('.army-btn, .diff-btn').forEach(b => { b.classList.remove('py-2'); b.classList.add('py-3'); });
+      card.className = 'w-full bg-slate-800/90 rounded-xl p-3 border border-slate-700 mt-2';
+      const lo = $('btn-loadout'); lo.className = 'w-full mt-3 py-3 rounded-lg bg-slate-700 text-slate-100 font-black text-xs uppercase tracking-wider active:scale-95'; card.appendChild(lo);
+      const wrap = document.createElement('div'); wrap.id = 'skirmish-wrap'; wrap.className = 'w-full max-w-xs mb-2';
+      wrap.innerHTML = `<button id="btn-skirmish" aria-expanded="false" class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 flex items-center justify-center gap-2">\u2694\uFE0F Skirmish <span class="normal-case font-bold text-[10px]">\u00B7 vs Computer</span><span id="skirm-chev" style="display:inline-block;transition:transform .25s">\u25BE</span></button><div id="skirmish-panel" style="display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s ease, opacity .28s ease;opacity:0"><div style="overflow:hidden;min-height:0"></div></div>`;
+      wrap.querySelector('#skirmish-panel > div').appendChild(card);
+      const panel = wrap.querySelector('#skirmish-panel'), sb = wrap.querySelector('#btn-skirmish'), chev = wrap.querySelector('#skirm-chev');
+      const setOpen = o => { panel.style.gridTemplateRows = o ? '1fr' : '0fr'; panel.style.opacity = o ? '1' : '0'; panel.inert = !o; sb.setAttribute('aria-expanded', o); chev.style.transform = o ? 'rotate(180deg)' : ''; };
+      setOpen(false);
+      sb.onclick = () => setOpen(sb.getAttribute('aria-expanded') !== 'true');
+      const fr = $('btn-friend'); fr.className = 'w-full max-w-xs mb-2 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 text-white font-black text-sm uppercase tracking-wider shadow-lg active:scale-95'; fr.innerHTML = '\u{1F465} Multiplayer <span class="normal-case font-bold text-[10px]">(2 phones)</span>';
       const st = $('btn-settings'), sum = $('settings-summary'); st.innerHTML = '\u2699\uFE0F Options '; if (sum) st.appendChild(sum);
       st.className = 'w-full max-w-xs mb-2 py-3 rounded-xl bg-slate-600 text-slate-50 font-black text-sm uppercase tracking-wider active:scale-95';
-      const keep = new Set([$('menu-logo'), $('menu-title')]), main = [$('btn-story'), skirm, fr, st];
-      const rest = [...menu.children].filter(e => !keep.has(e) && !main.includes(e) && e.tagName !== 'STYLE' && e.tagName !== 'P');
-      const sec = document.createElement('div'); sec.id = 'menu-secondary'; sec.className = 'w-full max-w-xs mt-2 pt-2 border-t border-slate-700 flex flex-col gap-1 opacity-90';
-      rest.forEach(e => { e.classList.remove('mb-2', 'mt-2', 'py-3', 'py-2', 'text-xs'); e.classList.add('py-1.5', 'text-[10px]'); e.querySelectorAll('button').forEach(b => { b.classList.remove('py-2', 'text-xs'); b.classList.add('py-1.5', 'text-[10px]'); }); sec.appendChild(e); });
-      main.forEach(e => menu.appendChild(e)); menu.appendChild(sec);
+      const keep = new Set([$('menu-logo'), $('menu-title')]), main = [$('btn-story'), wrap, fr, st];
+      [...menu.children].filter(e => !keep.has(e) && !main.includes(e) && e.tagName !== 'STYLE' && e.tagName !== 'P').forEach(e => e.remove());
+      main.forEach(e => menu.appendChild(e));
+      menu.classList.add('overflow-y-auto'); menu.style.justifyContent = 'safe center';
+      // Voices + Credits -> Options
+      const vc = document.createElement('div'); vc.className = 'w-full max-w-xs grid grid-cols-2 gap-2 mt-3';
+      vc.innerHTML = `<button id="btn-vo" class="py-3 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase active:scale-95"></button><button id="btn-credits" class="py-3 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase active:scale-95">\u{1F4DC} Credits</button>`;
+      const ms = $('modal-settings'); $('settings-done').before(vc); ms.classList.remove('justify-center'); ms.classList.add('justify-start', 'overflow-y-auto');
+      const h2 = ms.querySelector('h2'); if (h2) h2.textContent = 'Options';
+      // Loadout also in Multiplayer
+      const ch = $('mp-step-choose'); if (ch) { const mb = document.createElement('button'); mb.id = 'btn-mp-loadout'; mb.className = 'w-full py-3 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase tracking-wider active:scale-95'; mb.innerHTML = '\u2694\uFE0F Leader, loadout &amp; map'; mb.onclick = () => lo.click(); ch.children[0].after(mb); }
     })();
     const voLbl = () => $('btn-vo').textContent = S.voMuted() ? '\u{1F507} Voices off' : '\u{1F50A} Voices on';
     voLbl(); $('btn-vo').onclick = () => { S.setVoMute(!S.voMuted()); voLbl(); };

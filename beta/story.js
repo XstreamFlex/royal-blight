@@ -620,9 +620,28 @@
     // menu entry (keeps Quick Match + multiplayer intact)
     const menuBox = $('btn-loadout');
     menuBox.insertAdjacentHTML('beforebegin', `<button id="btn-story" class="w-full max-w-xs mb-2 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 text-slate-950 font-black text-sm uppercase tracking-wider shadow-lg active:scale-95">\u{1F4D6} Story <span class="normal-case font-bold text-[10px]">\u00B7 Act 1</span></button>`);
-    $('btn-story').onclick = () => S.openMap();
+    // v35.5: Story always plays the narrator intro (skippable), then the map
+    $('btn-story').onclick = () => {
+      const pr = S.playCine('intro_realm'); S._introJust = true;
+      const tap = document.querySelector('#rb-cine [data-c=tap]'); if (tap) tap.click();   // inside the user gesture -> plays with sound
+      pr.then(() => S.openMap());
+    };
     // v29: voices toggle + credits
     $('btn-friend').insertAdjacentHTML('afterend', `<div class="w-full max-w-xs grid grid-cols-2 gap-2 mt-2"><button id="btn-vo" class="py-2 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase active:scale-95"></button><button id="btn-credits" class="py-2 rounded-xl bg-slate-700 text-slate-100 font-black text-xs uppercase active:scale-95">\u{1F4DC} Credits</button></div>`);
+    // v35.5: home order Story, Skirmish, Multiplayer, Options; everything else below as secondary
+    (() => {
+      const menu = $('modal-menu'), skirm = menu.querySelector('.diff-btn').closest('#modal-menu > div');
+      const lbl = skirm.querySelector('div'); if (lbl) lbl.textContent = '\u2694\uFE0F Skirmish \u00B7 vs Computer';
+      skirm.classList.remove('mb-4'); skirm.classList.add('mb-2');
+      const fr = $('btn-friend'); fr.classList.add('mb-2'); fr.innerHTML = '\u{1F465} Multiplayer <span class="normal-case font-bold">(2 phones)</span>';
+      const st = $('btn-settings'), sum = $('settings-summary'); st.innerHTML = '\u2699\uFE0F Options '; if (sum) st.appendChild(sum);
+      st.className = 'w-full max-w-xs mb-2 py-3 rounded-xl bg-slate-600 text-slate-50 font-black text-sm uppercase tracking-wider active:scale-95';
+      const keep = new Set([$('menu-logo'), $('menu-title')]), main = [$('btn-story'), skirm, fr, st];
+      const rest = [...menu.children].filter(e => !keep.has(e) && !main.includes(e) && e.tagName !== 'STYLE' && e.tagName !== 'P');
+      const sec = document.createElement('div'); sec.id = 'menu-secondary'; sec.className = 'w-full max-w-xs mt-2 pt-2 border-t border-slate-700 flex flex-col gap-1 opacity-90';
+      rest.forEach(e => { e.classList.remove('mb-2', 'mt-2', 'py-3', 'py-2', 'text-xs'); e.classList.add('py-1.5', 'text-[10px]'); e.querySelectorAll('button').forEach(b => { b.classList.remove('py-2', 'text-xs'); b.classList.add('py-1.5', 'text-[10px]'); }); sec.appendChild(e); });
+      main.forEach(e => menu.appendChild(e)); menu.appendChild(sec);
+    })();
     const voLbl = () => $('btn-vo').textContent = S.voMuted() ? '\u{1F507} Voices off' : '\u{1F50A} Voices on';
     voLbl(); $('btn-vo').onclick = () => { S.setVoMute(!S.voMuted()); voLbl(); };
     $('btn-credits').onclick = () => showPanel('Credits', CREDITS_HTML);
@@ -751,7 +770,7 @@
         const k = keys[i], meta = CINE.find(c => c[0] === k) || [k, '', '', k];
         if (!SAVE.seen.includes('cine:' + k)) { SAVE.seen.push('cine:' + k); persist(); }
         el.innerHTML = `<video playsinline webkit-playsinline preload="auto" src="assets/cine/${k}.mp4?v=${window.APP_VERSION||1}" poster="assets/cine/${k}.jpg" class="h-full w-full object-contain bg-black"></video>
-          <button data-c="skip" class="absolute z-10 top-3 right-3 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-500 text-xs font-black text-white uppercase">Skip \u23ED</button>
+          <button data-c="skip" style="top:calc(env(safe-area-inset-top, 0px) + 12px);right:calc(env(safe-area-inset-right, 0px) + 12px);touch-action:manipulation" class="absolute z-20 px-4 py-3 min-w-[64px] min-h-[44px] rounded-xl bg-slate-900/80 border border-slate-500 text-xs font-black text-white uppercase">Skip \u23ED</button>
           <div data-c="tap" class="absolute inset-0 flex flex-col items-center justify-center bg-black/40"><div class="w-20 h-20 rounded-full bg-amber-500 text-slate-950 text-4xl flex items-center justify-center shadow-2xl">\u25B6</div>
           <div class="mt-3 text-amber-200 font-black text-sm uppercase tracking-wider">${esc(meta[3])}</div><div class="text-slate-300 text-[11px]">Tap to watch</div></div>`;
         const v = el.querySelector('video'), tap = el.querySelector('[data-c=tap]');
@@ -841,7 +860,7 @@
     const rsb = $('st-rs'); if (rsb) rsb.onclick = () => { SAVE.replayStory = !SAVE.replayStory; persist(); rsb.textContent = '\u{1F4D6} Replay story: ' + (SAVE.replayStory ? 'ON' : 'OFF'); rsb.className = rsb.className.replace(SAVE.replayStory ? 'bg-slate-800 text-slate-300 border-slate-600' : 'bg-amber-500 text-slate-950 border-amber-300', SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'); };
     const k = await kP;
     if (k && k.startsWith('d:')) { SAVE.diff = k.slice(2); persist(); return S.brief(id); }
-    if (k === 'go') { $('modal-story').classList.add('hidden'); if (!replayed || SAVE.replayStory) { const cs = cinesFor(id, 'start').filter(c => SAVE.replayStory || !SAVE.seen.includes('cine:' + c)); if (cs.length) await S.playCine(cs); else await S.dialogue(m.before, id + '_b'); } S.start(id); }
+    if (k === 'go') { $('modal-story').classList.add('hidden'); if (!replayed || SAVE.replayStory) { const cs = cinesFor(id, 'start').filter(c => (SAVE.replayStory || !SAVE.seen.includes('cine:' + c)) && !(c === 'intro_realm' && S._introJust)); S._introJust = false; if (cs.length) await S.playCine(cs); else await S.dialogue(m.before, id + '_b'); } S.start(id); }
   };
   function objText(o, m) {
     switch (o.k) {

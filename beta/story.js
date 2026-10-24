@@ -589,7 +589,7 @@
     const root = $('app') || document.body.querySelector('#game-container') || document.body;
     const host = document.getElementById('modal-menu').parentElement;
     host.insertAdjacentHTML('beforeend', `
-      <div id="story-hud" class="hidden absolute z-30 pointer-events-none" style="top:8px;left:64px;right:52px"></div>
+      <div id="story-hud" class="hidden absolute z-30 pointer-events-none" style="top:calc(var(--sat, 0px) + 8px);left:64px;right:52px"></div>
       <div id="modal-story" class="hidden absolute inset-0 z-[58] flex flex-col items-center overflow-y-auto text-center" style="background:radial-gradient(circle at 50% 45%,#3f3a2c 0%,#1c1a14 70%,#0b0a07 100%)">
         <div class="w-full max-w-sm px-3 pt-3 flex items-center justify-between">
           <button id="st-back" class="py-1.5 px-3 rounded-lg bg-slate-700 text-slate-100 font-black text-[11px] uppercase">\u2190 Menu</button>
@@ -721,10 +721,10 @@
         const [w0, txt] = lines[i], who = w0 || 'Narrator', left = !!LEFT[who] || who === 'Narrator', muted = S.voMuted();
         const clean = String(txt);
         el.innerHTML = `<div class="absolute inset-0 bg-black/55"></div>
-          <div class="absolute top-3 right-3 flex gap-2 z-10">
+          <div class="absolute right-3 flex gap-2 z-10" style="top:calc(var(--sat, 0px) + 12px)">
             <button data-d="mute" class="px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-500 text-lg" aria-label="Toggle voices">${muted ? '\u{1F507}' : '\u{1F50A}'}</button>
             <button data-d="skip" class="px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-500 text-xs font-black text-slate-100 uppercase">Skip \u23ED</button></div>
-          <div class="relative w-full max-w-md mx-auto px-3 pb-8 flex ${left ? 'flex-row' : 'flex-row-reverse'} items-end gap-2" style="animation:rbpop .18s ease-out">
+          <div class="relative w-full max-w-md mx-auto px-3 flex ${left ? 'flex-row' : 'flex-row-reverse'} items-end gap-2" style="padding-bottom:calc(var(--sab, 0px) + 2rem);animation:rbpop .18s ease-out">
             <div class="shrink-0 flex flex-col items-center">${portraitHtml(who, 96)}<div class="mt-1 px-2 rounded-md bg-amber-400 text-slate-950 text-[11px] font-black uppercase">${esc(who === 'Narrator' ? 'Narrator' : who)}</div></div>
             <div class="relative flex-1 mb-6 bg-white text-slate-900 rounded-2xl px-3 py-3 shadow-2xl border-[3px] border-slate-900 text-[15px] font-bold leading-snug">
               <div class="absolute bottom-3 ${left ? '-left-3' : '-right-3'} w-0 h-0" style="border-top:10px solid transparent;border-bottom:10px solid transparent;${left ? 'border-right:12px solid #0f172a' : 'border-left:12px solid #0f172a'}"></div>

@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v35.7</title>
+  <title>Royal Blight BETA v35.8</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -53,8 +53,10 @@
       --sal: max(env(safe-area-inset-left), 0px);
       --sar: max(env(safe-area-inset-right), 0px);
     }
-    #modal-pause, #mp-scanner { padding-top: calc(var(--sat) + 1.5rem) !important; }
-    #rb-dialogue { padding-top: var(--sat); }
+    /* v35.8: art/backgrounds go full-bleed behind the island; UI is offset by the insets */
+    #game-app > [id^=modal-], #modal-story, #modal-brief, #modal-pause, #mp-scanner { padding-top: calc(var(--sat) + 0.75rem) !important; padding-bottom: calc(var(--sab) + 0.75rem) !important; }
+    #game-app > footer { padding-bottom: calc(var(--sab) + var(--browser-bar-pad, 0px) + 0.5rem) !important; }
+    .sat-top { top: calc(var(--sat) + 0.75rem) !important; }
     body {
       font-family: 'Fredoka', 'Inter', sans-serif;
       background-color: #0b0f19;
@@ -63,10 +65,10 @@
       overflow: hidden;
       overscroll-behavior: none;
       -webkit-touch-callout: none;
-      padding-top: var(--sat);
+      padding-top: 0;                     /* v35.8: full-bleed top; UI offsets itself */
       padding-left: var(--sal); padding-right: var(--sar);   /* v34.6 landscape notch */
       /* Safari (not installed): keep the HUD clear of the floating bottom tab bar */
-      padding-bottom: calc(var(--sab) + var(--browser-bar-pad, 0px));
+      padding-bottom: 0;                  /* v35.8: footer pads itself */
       height: 100vh;                      /* old browsers */
       height: 100dvh;                     /* dynamic viewport */
       height: var(--app-h, 100dvh);       /* visualViewport, set by JS */
@@ -125,7 +127,7 @@
       <canvas id="gameCanvas" class="w-full h-full block"></canvas>
 
       <!-- TUG-OF-WAR TENSION RAIL & SWITCHBOARD (Left Overlay) -->
-      <aside class="absolute left-2 top-3 bottom-3 w-14 z-10 flex flex-col items-center pointer-events-auto">
+      <aside class="sat-top absolute left-2 top-3 bottom-3 w-14 z-10 flex flex-col items-center pointer-events-auto">
         <!-- Quick Camera Snap Buttons -->
         <div class="flex flex-col space-y-1 mb-1.5 w-full">
           <button id="snap-far" class="w-full py-0.5 text-[9px] font-extrabold uppercase rounded bg-purple-950/90 hover:bg-purple-900 border border-purple-500/60 text-purple-200 shadow">
@@ -175,7 +177,7 @@
       </aside>
 
       <!-- FLOATING QUICK UTILITIES (Sound, Speed, Emergency Camera Ping) -->
-      <div class="absolute right-2 top-3 z-10 flex flex-col space-y-2 pointer-events-auto">
+      <div class="sat-top absolute right-2 top-3 z-10 flex flex-col space-y-2 pointer-events-auto">
         <button id="btn-sound" class="hidden w-9 h-9 rounded-full bg-slate-900/90 border-2 border-slate-600 text-white flex items-center justify-center shadow-lg active:scale-95 text-sm">
           🔊
         </button>
@@ -188,7 +190,7 @@
       </div>
 
       <!-- TURRET PLACEMENT BANNER PROMPT -->
-      <div id="turret-indicator-banner" class="hidden absolute top-3 left-1/2 transform -translate-x-1/2 bg-slate-900/95 border-2 border-amber-400 pl-4 pr-1 py-1 rounded-full z-20 text-center shadow-2xl flex items-center space-x-2 pointer-events-none">
+      <div id="turret-indicator-banner" class="sat-top hidden absolute top-3 left-1/2 transform -translate-x-1/2 bg-slate-900/95 border-2 border-amber-400 pl-4 pr-1 py-1 rounded-full z-20 text-center shadow-2xl flex items-center space-x-2 pointer-events-none">
         <p class="text-xs text-amber-300 font-extrabold tracking-wide whitespace-nowrap">Tap a glowing pad to build (250g)</p>
         <button id="btn-cancel-turret" class="pointer-events-auto text-[10px] font-black uppercase px-2 py-1 rounded-full bg-rose-600 text-white active:scale-95">Cancel</button>
       </div>
@@ -320,7 +322,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v35.7</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v35.8</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -4283,7 +4285,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v35.7';
+    window.APP_VERSION = 'v35.8';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

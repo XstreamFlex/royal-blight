@@ -747,7 +747,7 @@
   S.bark = function (key) {
     const b = BARKS[key]; if (!b || !S.R) return;
     let el = $('rb-bark');
-    if (!el) { el = document.createElement('div'); el.id = 'rb-bark'; el.className = 'fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-none w-[92%] max-w-sm'; el.style.top = '118px'; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'rb-bark'; el.className = 'fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-none w-[92%] max-w-sm'; el.style.top = 'calc(var(--sat, 0px) + 118px)'; document.body.appendChild(el); }
     el.innerHTML = `<div class="flex items-center gap-2" style="animation:rbpop .18s ease-out">${portraitHtml(b[0], 54)}<div class="flex-1 bg-white text-slate-900 rounded-2xl px-2 py-1.5 border-[3px] border-slate-900 shadow-xl text-[12px] font-bold leading-tight"><span class="text-[10px] font-black uppercase text-amber-700">${esc(b[0])}</span><br>${esc(b[1])}</div></div>`;
     el.style.display = 'block'; playVo('bark_' + key);
     clearTimeout(barkT); barkT = setTimeout(() => { el.style.display = 'none'; }, 3800);
@@ -785,7 +785,7 @@
         const k = keys[i], meta = CINE.find(c => c[0] === k) || [k, '', '', k];
         if (!SAVE.seen.includes('cine:' + k)) { SAVE.seen.push('cine:' + k); persist(); }
         el.innerHTML = `<video playsinline webkit-playsinline preload="auto" src="assets/cine/${k}.mp4?v=${window.APP_VERSION||1}" poster="assets/cine/${k}.jpg" class="h-full w-full object-contain bg-black"></video>
-          <button data-c="skip" style="top:calc(env(safe-area-inset-top, 0px) + 12px);right:calc(env(safe-area-inset-right, 0px) + 12px);touch-action:manipulation" class="absolute z-20 px-4 py-3 min-w-[64px] min-h-[44px] rounded-xl bg-slate-900/80 border border-slate-500 text-xs font-black text-white uppercase">Skip \u23ED</button>
+          <button data-c="skip" style="top:calc(var(--sat, 0px) + 12px);right:calc(var(--sar, 0px) + 12px);touch-action:manipulation" class="absolute z-20 px-4 py-3 min-w-[64px] min-h-[44px] rounded-xl bg-slate-900/80 border border-slate-500 text-xs font-black text-white uppercase">Skip \u23ED</button>
           <div data-c="tap" class="absolute inset-0 flex flex-col items-center justify-center bg-black/40"><div class="w-20 h-20 rounded-full bg-amber-500 text-slate-950 text-4xl flex items-center justify-center shadow-2xl">\u25B6</div>
           <div class="mt-3 text-amber-200 font-black text-sm uppercase tracking-wider">${esc(meta[3])}</div><div class="text-slate-300 text-[11px]">Tap to watch</div></div>`;
         const v = el.querySelector('video'), tap = el.querySelector('[data-c=tap]');

@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v35.6</title>
+  <title>Royal Blight BETA v35.7</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -46,6 +46,15 @@
       -webkit-user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
+    /* v35.7 safe areas: one source of truth; tests can override --sat */
+    :root {
+      --sat: max(env(safe-area-inset-top), 0px);
+      --sab: max(env(safe-area-inset-bottom), 0px);
+      --sal: max(env(safe-area-inset-left), 0px);
+      --sar: max(env(safe-area-inset-right), 0px);
+    }
+    #modal-pause, #mp-scanner { padding-top: calc(var(--sat) + 1.5rem) !important; }
+    #rb-dialogue { padding-top: var(--sat); }
     body {
       font-family: 'Fredoka', 'Inter', sans-serif;
       background-color: #0b0f19;
@@ -54,10 +63,10 @@
       overflow: hidden;
       overscroll-behavior: none;
       -webkit-touch-callout: none;
-      padding-top: env(safe-area-inset-top);
-      padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);   /* v34.6 landscape notch */
+      padding-top: var(--sat);
+      padding-left: var(--sal); padding-right: var(--sar);   /* v34.6 landscape notch */
       /* Safari (not installed): keep the HUD clear of the floating bottom tab bar */
-      padding-bottom: calc(env(safe-area-inset-bottom) + var(--browser-bar-pad, 0px));
+      padding-bottom: calc(var(--sab) + var(--browser-bar-pad, 0px));
       height: 100vh;                      /* old browsers */
       height: 100dvh;                     /* dynamic viewport */
       height: var(--app-h, 100dvh);       /* visualViewport, set by JS */
@@ -105,7 +114,7 @@
     }
   </style>
 </head>
-<body class="w-screen flex justify-center items-center p-0 m-0 bg-slate-950">
+<body class="w-screen flex justify-center items-center m-0 bg-slate-950">
 
   <!-- Mobile Viewport Container (Locked to responsive phone aspect ratio) -->
   <div id="game-app" class="relative w-full max-w-md h-full max-h-[940px] bg-slate-900 flex flex-col overflow-hidden shadow-2xl border-x border-slate-800">
@@ -311,7 +320,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v35.6</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v35.7</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -4274,7 +4283,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v35.6';
+    window.APP_VERSION = 'v35.7';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;
@@ -4287,7 +4296,7 @@
         if (shown) return; shown = true;
         const b = document.createElement('button'); b.id = 'update-banner';
         b.textContent = '\u2B06 Update ready (' + v + ') \u2013 tap to reload';
-        b.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 8px);transform:translateX(-50%);z-index:9999;padding:8px 14px;border-radius:999px;background:#f59e0b;color:#0f172a;font:900 12px sans-serif;box-shadow:0 4px 14px #0008;border:2px solid #fde68a';
+        b.style.cssText = 'position:fixed;left:50%;bottom:calc(var(--sab, 0px) + 8px);transform:translateX(-50%);z-index:9999;padding:8px 14px;border-radius:999px;background:#f59e0b;color:#0f172a;font:900 12px sans-serif;box-shadow:0 4px 14px #0008;border:2px solid #fde68a';
         b.onclick = () => { sessionStorage.removeItem('rb-reload-ver'); location.reload(); };
         document.body.appendChild(b);
       }

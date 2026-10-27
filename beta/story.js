@@ -1103,7 +1103,7 @@
       { id: 'shield', line: 'tut_m07_shield', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 3 }, pause: true },
       { id: 'phase2', line: 'tut_m07_phase2', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'bossPhase2' }, pause: 'slow' },
       { id: 'phase3', line: 'tut_m07_phase3', speaker: 'Rufus', voiced: true, trigger: { k: 'event', e: 'bossPhase3' }, pause: 'slow' },
-      { id: 'splash', line: 'tut_m07_splash', speaker: 'Garrow', trigger: { k: 'cond', c: 'pushing', v: 60 }, pause: 'slow' }
+      { id: 'splash', line: 'tut_m07_splash', speaker: 'Garrow', trigger: { k: 'cond', c: 'pushing', v: 8 }, forceAfter: 15, pause: 'slow' }
     ] }
   };
   S.heroLabel = k => k === 'cavalier' ? (won('M06') || (S.m && S.m.id === 'M06' && S.R && Object.values(S.R.obj).some(st => st.cages && st.cages.every(c => c.freed))) ? 'General Garrow' : 'Garrow\u2019s Outrider') : null;
@@ -1119,7 +1119,7 @@
     comboHit: () => !!(S.R && S.R.tComboHit), scorchHit: () => !!(S.R && S.R.tScorchHit),
     lanternLit: () => Object.values(S.R.obj).some(st => st.lit && st.lit.some(Boolean)),
     cageFreed: () => Object.values(S.R.obj).some(st => st.cages && st.cages.some(c => c.freed)),
-    bossPhase2: () => (S.R.phase || 0) >= 2, bossPhase3: () => (S.R.phase || 0) >= 3,
+    bossPhase2: () => Math.max(S.R.phase || 0, S.R.bossFlee || 0) >= 2, bossPhase3: () => Math.max(S.R.phase || 0, S.R.bossFlee || 0) >= 3,   // v36.0: fire as he flees, not only on rally
     turretDown: () => S.R.turretsLost > 0,
     heroDeployed: () => state.units.some(u => !u.dead && u.team === 'blue' && u.type === 'cavalier'),
     firelineWarn: () => (S.R.hazards || []).some(h => h && h.lines.some(l => l.warn > 0)),

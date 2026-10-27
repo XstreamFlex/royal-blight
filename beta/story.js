@@ -1069,7 +1069,7 @@
    "tut_m04_combo": "Wizard fire scorches, and brutes hit scorched foes harder. Burn first, then smash.",
    "tut_m04_hero": "My best rider's yours today. A hero comes once per fight and charges straight through the line.",
    "tut_m04_fireline": "Fire-line coming! Pull out of the glowing strip or lose the whole wave.",
-   "tut_m04_hold": "Every card's in your hand now. Pawns hold, archers mark, wizards burn, brutes break. Take the farm.",
+   "tut_m04_hold": "You've got the whole company now. Pawns hold, archers mark, wizards burn, brutes break. Take the farm.",
    "tut_m05_pads": "Those glowing pads take turrets. The mill needs every one we can build.",
    "tut_m05_turret": "A turret pulls enemies onto itself and buys the army time.",
    "tut_m05_limits": "A turret alone won't hold, Majesty. It can't march and it can't win. Soldiers do that.",

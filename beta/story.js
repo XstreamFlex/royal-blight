@@ -226,7 +226,7 @@
     SETTINGS.army = prevArmy;
     state.map = m.map || 'arena'; bgCache = null; mapBgKey();
     state.loadout = { blue: storyLoadout(m), red: Object.assign({}, DEFAULT_LOADOUT, m.region === 'eastmarch' ? { archer: 'flame', pawn: 'sword' } : {}) };
-    state.leaders = { blue: 'rufus', red: m.region === 'eastmarch' ? 'felix' : 'necro' };
+    state.leaders = { blue: 'rufus', red: m.region === 'eastmarch' ? 'felix' : m.enemy === 'drill' ? 'drill' : 'necro' };
     AIS.red.strat = AIS.red.strat0 = m.ai.strat || 'balanced'; AIS.red.switches = 0;
     state.blueGold = m.gold || 100;
     { const u = upOf(m.region), N = UP.names[m.region];   // v31 region upgrades for this region's battles
@@ -537,6 +537,48 @@
   };
 
   // ------------------------------------------------------------------ DRAW (inside the world transform)
+  // v36.2 P0: Paradale Festival of Lanterns at night. Lantern posts both sides of the lane, a crowd at each in
+  // its kingdom's colours (STORY_BIBLE 2.2 / 8.6: Paradale royal blue + gold, Eastmarch green, Westreach yellow,
+  // Northcrag silver-white). The 3 pact lanterns (beacons, right side) get the crowd of the kingdom they stand for.
+  const KCOL = { paradale: ['#1d4ed8', '#3b82f6', '#facc15'], eastmarch: ['#15803d', '#22c55e', '#a3e635'], westreach: ['#ca8a04', '#eab308', '#fde047'], northcrag: ['#e5e7eb', '#cbd5e1', '#f8fafc'] };
+  let FEST = null;
+  function festLayout() {
+    const L = [], ys = [1560, 1110, 660], pact = ['eastmarch', 'westreach', 'northcrag'];
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const crowd = (x, y, side, k) => { const p = []; for (let i = 0; i < 9; i++) p.push({ x: x + side * (8 + rnd() * 40), y: y - 34 + rnd() * 62, c: KCOL[k][i % 3], h: 9 + rnd() * 4, ph: rnd() * 6.3 }); p.sort((a, b) => a.y - b.y); return p; };
+    for (let y = 330; y <= 1900; y += 225) {
+      const pi = ys.findIndex(v => Math.abs(v - y) < 120);
+      if (pi < 0) L.push({ x: LANE_X + LANE_HALF_W + 30, y, post: true, k: 'paradale', crowd: crowd(LANE_X + LANE_HALF_W + 30, y, 1, 'paradale') });
+      L.push({ x: LANE_X - LANE_HALF_W - 30, y, post: true, k: 'paradale', crowd: crowd(LANE_X - LANE_HALF_W - 30, y, -1, 'paradale') });
+    }
+    ys.forEach((y, i) => L.push({ x: LANE_X + LANE_HALF_W + 34, y, post: false, k: pact[i], crowd: crowd(LANE_X + LANE_HALF_W + 46, y, 1, pact[i]) }));
+    return L;
+  }
+  S.drawBg = function (c) {
+    const m = S.m; if (!m || m.enemy !== 'drill') return;
+    const now = performance.now() / 1000, y0 = state.cameraY - 120, y1 = state.cameraY + viewportH + 120;
+    c.fillStyle = 'rgba(6,12,38,0.58)'; c.fillRect(0, Math.max(0, y0), WORLD_W, Math.min(WORLD_H, y1) - Math.max(0, y0));   // night
+    FEST = FEST || festLayout();
+    for (const f of FEST) {
+      if (f.y < y0 || f.y > y1) continue;
+      const fl = 0.85 + 0.15 * Math.sin(now * 5 + f.y);
+      const g = c.createRadialGradient(f.x, f.y - 40, 4, f.x, f.y - 30, 80); g.addColorStop(0, `rgba(253,200,90,${0.42 * fl})`); g.addColorStop(1, 'rgba(253,160,60,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(f.x, f.y - 30, 80, 0, Math.PI * 2); c.fill();
+      for (const p of f.crowd) {   // spectators: body in kingdom colour, head, idle bob
+        const b = Math.sin(now * 2.2 + p.ph) * 1.4, px = p.x, py = p.y + b;
+        c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(px, p.y + 2, 5, 2, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = p.c; c.beginPath(); c.moveTo(px - 5, py); c.lineTo(px + 5, py); c.lineTo(px + 3, py - p.h); c.lineTo(px - 3, py - p.h); c.closePath(); c.fill();
+        c.fillStyle = '#f2c79b'; c.beginPath(); c.arc(px, py - p.h - 3, 3.2, 0, Math.PI * 2); c.fill();
+        if (Math.sin(now * 1.3 + p.ph * 3) > 0.7) { c.strokeStyle = p.c; c.lineWidth = 1.6; c.beginPath(); c.moveTo(px + 2, py - p.h + 1); c.lineTo(px + 5, py - p.h - 7); c.stroke(); }   // a waving arm
+      }
+      if (f.post) {   // drawn festival lantern post (pact lanterns use the existing art in S.draw)
+        c.fillStyle = '#3f2a14'; c.fillRect(f.x - 2, f.y - 52, 4, 54); c.fillRect(f.x - 2, f.y - 52, 12, 3);
+        const sw = Math.sin(now * 1.7 + f.y) * 1.5, lx = f.x + 9 + sw;
+        c.fillStyle = '#b91c1c'; c.beginPath(); c.ellipse(lx, f.y - 41, 6, 8, 0, 0, Math.PI * 2); c.fill();
+        c.fillStyle = `rgba(254,240,138,${0.8 * fl})`; c.beginPath(); c.ellipse(lx, f.y - 41, 3, 5, 0, 0, Math.PI * 2); c.fill();
+      }
+    }
+  };
   S.draw = function (c) {
     const R = S.R, m = S.m; if (!R) return;
     const now = performance.now() / 1000;
@@ -822,7 +864,7 @@
         if (i >= keys.length) return finish();
         const k = keys[i], meta = CINE.find(c => c[0] === k) || [k, '', '', k];
         if (!SAVE.seen.includes('cine:' + k)) { SAVE.seen.push('cine:' + k); persist(); }
-        el.innerHTML = `<video playsinline webkit-playsinline preload="auto" src="assets/cine/${k}.mp4?v=${window.APP_VERSION||1}" poster="assets/cine/${k}.jpg" class="h-full w-full object-contain bg-black"></video>
+        el.innerHTML = `<video playsinline webkit-playsinline preload="auto" src="assets/cine/${k}.mp4?v=${window.APP_VERSION||1}" poster="assets/cine/${k}.jpg?v=${window.APP_VERSION||1}" class="h-full w-full object-contain bg-black"></video>
           <button data-c="skip" style="top:calc(var(--sat, 0px) + 12px);right:calc(var(--sar, 0px) + 12px);touch-action:manipulation" class="absolute z-20 px-4 py-3 min-w-[64px] min-h-[44px] rounded-xl bg-slate-900/80 border border-slate-500 text-xs font-black text-white uppercase">Skip \u23ED</button>
           <div data-c="tap" class="absolute inset-0 flex flex-col items-center justify-center bg-black/40"><div class="w-20 h-20 rounded-full bg-amber-500 text-slate-950 text-4xl flex items-center justify-center shadow-2xl">\u25B6</div>
           <div class="mt-3 text-amber-200 font-black text-sm uppercase tracking-wider">${esc(meta[3])}</div><div class="text-slate-300 text-[11px]">Tap to watch</div></div>`;
@@ -844,7 +886,7 @@
     const seen = CINE.filter(cineUnlocked);
     const h = `<p class="text-[11px] text-slate-300 mb-2 text-center">Cutscenes you have unlocked. They play the first time you start or clear a mission.</p><div class="grid grid-cols-2 gap-2">` +
       CINE.map(c => { const ok = seen.includes(c); return `<button data-cine="${c[0]}" ${ok ? '' : 'disabled'} class="rounded-xl overflow-hidden border-2 ${ok ? 'border-amber-500' : 'border-slate-700 opacity-50'} bg-slate-900 text-left">
-        <div class="aspect-[9/16] max-h-32 w-full bg-black flex items-center justify-center" style="${ok ? `background:url('assets/cine/${c[0]}.jpg') center/cover` : ''}">${ok ? '<span class="text-2xl">\u25B6</span>' : '\u{1F512}'}</div>
+        <div class="aspect-[9/16] max-h-32 w-full bg-black flex items-center justify-center" style="${ok ? `background:url('assets/cine/${c[0]}.jpg?v=${window.APP_VERSION||1}') center/cover` : ''}">${ok ? '<span class="text-2xl">\u25B6</span>' : '\u{1F512}'}</div>
         <div class="px-1.5 py-1 text-[10px] font-black ${ok ? 'text-amber-200' : 'text-slate-500'}">${c[1]} \u00B7 ${ok ? esc(c[3]) : '???'}</div></button>`; }).join('') + `</div>` +
       `<button id="cine-all" class="mt-2 w-full py-2 rounded-lg bg-slate-700 text-slate-100 text-[11px] font-black uppercase" ${seen.length ? '' : 'disabled'}>\u25B6 Play all unlocked (${seen.length}/${CINE.length})</button>`;
     showPanel('\u{1F3AC} Cinematics', h);
@@ -873,7 +915,7 @@
         const [an, ac] = controller(k), sz = r.hub ? 40 : 34;
         return `<button data-region="${k}" class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style="left:${r.pos[0]}%;top:${r.pos[1]}%">
           <div class="rounded-full shadow-xl flex items-center justify-center text-base" style="width:${sz}px;height:${sz}px;background:${COLOR[col]};border:3px solid ${ac};${pulse}">${r.hub ? '\u{1F3F0}' : r.soon ? '\u2601' : '\u2694'}</div>
-          <div class="mt-0.5 px-1.5 rounded bg-black/70 text-[10px] font-black text-white leading-tight">${r.name}<br><span class="text-[9px] font-bold" style="color:${COLOR[col]}">${r.soon ? 'coming soon' : r.hub ? (won('P0') ? 'Prologue \u2713' : 'Prologue') : w + '/' + n}</span><br><span class="text-[8px] font-bold" style="color:${ac}">${an}</span></div></button>`;
+          <div class="mt-0.5 px-1.5 rounded bg-black/70 text-[10px] font-black text-white leading-tight">${r.name}<br><span class="text-[9px] font-bold" style="color:${COLOR[col]}">${r.soon ? 'coming soon' : r.hub ? (won('P0') ? 'Festival of Lanterns \u2713' : 'Festival of Lanterns') : w + '/' + n}</span><br><span class="text-[8px] font-bold" style="color:${ac}">${an}</span></div></button>`;
       }).join('') + `<style>@keyframes stpulse{0%,100%{box-shadow:0 0 0 0 #86efac}50%{box-shadow:0 0 0 10px #86efac00}}</style>`;
     map.querySelectorAll('button[data-region]').forEach(b => b.onclick = () => S.openRegion(b.dataset.region));
     $('st-legend').innerHTML = (won('P0') ? [['red', 'Under attack'], ['orange', '1+ win'], ['yellow', 'Contested / no contact'], ['lightgreen', 'Final left'], ['green', 'Freed']] : [['green', 'At peace \u2014 play the Prologue']]).map(([c, t]) => `<span class="px-1.5 py-0.5 rounded" style="background:${COLOR[c]}33;border:1px solid ${COLOR[c]}">${t}</span>`).join('');

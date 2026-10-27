@@ -5,7 +5,7 @@
   'use strict';
   // ------------------------------------------------------------------ SAVE (localStorage, versioned)
   const SAVE_KEY = 'royalBlight.story', SAVE_V = 2;   // v27: v2 = illustrated map + new color rules (mapV)
-  const freshSave = () => ({ v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:long', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2, diff: 'normal', up: {}, power: null, replayStory: false });
+  const freshSave = () => ({ v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:short', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2, diff: 'normal', up: {}, power: null, replayStory: false });
   function cleanUp(u) {   // v31 region upgrades { region: { mines, walls, barracks, hall } }, 0..3 each
     const o = {}; if (!u || typeof u !== 'object') return o;
     for (const [r, t] of Object.entries(u)) { if (!/^[a-z]{3,12}$/.test(r) || !t) continue; o[r] = {}; for (const k of ['mines', 'walls', 'barracks', 'hall']) o[r][k] = Math.max(0, Math.min(3, t[k] | 0)); }
@@ -55,54 +55,66 @@
   //   | {k:'evac', count, every, lossMax} | {k:'intercept', count, need, every} | {k:'escort', count, need, every}
   //   | {k:'protect', structs:[{x,y,hp,name}], lossMax} | {k:'beacons', ys} | {k:'vip', hp, name}],
   //  hazards: [{k:'fireline', every, warn, dur, dps}], boss {...}, stars: [desc,desc,desc] + starFns.
+  // v35.9 per-mission unit restriction. Entries: 'worker', 'turret', 'pawn:<variant>', 'archer:<variant>', 'brute:<variant>',
+  //  'wizard:<variant>', 'hero:<type>'. Card bar + story loadout only allow what is listed. Act 1 = BASIC units only
+  //  (base variant of each slot, Royal Blue only, no Necromancer faction, no alternate armor/weapon units).
+  const A1_BASIC = ['worker', 'turret', 'pawn:sword', 'archer:short', 'brute:base', 'wizard:battle', 'hero:cavalier'];
+  const A1 = {   // v35.9 Act 1 teaching order (data only: reorder/redesign missions by editing these lists)
+    P0:  ['worker', 'turret', 'pawn:sword', 'archer:short'],                         // controls
+    M01: ['worker', 'pawn:sword'],                                                    // miners
+    M02: ['worker', 'pawn:sword', 'archer:short'],                                    // pawns + archers
+    M03: ['worker', 'pawn:sword', 'archer:short', 'wizard:battle'],                   // wizards + archers
+    M04: ['worker', 'pawn:sword', 'archer:short', 'wizard:battle', 'brute:base', 'hero:cavalier'],   // brutes + archers + wizards + heroes
+    M05: A1_BASIC, M06: A1_BASIC, M07: A1_BASIC                                       // turrets + practice, mastery mix, boss
+  };
   const M = {
-    P0: { region: 'paradale', name: 'Festival of Lanterns', type: 'STD + LIM', map: 'arena', gold: 150, reward: ['G1', 'X1'],
+    P0: { region: 'paradale', allowedUnits: A1.P0, act: 1, name: 'Festival of Lanterns', type: 'STD + LIM', map: 'arena', gold: 150, reward: ['G1', 'X1'],
       ai: { level: 'easy', strat: 'balanced', income: 0.55 }, cards: ['worker', 'archers', 'turret'], enemy: 'drill',
       brief: 'The Festival of Lanterns: a thousand years since the clans of light marched together. The crowd wants a show. General Garrow\u2019s practice squad holds the far end of the Royal Arena. March past the three pact lanterns to light them (Eastmarch, Westreach, Northcrag), then break the practice nexus. Nobody gets hurt. Garrow promised.',
-      tips: ['Pawns march every 15s for free.', 'Tap ARCHER to add archers to every 2nd wave.', 'Workers mine gold; the FAR mine pays most but is risky.', 'A TURRET (250g) taunts nearby enemies.'],
+      tips: ['Pawns march every 15s for free.', 'Tap ARCHER to add archers to every 2nd wave.', 'Workers mine gold. SAFE pays little, FAR pays most but sits near the enemy.', 'A TURRET (250g) taunts nearby enemies.'],
       objectives: [{ k: 'nexus' }, { k: 'beacons', ys: [1560, 1110, 660], name: 'Lanterns' }],
       stars: ['Win the drill', 'Nexus above 50%', 'Light all 3 lanterns'],
       before: [['Ruphene', 'Three lanterns, lit from mine. Like the clans did. Don\u2019t trip, brother.'], ['Rufus', 'Felix brought wheat, Glade brought books. Cline\u2019s on the wall at Highwatch again. He\u2019s the Light Keeper, Ru. Somebody has to watch the pass.'], ['Ruphene', 'I married him, Rufus. I know where he is.'], ['Vesper', 'General Garrow\u2019s squad is ready, Majesty. Give them a show.'], ['Garrow', 'My soldiers are instructed to lose gracefully. Within reason.'], ['Garrow', 'A thousand years of peace, and they made me a drill captain.']],
-      after: [['Vesper', 'A fine show, Majesty. The crowd\u2019s still cheering, and the feast is just starting. King Felix is saving you a seat at the high table.'], ['Rufus', 'Then let\u2019s not keep him waiting. Bring the gifts!']],
+      after: [['Vesper', 'A fine show, Majesty. The crowd\u2019s still cheering, and the feast is just starting. King Felix is saving you a seat at the high table.'], ['Rufus', 'Then let\u2019s not keep him waiting. Bring the gifts!'], ['Garrow', 'Enjoy the lanterns, lad. I\u2019m riding east at dawn. Something\u2019s off with Felix\u2019s birds.']],
       cut: ['prologue_lanterns', 'prologue_contact_lost'] },
-    M01: { region: 'eastmarch', name: 'Smoke on the Horizon', type: 'STD', map: 'farmland', gold: 120, reward: ['G1', 'X1'], par: 420,
+    M01: { region: 'eastmarch', allowedUnits: A1.M01, act: 1, name: 'Smoke on the Horizon', type: 'STD', map: 'farmland', gold: 120, reward: ['G1', 'X1'], par: 420,
       ai: { level: 'normal', strat: 'balanced', income: 0.6 },
-      brief: 'Felix\u2019s threat came true. Three days\u2019 ride east, at dawn. Felix\u2019s Green Army is burning the haystacks of Eastmarch. Meet them in the fields and break their nexus.',
+      brief: 'Felix\u2019s threat came true. Three days\u2019 ride east, at dawn. Felix\u2019s Green Army is burning the haystacks of Eastmarch. Meet them in the fields and break their nexus. Gold wins wars. Keep your miners alive.',
       objectives: [{ k: 'nexus' }], stars: ['Win', 'Nexus above 50%', 'Win under 7:00 (par)'],
       before: [['Vesper', 'He\u2019ll start with the western rows. He always does, Majesty. Trust me.'], ['Rufus', 'Felix planted half those rows himself. Why burn them?']],
       after: [['Rufus', 'Felix\u2026 the letter. Tell me someone forged it.'], ['Felix', 'I wrote every word.'], ['Rufus', 'Why? I forgave your tithe!'], ['Felix', 'In front of every king at that table. Like a beggar. Never again, Rufus.']], cut: ['ch1_m01_briefing', 'ch1_m01_red_eyes'] },
-    M02: { region: 'eastmarch', name: 'Save the Harvest', type: 'EVAC', map: 'farmland', gold: 150, reward: ['G1', 'X1'], unlock: ['pawn:shield'],
+    M02: { region: 'eastmarch', allowedUnits: A1.M02, act: 1, name: 'Save the Harvest', type: 'EVAC', map: 'farmland', gold: 150, reward: ['G1', 'X1'], unlock: [],
       ai: { level: 'normal', strat: 'balanced', income: 0.6 },
-      brief: 'Noon. Smoke over the rows. Farmers are running toward your lines with what they could carry. Bring them home; lose no more than 3.',
+      brief: 'Noon. Smoke over the rows. Farmers are running toward your lines with what they could carry. Bring them home; lose no more than 3. Pawns shield them, archers cover them.',
       objectives: [{ k: 'evac', count: 10, every: 8, lossMax: 3, fromY: 1180, name: 'Farmers' }], noNexusWin: true,
       stars: ['Evacuate the farmers', 'Lose at most 1 farmer', 'Lose zero farmers'],
       before: [['Rufus', 'Farmers first. Fields can wait.'], ['Garrow', 'Fields can\u2019t run, Majesty. Farmers can. Cover them.']], after: [['Farmer', 'I\u2019m Tam. My shield\u2019s yours. The fire took the rest.'], ['Rufus', 'Then I\u2019ll carry it until you want it back.']], cut: ['ch1_m02_farmers'] },
-    M03: { region: 'eastmarch', name: 'Fire-Oil Wagons', type: 'INT', map: 'farmland', gold: 180, reward: ['G2', 'X1'], unlock: ['army:green'],
+    M03: { region: 'eastmarch', allowedUnits: A1.M03, act: 1, name: 'Fire-Oil Wagons', type: 'INT', map: 'farmland', gold: 180, reward: ['G2', 'X1'], unlock: [],
       ai: { level: 'normal', strat: 'balanced', income: 0.7 },
-      brief: 'Dusk. Garrow\u2019s outriders say the oil wagons come up the east road when the light goes. Eight are hauling fire-oil to Felix\u2019s archers. Stop at least 6.',
+      brief: 'Dusk. Garrow\u2019s outriders say the oil wagons come up the east road when the light goes. Eight are hauling fire-oil to Felix\u2019s archers. Stop at least 6. Wizard fire bursts wagons and anything bunched around them.',
       objectives: [{ k: 'intercept', count: 8, need: 6, every: 20, name: 'Wagons' }], noNexusWin: true,
       stars: ['Destroy 6 wagons', 'Destroy 7 wagons', 'Destroy all 8'],
       before: [['Garrow', 'Eight wagons at dusk. My riders counted them three nights running.']], after: [['Rufus', 'No more fire for his arrows tonight.'], ['Garrow', 'Or ever, ideally.']], cut: ['ch1_m03_wagons'] },
-    M04: { region: 'eastmarch', name: 'Recapture the Farms', type: 'ATK + CUR', map: 'farmland', gold: 180, reward: ['G2', 'X1'], unlock: ['bonus:worker_east'],
+    M04: { region: 'eastmarch', allowedUnits: A1.M04, act: 1, name: 'Recapture the Farms', type: 'ATK + CUR', map: 'farmland', gold: 180, reward: ['G2', 'X1'], unlock: ['hero:cavalier', 'bonus:worker_east'], heroTrial: true,
       ai: { level: 'normal', strat: 'turtle', income: 0.85 },
       brief: 'Next morning. Ash where the wheat was. Take back the farmsteads one at a time. Watch the fire-lines.',
       objectives: [{ k: 'hold', name: 'Farmsteads', guards: true, secs: 14, mode: 'sequence', pay: 60, zones: [{ y: 1420, h: 80, name: 'South farm' }, { y: 1110, h: 80, name: 'Mill farm' }, { y: 800, h: 80, name: 'East farm' }] }],
       hazards: [{ k: 'fireline', every: 16, warn: 2.2, dur: 4, dps: 14, h: 46 }], noNexusWin: true, timeLimit: 900,
       stars: ['Recapture all 3 farms', 'Nexus above 50%', 'No farm lost, under 4:00'],
-      before: [['Garrow', 'South farm\u2019s barely guarded.'], ['Vesper', 'Then start there, Majesty.'], ['Garrow', 'I\u2019ll find Felix\u2019s camp at first light.']], after: [['Rufus', 'One field at a time.']], cut: ['ch1_m04_fields_reclaimed'] },
-    M05: { region: 'eastmarch', name: 'Windmill Ridge', type: 'DEF', map: 'farmland', gold: 260, reward: ['G2', 'X2'], unlock: ['archer:flame'],
+      before: [['Garrow', 'South farm\u2019s barely guarded.'], ['Vesper', 'Then start there, Majesty.'], ['Garrow', 'Take my best rider. I\u2019ll find Felix\u2019s camp at first light.']], after: [['Rufus', 'One field at a time.']], cut: ['ch1_m04_fields_reclaimed'] },
+    M05: { region: 'eastmarch', allowedUnits: A1.M05, act: 1, name: 'Windmill Ridge', type: 'DEF', map: 'farmland', gold: 260, reward: ['G2', 'X2'], unlock: [],
       ai: { level: 'normal', strat: 'push', income: 1.0 },
-      brief: 'Night wind from the east. Garrow rode out at first light and hasn\u2019t come back. The windmill on the ridge grinds grain for half the valley. Hold it until the wind turns.',
+      brief: 'Night wind from the east. Garrow rode out at first light and hasn\u2019t come back. The windmill on the ridge is Eastmarch\u2019s signal beacon. Hold it until the wind turns and the fire is lit.',
       objectives: [{ k: 'defend', zone: { y: 1460, h: 110, name: 'Windmill' }, secs: 240, maxEnemy: 25 }], hazards: [{ k: 'fireline', every: 22, warn: 2.2, dur: 3, dps: 10, h: 40, minY: 1250, maxY: 1700 }],
       noNexusWin: true, stars: ['Hold the windmill', 'Enemy holds it under 10s', 'Lose no turrets'],
-      before: [['Rufus', 'If the windmill burns, the whole valley starves.'], ['Vesper', 'And Garrow, Majesty?'], ['Rufus', 'Garrow can take care of himself. The mill can\u2019t.']], after: [['Farmer', 'Fire\u2019s out. Mill\u2019s still turning.'], ['Rufus', 'Good. Now let\u2019s find my general.']], cut: ['ch1_m05_windmill'] },
-    M06: { region: 'eastmarch', name: 'The Cavalier\u2019s Charge', type: 'RSC', map: 'farmland', gold: 220, reward: ['G2', 'X2'], unlock: ['hero:cavalier'],
-      ai: { level: 'normal', strat: 'pulse', income: 1.0 }, cards: ['worker', 'archers', 'brutes', 'wizards', 'turret'],
+      before: [['Rufus', 'If the windmill burns, the whole valley starves.'], ['Vesper', 'And Garrow, Majesty?'], ['Rufus', 'Garrow can take care of himself. The mill can\u2019t.'], ['Vesper', 'The beacon is lit, Majesty. I\u2019ll make sure Paradale reads it.']], after: [['Farmer', 'Fire\u2019s out. Mill\u2019s still turning.'], ['Rufus', 'Good. Now let\u2019s find my general.']], cut: ['ch1_m05_windmill'] },
+    M06: { region: 'eastmarch', allowedUnits: A1.M06, act: 1, name: 'The Cavalier\u2019s Charge', type: 'RSC', map: 'farmland', gold: 220, reward: ['G2', 'X2'], unlock: [],
+      ai: { level: 'normal', strat: 'pulse', income: 1.0 },
       brief: 'Day four. As usual, General Garrow rode ahead to scout Felix\u2019s camp. He didn\u2019t ride back. Push to his jail-wagon, free him, then break the nexus.',
       objectives: [{ k: 'rescue', cages: [{ y: 760, hero: true, name: 'General Garrow' }] }, { k: 'nexus' }],
       stars: ['Win', 'Free Garrow', 'The Cavalier lands 3 jousts'],
-      before: [['Vesper', 'Garrow always did ride too far ahead.'], ['Rufus', 'So nobody else has to.'], ['Vesper', 'I\u2019d trust him with my life.']], after: [['Garrow', 'I meant to get captured. Tactically. \u2026Mostly.'], ['Garrow', 'Felix cries in his tent. Every night. Holds that amulet like it\u2019s choking him.']], cut: ['ch1_m06_garrow'] },
-    M07: { region: 'eastmarch', name: 'BOSS: The Scorched King', type: 'BOSS + CUR', map: 'farmland', gold: 260, reward: ['G3', 'X2'], unlock: ['region:eastmarch'], final: true,
+      before: [['Vesper', 'Garrow always did ride too far ahead.'], ['Rufus', 'So nobody else has to.'], ['Vesper', 'I\u2019d trust him with my life.']], after: [['Garrow', 'I meant to get captured. Tactically. \u2026Mostly.'], ['Garrow', 'He\u2019s right. I went alone. Somebody told me Felix wanted to talk.'], ['Garrow', 'Felix cries in his tent. Every night. Holds that amulet like it\u2019s choking him.']], cut: ['ch1_m06_garrow'] },
+    M07: { region: 'eastmarch', allowedUnits: A1.M07, act: 1, name: 'BOSS: The Scorched King', type: 'BOSS + CUR', map: 'farmland', gold: 260, reward: ['G3', 'X2'], unlock: ['region:eastmarch', 'pawn:shield', 'army:green', 'archer:flame'], final: true,
       ai: { level: 'normal', strat: 'balanced', income: 1.1 },
       brief: 'The fourth night. Felix takes the field himself. His nexus is shielded while he stands; break him three times as he falls back to his fortress. Free him. Don\u2019t kill him.',
       objectives: [{ k: 'boss', name: 'King Felix' }, { k: 'nexus' }],
@@ -144,10 +156,16 @@
   const COLOR = { red: '#dc2626', orange: '#f97316', yellow: '#facc15', lightgreen: '#86efac', green: '#16a34a', blue: '#3b82f6' };
   function missionOpen(id) { const m = M[id], ms = REGIONS[m.region].missions, i = ms.indexOf(id); return i <= 0 || won(ms[i - 1]); }
   const unlocked = k => SAVE.unlocks.includes(k);
-  function storyLoadout() {
+  function storyLoadout(m) {
     const lo = Object.assign({}, DEFAULT_LOADOUT, (typeof SETTINGS !== 'undefined' && SETTINGS.loadout) || {});
-    for (const slot of Object.keys(lo)) if (lo[slot] !== DEFAULT_LOADOUT[slot] && !unlocked(slot + ':' + lo[slot])) lo[slot] = slot === 'archer' ? 'long' : DEFAULT_LOADOUT[slot];
-    if (lo.archer === 'short' && !unlocked('archer:short')) lo.archer = 'long';   // starter deck: Longbow
+    if (m && m.allowedUnits) {   // v35.9: only listed variants; otherwise the first listed one for that slot (or the base)
+      for (const slot of ['pawn', 'archer', 'brute', 'wizard', 'hero']) { const ok = m.allowedUnits.filter(a => a.startsWith(slot + ':')).map(a => a.split(':')[1]);
+        if (slot === 'hero') { lo.hero = 'default'; continue; }
+        if (!ok.includes(lo[slot])) lo[slot] = ok[0] || DEFAULT_LOADOUT[slot]; }
+      return lo;
+    }
+    for (const slot of Object.keys(lo)) if (lo[slot] !== DEFAULT_LOADOUT[slot] && !unlocked(slot + ':' + lo[slot])) lo[slot] = DEFAULT_LOADOUT[slot];
+    // v35.9: starter archer is the basic Short Bow (was Longbow via a free 'archer:long' unlock)
     return lo;
   }
 
@@ -207,7 +225,7 @@
     startMatch('cpu', 'story', { mission: id });
     SETTINGS.army = prevArmy;
     state.map = m.map || 'arena'; bgCache = null; mapBgKey();
-    state.loadout = { blue: storyLoadout(), red: Object.assign({}, DEFAULT_LOADOUT, m.region === 'eastmarch' ? { archer: 'flame', pawn: 'sword' } : {}) };
+    state.loadout = { blue: storyLoadout(m), red: Object.assign({}, DEFAULT_LOADOUT, m.region === 'eastmarch' ? { archer: 'flame', pawn: 'sword' } : {}) };
     state.leaders = { blue: 'rufus', red: m.region === 'eastmarch' ? 'felix' : 'necro' };
     AIS.red.strat = AIS.red.strat0 = m.ai.strat || 'balanced'; AIS.red.switches = 0;
     state.blueGold = m.gold || 100;
@@ -222,9 +240,13 @@
     S.prevDmgHook = window.dmgHook;
     window.dmgHook = (owner, dealt, target) => {
       if (S.prevDmgHook) S.prevDmgHook(owner, dealt, target);
+      if (owner && owner.team === 'blue' && target && target.team === 'red') {   // v35.9 tutorial combo events
+        if (owner.type === 'archer' && target.markUntil > state.gameTime) R.tComboHit = true;
+        if (owner.type === 'brute' && target.scorchUntil > state.gameTime) R.tScorchHit = true; }
       if (owner && owner.type === 'cavalier' && owner.team === 'blue' && owner.chargeState === 'charge' && state.gameTime - R.lastJoust > 1.2 && target instanceof Unit) { R.jousts++; R.lastJoust = state.gameTime; }
     };
     S.renderHud(); document.getElementById('story-hud').classList.remove('hidden');
+    tutStart(m);   // v35.9 staged tutorial (off for replays of won missions / when Tutorial tips are Off)
     setTimeout(() => toast(m.name.toUpperCase(), '#fde68a'), 500);
     return true;
   };
@@ -290,8 +312,11 @@
   S.allow = function (team, c) {           // limited army / unlock gating for the story player
     if (team !== 'blue' || !S.m) return true;
     if (c.k === 'node' || c.k === 'tup') return true;
-    const cards = S.m.cards || ['worker', 'archers', 'brutes', 'wizards', 'turret'];
-    if (c.k === 'hero') return unlocked('hero:cavalier') || !!(S.R && S.R.trialHero);
+    let cards = S.m.cards || ['worker', 'archers', 'brutes', 'wizards', 'turret'];
+    const au = S.m.allowedUnits;   // v35.9
+    if (au) cards = cards.filter(k => au.some(a => a === k || a.split(':')[0] === ({ archers: 'archer', brutes: 'brute', wizards: 'wizard' }[k] || k)));
+    if (c.k === 'hero' && S.m && S.m.heroTrial && S.R) S.R.trialHero = true;
+    if (c.k === 'hero') return (!au || au.some(a => a.startsWith('hero:'))) && (unlocked('hero:cavalier') || !!(S.R && S.R.trialHero));
     if (!cards.includes(c.k)) { if (team === myTeam() && !c.quiet) toast('Locked in this mission', '#fca5a5'); return false; }
     if (S.m.cap && CADENCE_INFO[c.k] && (state.blueCadence.archers + state.blueCadence.wizards + state.blueCadence.brutes) >= S.m.cap) { if (!c.quiet) toast('Army limit reached', '#fca5a5'); return false; }
     return true;
@@ -311,6 +336,7 @@
     (m.hazards || []).forEach((h, i) => tickHazard(h, i, dt));
     if (R.boss) tickBoss(dt);
     tickGuards();
+    if (S.tutTick) S.tutTick(dt);
     if ((R.hudT = (R.hudT || 0) - dt) <= 0) { R.hudT = 0.25; S.renderHud(); }
   };
   function tickObjective(st, dt, B, Rd) {
@@ -482,7 +508,7 @@
   // end of a story match (called from showGameOver). Returns true = story handled the end screen.
   S.onEnd = function (win) {
     const R = S.R, m = S.m; if (!R || R.done) return true;
-    R.done = true;
+    R.done = true; if (S.tutStop) S.tutStop();
     const st = starsFor(win);
     const rec = SAVE.missions[m.id] = SAVE.missions[m.id] || { stars: 0, wins: 0, plays: 0, best: 0, starSet: [false, false, false] };
     const firstClear = win && !rec.wins;
@@ -505,6 +531,7 @@
     return true;
   };
   S.quit = function () {
+    if (S.tutStop) S.tutStop();
     S.active = false; S.m = null; S.R = null; window.dmgHook = S.prevDmgHook || null;
     document.getElementById('story-hud').classList.add('hidden');
   };
@@ -935,6 +962,304 @@
   };
   const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 
+  // ================================================================== v35.9 ACT 1 STAGED TUTORIAL ENGINE
+  // Data-driven: TUT[missionId] = { steps: [...] }. Schema + rules: TUTORIAL_SCHEMA.md. Text lives in TUT_LINES
+  // keyed by lineId; every entry below is a PLACEHOLDER until Cut hands over locked lines (S.setTutLines({...})).
+  // v35.9: Cut's act1_tutorial_lines.json (69 lines). Missing ids show as [PLACEHOLDER id].
+  const TUT_LINES = {
+   "tut_p0_goal": "Here's the whole job, lad. Our soldiers march on their own. Get them to that far nexus and break it.",
+   "tut_p0_bar": "This rail is the tug-of-war. Blue means we're pushing, red means they are. Keep it blue.",
+   "tut_p0_symbols": "Each little mark on the rail is a unit, a miner or a turret. One look tells you who's winning where.",
+   "tut_p0_speed": "Too slow? Tap 1x for 2x. Tap it again to come back when it gets busy.",
+   "tut_p0_menu": "The ☰ button pauses everything. Restart, the Field Guide and your mission orders all live in there.",
+   "tut_p0_sound": "Sound, voices and music switch on and off in that same ☰ menu.",
+   "tut_p0_buy": "Pawns come free every wave. Tap ARCHER and archers join the march behind them.",
+   "tut_p0_batch": "Tap the card again to batch. Every extra tap adds one more to each wave that card joins.",
+   "tut_p0_camera": "Far, Mid and Home jump the view along the lane. Or just drag to look around.",
+   "tut_p0_miners": "Workers dig gold. More gold buys more soldiers, so never run short of workers.",
+   "tut_p0_zones": "Pick where they dig. SAFE pays little, MID pays better, FAR pays most but sits right under the enemy.",
+   "tut_p0_turret": "A turret holds a pad on our side and draws enemies onto itself. It never marches.",
+   "tut_p0_stats": "When it's over, the stats screen shows what earned and what cost you. Now go light those lanterns!",
+   "tut_p0_fieldguide": "Forget what something does? Open ☰, then the Field Guide. Every unit, combo and symbol you've met is in there.",
+   "tut_p0_guide": "Your orders for each fight are in ☰ under Mission Guide: the goal, plus a few hints. Check it any time.",
+   "tut_p0_lantern": "That's one lantern lit! March past all three and the crowd gets its show.",
+   "tut_m01_miners": "Watch your miners, Majesty. They're your income, and Felix knows it.",
+   "tut_m01_attack": "A miner's hit! When a miner gets struck, he drops his load and runs home.",
+   "tut_m01_why": "Every dropped load is gold you'll never spend. Guard the lane, or dig somewhere safer.",
+   "tut_m01_advance": "The lane's ours for now. Send the miners FAR while it lasts; that's where the big loads are.",
+   "tut_m01_retreat": "They're pushing back! Pull the miners to MID or SAFE until the line holds again.",
+   "tut_m01_killed": "We lost a miner. Buy another, move the rest closer to home, or push the enemy off them. Pick one, fast.",
+   "tut_m02_pawns": "Pawns march every wave for free. Put them between the farmers and the fire.",
+   "tut_m02_archers": "Tap ARCHER. Archers shoot over the pawns and pick off whatever chases the farmers.",
+   "tut_m02_batch": "Tap ARCHER again to double up. Two archers per wave covers twice the road.",
+   "tut_m02_combo": "See that? Pawns mark a foe, and archers hit marked foes harder. That's your first combo.",
+   "tut_m02_fieldguide": "That combo's in the Field Guide now. ☰, then Field Guide, whenever you need a reminder.",
+   "tut_m03_wizard": "Wizards, Majesty. Their fireballs splash, so one shot hurts a whole cluster.",
+   "tut_m03_wagon": "Here comes a wagon. Fire-oil burns fast; let the wizards light it up.",
+   "tut_m03_crowd": "They're bunching up. That's exactly what a wizard wants.",
+   "tut_m03_cover": "Wizards break easily. Keep pawns in front and archers beside them.",
+   "tut_m04_brute": "Brutes are slow and tough, and magic barely scratches them. Send them where it's thickest.",
+   "tut_m04_combo": "Wizard fire scorches, and brutes hit scorched foes harder. Burn first, then smash.",
+   "tut_m04_hero": "My best rider's yours today. A hero comes once per fight and charges straight through the line.",
+   "tut_m04_fireline": "Fire-line coming! Pull out of the glowing strip or lose the whole wave.",
+   "tut_m04_hold": "Every card's in your hand now. Pawns hold, archers mark, wizards burn, brutes break. Take the farm.",
+   "tut_m05_pads": "Those glowing pads take turrets. The mill needs every one we can build.",
+   "tut_m05_turret": "A turret pulls enemies onto itself and buys the army time.",
+   "tut_m05_limits": "A turret alone won't hold, Majesty. It can't march and it can't win. Soldiers do that.",
+   "tut_m06_guide": "Lost track of the goal? ☰, then Mission Guide. Garrow's cage is the target.",
+   "tut_m06_freed": "Garrow's free! His Cavalier fights under his own name now.",
+   "tut_m06_counter": "They're beating us the same way every time. Mix in something they can't handle.",
+   "tut_m07_shield": "His nexus is shielded while Felix stands. Break Felix first, then the walls.",
+   "tut_m07_phase2": "He's falling back to the second line. He's hurt, but he'll hit harder now.",
+   "tut_m07_phase3": "Last stand, Majesty. One more break and he's done.",
+   "tut_m07_splash": "Careful near their nexus. When it's hit, the blast catches anything close.",
+   "tip_pawn": "Pawns: free every wave, they hold the front. Weak alone.",
+   "tip_archer": "Archers: hit hard from range. Fragile, so keep pawns in front.",
+   "tip_wizard": "Wizards: fireballs splash crowds. Fragile, and slow to fire.",
+   "tip_brute": "Brutes: slow and tough, they shrug off magic. Archers wear them down.",
+   "tip_worker": "Workers: mine gold, and run home when hit. Farther mines pay more.",
+   "tip_cavalier": "The Cavalier: one per fight. He charges straight through the line.",
+   "tip_turret": "Turrets: hold a pad and taunt nearby foes. They never march.",
+   "fg_pawn": "Pawn. Free with every wave. Holds the front and marks foes for archers. Weak against wizard splash.",
+   "fg_archer": "Archer. Ranged damage from behind the pawns, bonus damage to marked foes. Dies fast if reached.",
+   "fg_wizard": "Wizard. Splash fireballs that scorch. Best against crowds, worst against brutes.",
+   "fg_brute": "Brute. Slow, high health, resists magic. Hits scorched foes harder.",
+   "fg_worker": "Worker. Mines gold at SAFE, MID or FAR. Drops its load and flees when hit.",
+   "fg_hero": "Hero. One per match. The Cavalier charges through the enemy line.",
+   "fg_combo_pawn_archer": "Pawn + Archer: pawns mark foes, and archers deal extra damage to marked foes.",
+   "fg_combo_wizard_brute": "Wizard + Brute: wizards scorch foes, and brutes hit scorched foes harder.",
+   "fg_turret": "Turret. Built on a pad near your side and taunts nearby enemies. Doesn't march, can't win alone.",
+   "fg_bar": "Tug-of-war bar. Shows where the fighting is. More blue means you're pushing toward their nexus.",
+   "fg_bar_symbols": "Bar symbols. Each mark is a unit, worker or turret at its spot in the lane.",
+   "fg_ctl_speed": "Speed. Tap 1x / 2x to switch game speed.",
+   "fg_ctl_menu": "Menu ☰. Pauses the game. Restart, sound, voices, music, the Field Guide and the Mission Guide.",
+   "fg_ctl_camera": "Camera. Far, Mid and Home jump the view; drag to look around.",
+   "fg_ctl_zones": "Mine zones. SAFE 10g, MID 50g, FAR 180g per trip. The farther the mine, the closer the enemy.",
+   "fg_ctl_batch": "Batching. Tap a card again to add one more of that unit to every wave it joins."
+  };
+  const line = id => TUT_LINES[id] || ('[PLACEHOLDER ' + id + ']');
+  S.TUT_LINES = TUT_LINES; S.setTutLines = o => Object.assign(TUT_LINES, o || {});
+  // Steps run in order. trigger: {k:'time',t} mission secs | {k:'delay',t} secs after previous step | {k:'event',e} | {k:'cond',c,v}
+  //  forceAfter + force: if the trigger hasn't happened that long after the previous step, do the force once.
+  //  pause: true (freeze) | 'slow' | false. point: CSS selector | {unit:type, team} | {node:'FAR'}. Resume on tap.
+  const TUT = {
+    P0: { steps: [
+      { id: 'goal', line: 'tut_p0_goal', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 1.5 }, pause: true, point: '#hud-strip' },
+      { id: 'bar', line: 'tut_p0_bar', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 2 }, pause: true, point: '#tension-rail' },
+      { id: 'symbols', line: 'tut_p0_symbols', speaker: 'Garrow', trigger: { k: 'delay', t: 0.5 }, pause: true, point: '#rail-glyph-layer' },
+      { id: 'speed', line: 'tut_p0_speed', speaker: 'Garrow', trigger: { k: 'delay', t: 2 }, pause: true, point: '#btn-speed' },
+      { id: 'menu', line: 'tut_p0_menu', speaker: 'Garrow', trigger: { k: 'delay', t: 0.5 }, pause: true, point: '#btn-pause' },
+      { id: 'fieldguide', line: 'tut_p0_fieldguide', speaker: 'Garrow', trigger: { k: 'delay', t: 0.5 }, pause: true, point: '#btn-pause' },   // Cut: #btn-fieldguide -> lives in the ☰ menu (#pm-guide)
+      { id: 'guide', line: 'tut_p0_guide', speaker: 'Garrow', trigger: { k: 'delay', t: 0.5 }, pause: true, point: '#btn-pause' },             // Cut: #btn-guide -> ☰ menu (#pm-mission)
+      { id: 'sound', line: 'tut_p0_sound', speaker: 'Garrow', trigger: { k: 'delay', t: 0.5 }, pause: true, point: '#btn-pause' },
+      { id: 'buy', line: 'tut_p0_buy', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 2 }, pause: true, point: '#btn-buy-archer' },
+      { id: 'batch', line: 'tut_p0_batch', speaker: 'Garrow', trigger: { k: 'event', e: 'unitBought' }, forceAfter: 25, pause: true, point: '#btn-buy-archer' },
+      { id: 'camera', line: 'tut_p0_camera', speaker: 'Garrow', trigger: { k: 'delay', t: 3 }, pause: true, point: '#snap-far' },
+      { id: 'miners', line: 'tut_p0_miners', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 3 }, pause: true, point: '#btn-buy-worker' },
+      { id: 'zones', line: 'tut_p0_zones', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 1 }, pause: true, point: '#node-mid' },
+      { id: 'turret', line: 'tut_p0_turret', speaker: 'Garrow', trigger: { k: 'delay', t: 4 }, pause: true, point: '#btn-buy-turret' },
+      { id: 'lantern', line: 'tut_p0_lantern', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'lanternLit' }, forceAfter: 60, pause: 'slow' },
+      { id: 'stats', line: 'tut_p0_stats', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 4 }, pause: 'slow' }
+    ] },
+    M01: { steps: [
+      { id: 'miners', line: 'tut_m01_miners', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 4 }, pause: true, point: { unit: 'worker', team: 'blue' } },
+      { id: 'attack', line: 'tut_m01_attack', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'workerHit' }, forceAfter: 20, force: { k: 'attackMiner' }, pause: 'slow', point: { unit: 'worker', team: 'blue', hit: true } },
+      { id: 'why', line: 'tut_m01_why', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 0.3 }, pause: true, point: '#node-safe' },
+      { id: 'advance', line: 'tut_m01_advance', speaker: 'Garrow', voiced: true, trigger: { k: 'cond', c: 'pushing', v: 60 }, forceAfter: 40, pause: true, point: '#node-far' },
+      { id: 'retreat', line: 'tut_m01_retreat', speaker: 'Garrow', voiced: true, trigger: { k: 'cond', c: 'pushedBack', v: 90 }, forceAfter: 45, force: { k: 'enemyPush', n: 3 }, pause: true, point: '#node-mid' },
+      { id: 'killed', line: 'tut_m01_killed', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'workerKilled' }, forceAfter: 40, force: { k: 'killMiner' }, pause: true, point: '#btn-buy-worker' }
+    ] },
+    M02: { steps: [
+      { id: 'pawns', line: 'tut_m02_pawns', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 4 }, pause: true, point: { unit: 'pawn', team: 'blue' } },
+      { id: 'archers', line: 'tut_m02_archers', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 1 }, pause: true, point: '#btn-buy-archer' },
+      { id: 'batch', line: 'tut_m02_batch', speaker: 'Garrow', trigger: { k: 'event', e: 'batched' }, forceAfter: 30, pause: true, point: '#btn-buy-archer' },
+      { id: 'combo', line: 'tut_m02_combo', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'comboHit' }, forceAfter: 45, pause: 'slow' },
+      { id: 'fieldguide', line: 'tut_m02_fieldguide', speaker: 'Garrow', trigger: { k: 'delay', t: 1 }, pause: false, point: '#btn-pause' }
+    ] },
+    M03: { steps: [
+      { id: 'wizard', line: 'tut_m03_wizard', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 4 }, pause: true, point: '#btn-buy-wizard' },
+      { id: 'wagon', line: 'tut_m03_wagon', speaker: 'Garrow', voiced: true, trigger: { k: 'cond', c: 'time', v: 20 }, pause: 'slow' },
+      { id: 'crowd', line: 'tut_m03_crowd', speaker: 'Garrow', trigger: { k: 'delay', t: 15 }, pause: 'slow' },
+      { id: 'cover', line: 'tut_m03_cover', speaker: 'Garrow', trigger: { k: 'delay', t: 20 }, pause: false }
+    ] },
+    M04: { steps: [
+      { id: 'brute', line: 'tut_m04_brute', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 4 }, pause: true, point: '#btn-buy-brute' },
+      { id: 'combo', line: 'tut_m04_combo', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'scorchHit' }, forceAfter: 40, pause: 'slow' },
+      { id: 'hero', line: 'tut_m04_hero', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 5 }, pause: true, point: '#btn-buy-hero' },   // Cut: #btn-hero
+      { id: 'fireline', line: 'tut_m04_fireline', speaker: 'Rufus', voiced: true, trigger: { k: 'event', e: 'firelineWarn' }, forceAfter: 30, pause: 'slow' },
+      { id: 'hold', line: 'tut_m04_hold', speaker: 'Garrow', trigger: { k: 'delay', t: 10 }, pause: false }
+    ] },
+    M05: { steps: [
+      { id: 'pads', line: 'tut_m05_pads', speaker: 'Rufus', voiced: true, trigger: { k: 'time', t: 3 }, pause: true, point: { pad: 'blue' } },
+      { id: 'turret', line: 'tut_m05_turret', speaker: 'Farmer', voiced: true, trigger: { k: 'event', e: 'turretBuilt' }, forceAfter: 30, pause: 'slow', point: '#btn-buy-turret' },
+      { id: 'limits', line: 'tut_m05_limits', speaker: 'Vesper', voiced: true, trigger: { k: 'event', e: 'turretDown' }, forceAfter: 90, pause: true }
+    ] },
+    M06: { steps: [
+      { id: 'guide', line: 'tut_m06_guide', speaker: 'Vesper', trigger: { k: 'time', t: 5 }, pause: false, point: '#btn-pause' },
+      { id: 'freed', line: 'tut_m06_freed', speaker: 'Rufus', voiced: true, trigger: { k: 'event', e: 'cageFreed' }, pause: true },
+      { id: 'counter', line: 'tut_m06_counter', speaker: 'Rufus', trigger: { k: 'cond', c: 'pushedBack', v: 90 }, forceAfter: 120, pause: false }
+    ] },
+    M07: { steps: [
+      { id: 'shield', line: 'tut_m07_shield', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 3 }, pause: true },
+      { id: 'phase2', line: 'tut_m07_phase2', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'bossPhase2' }, pause: 'slow' },
+      { id: 'phase3', line: 'tut_m07_phase3', speaker: 'Rufus', voiced: true, trigger: { k: 'event', e: 'bossPhase3' }, pause: 'slow' },
+      { id: 'splash', line: 'tut_m07_splash', speaker: 'Garrow', trigger: { k: 'cond', c: 'pushing', v: 60 }, pause: 'slow' }
+    ] }
+  };
+  S.heroLabel = k => k === 'cavalier' ? (won('M06') || (S.m && S.m.id === 'M06' && S.R && Object.values(S.R.obj).some(st => st.cages && st.cages.every(c => c.freed))) ? 'General Garrow' : 'Garrow\u2019s Outrider') : null;
+  S.TUT = TUT; const TUT_VO = S.TUT_VO = {};
+  const blueWorkers = () => state.units.filter(u => !u.dead && u.team === 'blue' && u.type === 'worker');
+  const lineFrac = () => { const y = calculateBattlelineY(), b = state.cores.blue.y, r = state.cores.red.y; return (b - y) / (b - r); };   // 0 = at our nexus, 1 = at theirs
+  const EV = {   // polled each frame; the first true starts the step
+    workerHit: () => S.T.workerHit,
+    unitBought: () => (state.blueCadence.archers + state.blueCadence.wizards + state.blueCadence.brutes) > 0,
+    batched: () => Math.max(state.blueCadence.archers, state.blueCadence.wizards, state.blueCadence.brutes) >= 2,
+    turretBuilt: () => state.turretPads.some(p => p.team === 'blue' && p.turret && !p.turret.dead),
+    workerKilled: () => S.T.workerKilled,
+    comboHit: () => !!(S.R && S.R.tComboHit), scorchHit: () => !!(S.R && S.R.tScorchHit),
+    lanternLit: () => Object.values(S.R.obj).some(st => st.lit && st.lit.some(Boolean)),
+    cageFreed: () => Object.values(S.R.obj).some(st => st.cages && st.cages.some(c => c.freed)),
+    bossPhase2: () => (S.R.phase || 0) >= 2, bossPhase3: () => (S.R.phase || 0) >= 3,
+    turretDown: () => S.R.turretsLost > 0,
+    heroDeployed: () => state.units.some(u => !u.dead && u.team === 'blue' && u.type === 'cavalier'),
+    firelineWarn: () => (S.R.hazards || []).some(h => h && h.lines.some(l => l.warn > 0)),
+    farZone: () => { const b = $('node-far'); return !!b && b.getAttribute('aria-pressed') === 'true'; }
+  };
+  const COND = {   // {k:'cond', c, v}
+    gold: v => state.blueGold >= v, workers: v => blueWorkers().length >= v, time: v => S.R.t >= v,
+    pushing: v => lineFrac() > 0.55 && S.R.t >= (v || 0), pushedBack: v => lineFrac() < 0.42 && S.R.t >= (v || 0),
+    event: v => !!(EV[v] && EV[v]())
+  };
+  const FORCE = {
+    attackMiner() {   // spawn one enemy pawn right next to the miner that is farthest up the lane
+      const ws = blueWorkers().sort((a, b) => a.y - b.y); let w = ws[0];
+      if (!w) { spawnWorker('blue', 'MID'); return; }
+      const u = spawnUnit('pawn', 'red', 'C', 0); u.x = w.x + 18; u.y = w.y - 50; u.tutForced = true;
+    },
+    enemyPush(f) { for (let i = 0; i < (f.n || 3); i++) { const u = spawnUnit('pawn', 'red', 'C', 0); u.y += i * 12; u.tutForced = true; } },
+    killMiner() {   // a forced miner death: one enemy pawn finishes the farthest miner
+      const w = blueWorkers().sort((a, b) => a.y - b.y)[0]; if (!w) return;
+      const u = spawnUnit('pawn', 'red', 'C', 0); u.x = w.x + 18; u.y = w.y - 30; u.tutForced = true; dealDamage(w, w.hp + 1, u, 'physical');
+    },
+    spawnWorker() { spawnWorker('blue', 'MID'); },
+    camera(f) { const b = $('snap-' + (f.v || 'mid')); if (b) b.click(); }
+  };
+  S.tutForce = FORCE; S.tutEvents = EV; S.tutConds = COND;
+  // On unless the player switched it off; a replay of a mission already won always runs with tutorials OFF.
+  const tipsOn = () => !(typeof SETTINGS !== 'undefined' && SETTINGS.tutTips === false);
+  S.tipsOn = tipsOn;
+  S.setTips = on => { SETTINGS.tutTips = !!on; try { localStorage.setItem('rb-settings', JSON.stringify(SETTINGS)); } catch (e) {} };
+  function tutStart(m) {
+    const replay = won(m.id), data = m.tutorial === false ? null : (m.tutorial || TUT[m.id]);
+    S.T = { on: tipsOn() && !replay && !!data, tipsOn: tipsOn(), replay, steps: data ? data.steps : [], i: 0, since: 0, forced: false, workerHit: false, box: false, log: [] };
+  }
+  function tutTick(dt) {
+    const T = S.T; if (!T) return;
+    const ws = blueWorkers();
+    if (!T.workerHit && ws.some(w => w.workerState === 'FLEEING')) T.workerHit = true;
+    if (T.wk && T.wk.some(w => w.dead || !state.units.includes(w))) T.workerKilled = true;
+    T.wk = ws;
+    if (T.tipsOn) firstTips();
+    if (!T.on || T.box || T.i >= T.steps.length) return;
+    const st = T.steps[T.i], tr = st.trigger || { k: 'delay', t: 0 }; T.since += dt;
+    let go = tr.k === 'time' ? S.R.t >= tr.t : tr.k === 'delay' ? T.since >= tr.t : tr.k === 'event' ? !!(EV[tr.e] && EV[tr.e]()) : tr.k === 'cond' ? !!(COND[tr.c] && COND[tr.c](tr.v)) : true;
+    if (!go && st.forceAfter != null && T.since >= st.forceAfter && !T.forced) { T.forced = true; if (st.force && FORCE[st.force.k]) FORCE[st.force.k](st.force); else go = !st.force; T.log.push('force:' + st.id); }
+    if (!go && T.since >= (st.forceAfter != null ? st.forceAfter + 20 : 1e9)) go = true;   // safety: never stall the script
+    if (go) showStep(st);
+  }
+  function unitPoint(p) {
+    const list = p.at ? [p.at] : state.units.filter(u => !u.dead && u.type === p.unit && (!p.team || u.team === p.team) && (!p.hit || u.workerState === 'FLEEING'));
+    const u = list.sort((a, b) => a.y - b.y)[0] || state.units.find(u => !u.dead && u.type === p.unit); if (!u) return null;
+    const c = document.getElementById('gameCanvas'), rc = c.getBoundingClientRect(), s = rc.width / WORLD_W;
+    const vh = rc.height / s; state.targetCameraY = state.cameraY = Math.max(0, Math.min(WORLD_H - vh, (isFlipped() ? WORLD_H - u.y : u.y) - vh / 2)); try { render(); } catch (e) {}
+    const wx = isFlipped() ? WORLD_W - u.x : u.x, wy = isFlipped() ? WORLD_H - u.y : u.y;
+    const x = rc.left + wx * s, y = rc.top + (wy - state.cameraY) * s; return { left: x - 28, top: y - 28, width: 56, height: 56 };
+  }
+  function showStep(st) {
+    const T = S.T; T.box = true;
+    const prevSpeed = state.timeSpeed;
+    if (st.pause === 'slow') state.timeSpeed = 0.25; else if (st.pause !== false) state.paused = true;
+    T.log.push(st.id);
+    let r = null;
+    if (typeof st.point === 'string') { const e = document.querySelector(st.point); if (e) r = e.getBoundingClientRect(); }
+    else if (st.point && st.point.unit) r = unitPoint(st.point);
+    else if (st.point && st.point.pad) { const pd = state.turretPads.find(p => p.team === st.point.pad); if (pd) r = unitPoint({ at: pd }); }
+    else if (st.point && st.point.node) { const e = $('node-' + st.point.node.toLowerCase()); if (e) r = e.getBoundingClientRect(); }
+    let vo = null;   // voice hook: Cut's <lineId>.m4a in assets/vo/, enabled per id via Story.TUT_VO[lineId] = true (or 'file.m4a')
+    if (st.voiced && TUT_VO[st.line] && !S.voMuted()) { try { vo = new Audio('assets/vo/' + (typeof TUT_VO[st.line] === 'string' ? TUT_VO[st.line] : st.line + '.m4a')); vo.play().catch(() => {}); } catch (e) {} }
+    tipBox(st.speaker || 'Garrow', line(st.line), r, st.id, () => { if (vo) vo.pause();
+      if (st.pause === 'slow') state.timeSpeed = prevSpeed; else if (st.pause !== false) state.paused = false;
+      T.box = false; T.i++; T.since = 0; T.forced = false;
+    });
+  }
+  // dialogue/tip box under the safe area; ring + dim around the pointed element; tap anywhere to resume
+  function tipBox(who, text, r, id, done) {
+    let el = $('rb-tut'); if (!el) { el = document.createElement('div'); el.id = 'rb-tut'; el.className = 'fixed inset-0 z-[75]'; document.body.appendChild(el); }
+    const ring = r ? `<div id="rb-tut-ring" class="absolute rounded-xl border-4 border-amber-300 pointer-events-none" style="left:${r.left - 6}px;top:${r.top - 6}px;width:${r.width + 12}px;height:${r.height + 12}px;box-shadow:0 0 0 9999px rgba(0,0,0,.5);animation:rbtut 1s ease-in-out infinite"></div>
+      <div class="absolute pointer-events-none text-3xl" style="left:${r.left + r.width / 2 - 12}px;top:${r.top + r.height + 6}px;animation:rbtut 1s infinite">\u261D\uFE0F</div>` : '<div class="absolute inset-0 bg-black/45"></div>';
+    const low = r && r.top < window.innerHeight * 0.45;
+    el.innerHTML = ring + `<div data-tut="${esc(id)}" class="absolute left-1/2 -translate-x-1/2 w-[92%] max-w-sm flex gap-2 items-start bg-white text-slate-900 rounded-2xl border-[3px] border-slate-900 shadow-2xl p-2" style="${low ? 'bottom:calc(var(--sab, 0px) + 150px)' : 'top:calc(var(--sat, 0px) + 64px)'}">
+      <div class="shrink-0 flex flex-col items-center">${portraitHtml(who, 52)}<div class="mt-0.5 px-1.5 rounded bg-amber-400 text-[9px] font-black uppercase">${esc(who)}</div></div>
+      <div class="flex-1 text-[13px] font-bold leading-snug">${esc(text)}<div class="text-right text-[10px] text-slate-500 font-black mt-1">tap to continue \u25B6</div></div></div>
+      <style>@keyframes rbtut{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}</style>`;
+    el.classList.remove('hidden');
+    setTimeout(() => { el.onclick = e => { e.stopPropagation(); el.onclick = null; el.classList.add('hidden'); el.innerHTML = ''; done(); }; }, 250);
+  }
+  // first-time tips: one line the first time each unit type shows up on the field; stored in SAVE.seen ('tip:type')
+  const TIP_TYPES = ['pawn', 'archer', 'wizard', 'brute', 'worker', 'cavalier'];
+  function firstTips() {
+    const T = S.T; if ((T.tipT = (T.tipT || 0) - 1) > 0) return; T.tipT = 20;
+    let k = null;
+    for (const t of TIP_TYPES) if (!SAVE.seen.includes('tip:' + t) && state.units.some(u => !u.dead && u.type === t && !u.story)) { k = t; break; }
+    if (!k && !SAVE.seen.includes('tip:turret') && state.turretPads.some(p => p.turret && !p.turret.dead)) k = 'turret';
+    if (!k) return;
+    SAVE.seen.push('tip:' + k); persist(); (T.tips = T.tips || []).push(k);
+    let el = $('rb-tip'); if (!el) { el = document.createElement('div'); el.id = 'rb-tip'; el.className = 'fixed left-1/2 -translate-x-1/2 z-[61] pointer-events-none w-[86%] max-w-sm'; el.style.top = 'calc(var(--sat, 0px) + 168px)'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="rounded-xl bg-slate-900/90 border border-amber-400 text-amber-100 text-[12px] font-bold px-3 py-1.5 text-center shadow-xl">\u{1F4A1} ${esc(line('tip_' + k))}</div>`;
+    el.classList.remove('hidden'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add('hidden'), 4500);
+  }
+  S.tutStart = tutStart; S.tutTick = tutTick;
+  S.tutStop = () => { const T = S.T; if (T && T.box) { state.paused = false; } ['rb-tut', 'rb-tip'].forEach(i => { const e = $(i); if (e) { e.classList.add('hidden'); e.innerHTML = ''; } }); S.lastT = T; S.T = null; };
+
+  // ---- Field Guide + Mission guide (Options and the in-match menu)
+  const GUIDE = [
+    ['Units', [['\u{1F5E1}', 'Pawn', 'fg_pawn'], ['\u{1F3F9}', 'Archer', 'fg_archer'], ['\u{1F52E}', 'Wizard', 'fg_wizard'], ['\u{1F4AA}', 'Brute', 'fg_brute'], ['\u26CF', 'Worker', 'fg_worker'], ['\u{1F40E}', 'Hero', 'fg_hero']]],
+    ['Combo pairs', [['\u{1F5E1}+\u{1F3F9}', 'Pawn + Archer', 'fg_combo_pawn_archer'], ['\u{1F52E}+\u{1F4AA}', 'Wizard + Brute', 'fg_combo_wizard_brute']]],
+    ['Turrets', [['\u{1F3F0}', 'Turret', 'fg_turret']]],
+    ['Tug-of-war bar', [['\u2195', 'The bar', 'fg_bar'], ['\u2022', 'Bar symbols', 'fg_bar_symbols']]],
+    ['Controls', [['2x', 'Game speed', 'fg_ctl_speed'], ['\u2630', 'Menu / pause', 'fg_ctl_menu'], ['\u{1F3A5}', 'Camera Far / Mid / Home', 'fg_ctl_camera'], ['\u26CF', 'Mine zones', 'fg_ctl_zones'], ['\u00D7N', 'Batching', 'fg_ctl_batch']]]
+  ];
+  S.GUIDE = GUIDE;
+  function overlay(id, title, html) {
+    let el = $(id); if (!el) { el = document.createElement('div'); el.id = id; el.className = 'fixed inset-0 z-[90] bg-black/90 flex flex-col items-center p-4 overflow-y-auto'; document.body.appendChild(el); }
+    el.style.paddingTop = 'calc(var(--sat, 0px) + 16px)'; el.style.paddingBottom = 'calc(var(--sab, 0px) + 16px)';
+    el.innerHTML = `<div class="w-full max-w-sm"><h2 class="text-xl font-black text-amber-300 uppercase tracking-wider text-center mb-2">${title}</h2>${html}
+      <button data-close class="w-full mt-3 py-3 rounded-xl bg-amber-500 text-slate-950 font-black text-sm uppercase">Close</button></div>`;
+    el.classList.remove('hidden'); el.querySelector('[data-close]').onclick = () => el.classList.add('hidden');
+    return el;
+  }
+  S.openGuide = () => overlay('rb-guide', '\u{1F4D6} Field Guide', GUIDE.map(([h, rows]) => `<div class="text-[11px] font-black text-slate-300 uppercase mt-2 mb-1">${h}</div>` + rows.map(([ic, nm, lid]) =>
+    `<div data-line="${lid}" class="flex gap-2 items-start rounded-lg bg-slate-800/90 border border-slate-700 p-2 mb-1"><div class="w-9 shrink-0 text-center text-lg">${ic}</div><div class="text-[12px] text-slate-100 leading-snug"><b class="text-amber-200">${nm}</b><br>${esc(line(lid))}</div></div>`).join('')).join(''));
+  S.openMissionGuide = () => {
+    const m = S.m; if (!m) return;
+    const g = m.guide || {}, goal = g.goal ? line(g.goal) : m.brief, hints = g.hints ? g.hints.map(line) : (m.tips || []);
+    overlay('rb-mguide', '\u{1F3AF} Mission guide', `<div class="rounded-xl bg-slate-800/90 border border-slate-700 p-3 text-left"><div class="text-amber-200 font-black text-sm">${esc(m.name)}</div>
+      <div class="text-[12px] text-slate-100 mt-1">${esc(goal)}</div>${hints.length ? '<ul class="mt-2 text-[11px] text-slate-300 list-disc pl-4">' + hints.map(h => `<li>${esc(h)}</li>`).join('') + '</ul>' : ''}
+      <div class="text-[10px] text-slate-400 mt-2">Stars: ${m.stars.map(esc).join(' \u00B7 ')}</div></div>`);
+  };
+  S.menuExtras = () => `<div class="grid grid-cols-2 gap-2"><button id="pm-guide" class="w-full py-3 rounded-xl font-black text-xs uppercase bg-slate-800 text-slate-100 active:scale-95">\u{1F4D6} Field Guide</button>` +
+    (S.active && S.m ? `<button id="pm-mission" class="w-full py-3 rounded-xl font-black text-xs uppercase bg-slate-800 text-slate-100 active:scale-95">\u{1F3AF} Mission guide</button>` : '') + '</div>';
+  S.bindMenu = () => { const a = $('pm-guide'), b = $('pm-mission'); if (a) a.onclick = S.openGuide; if (b) b.onclick = S.openMissionGuide; };
+  function injectTutOptions() {
+    const done = $('settings-done'); if (!done || $('set-tut-row')) return;
+    const row = document.createElement('div'); row.id = 'set-tut-row'; row.className = 'w-full max-w-xs mt-3 grid grid-cols-2 gap-2 shrink-0';
+    row.innerHTML = `<button id="set-tut" class="py-3 rounded-xl border-2 border-slate-600 font-black text-[11px] uppercase text-slate-100"></button><button id="set-guide" class="py-3 rounded-xl bg-slate-700 font-black text-[11px] uppercase text-slate-100">\u{1F4D6} Field Guide</button>
+      <p class="col-span-2 text-[10px] text-slate-400 leading-snug">Tutorial tips: staged lessons in Act 1 and first-time unit tips. Replays of missions you already won always skip the lessons.</p>`;
+    done.before(row);
+    const paint = () => { const b = $('set-tut'), on = tipsOn(); b.textContent = 'Tutorial tips: ' + (on ? 'On' : 'Off'); b.classList.toggle('bg-amber-500', on); b.classList.toggle('text-slate-950', on); b.classList.toggle('bg-slate-900', !on); };
+    $('set-tut').onclick = () => { S.setTips(!tipsOn()); paint(); }; $('set-guide').onclick = S.openGuide; paint();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(injectTutOptions, 50)); else setTimeout(injectTutOptions, 50);
   S.save = () => SAVE; S.setDiff = d => { SAVE.diff = d; persist(); }; S.missions = M; S.regions = REGIONS; S.regionColor = regionColor; S.exportSave = exportSave; S.importSave = importSave;
   S.reset = () => { SAVE = freshSave(); persist(); };
   S.setSave = o => { SAVE = migrate(o); persist(); };

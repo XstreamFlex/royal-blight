@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v35.8</title>
+  <title>Royal Blight BETA v35.9</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -322,7 +322,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v35.8</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v35.9</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -3641,7 +3641,7 @@
       }
       {
         const mine = myTeam(), cad = mine === 'blue' ? state.blueCadence : state.redCadence;
-        { const hk = heroOf(mine), nm = HEROX[hk] ? HEROX[hk].name.split(' ').pop() : (hk === 'cavalier' ? 'Cavalier' : 'Acolyte'), el = document.getElementById('hero-name'); if (el.textContent !== nm) el.textContent = nm; }
+        { let hk = heroOf(mine), nm = HEROX[hk] ? HEROX[hk].name.split(' ').pop() : (hk === 'cavalier' ? 'Cavalier' : 'Acolyte'), el = document.getElementById('hero-name'); if (window.Story && Story.active && Story.heroLabel) nm = Story.heroLabel(hk) || nm; if (el.textContent !== nm) el.textContent = nm; }
         const badge = document.getElementById('hero-badge');
         if (cad.hero) {
           badge.textContent = heroAlive(mine) ? 'OWNED' : 'NEXT WAVE';
@@ -3982,6 +3982,7 @@
         ${mp ? '<p class="text-[11px] text-slate-300 -mt-1 mb-1">Two-phone match keeps running.</p>' : b('pm-resume', '\u25B6 Resume', 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950')}
         ${mp ? '' : b('pm-restart', '\u21BB Restart', 'bg-slate-700 text-slate-100')}
         <div class="grid grid-cols-2 gap-2">${b('pm-sfx', sound.muted ? '\u{1F507} SFX off' : '\u{1F50A} SFX on', 'bg-slate-800 text-slate-100 text-xs')}${b('pm-vo', vo ? '\u{1F5E3} Voices on' : '\u{1F507} Voices off', 'bg-slate-800 text-slate-100 text-xs')}</div><div class="flex items-center gap-2 mt-2">${b('pm-mus', (SETTINGS.musicOff ? '\u{1F507} Music off' : '\u{1F3B5} Music on'), 'bg-slate-800 text-slate-100 text-xs')}<input id="pm-musvol" type="range" min="0" max="1" step="0.05" value="${SETTINGS.musicVol == null ? 0.5 : SETTINGS.musicVol}" class="flex-1 accent-amber-500"></div>
+        ${window.Story && Story.menuExtras ? Story.menuExtras() : ''}
         ${b('pm-exit', mp ? 'Leave match' : (window.Story && Story.active ? 'Exit to map' : 'Exit to menu'), 'bg-rose-800 text-rose-50')}
         ${b('pm-save', '\u2B07 Download offline copy (.html)', 'bg-emerald-800 text-emerald-50 text-xs')}
         ${mp ? b('pm-close', 'Close', 'bg-slate-700 text-slate-100') : ''}</div>`;
@@ -4012,6 +4013,7 @@
         else { state.paused = false; initGame(); }
       };
       $p('pm-save').onclick = () => saveHTML();
+      if (window.Story && Story.bindMenu) Story.bindMenu();   // v35.9 Field Guide + Mission guide
       $p('pm-exit').onclick = () => {
         if (!confirm(mp ? 'Leave the match? This counts as a forfeit.' : 'Exit the match? You will get no reward.')) return;
         closePause(false);
@@ -4285,7 +4287,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v35.8';
+    window.APP_VERSION = 'v35.9';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

@@ -85,14 +85,14 @@
       brief: 'Felix\u2019s threat came true. Three days\u2019 ride east, at dawn. Felix\u2019s Green Army is burning the haystacks of Eastmarch. Garrow\u2019s troops hold the lane while you mine. Gold wins wars. Keep your miners alive.',
       // v36.4 miners-only: win by banking gold. Garrow's free pawn waves hold the lane; nexusFloor keeps the mission from being lost unfairly.
       objectives: [{ k: 'gold', target: M01_GOLD, solo: true }], noNexusWin: true, nexusFloor: 0.4, redFloor: 0.3, allies: { every: 20, units: ['archer', 'archer', 'brute'] }, stars: ['Bank the gold', 'Nexus above 50%', 'Win under 7:00 (par)'],
-      before: [['Vesper', 'He\u2019ll start with the western rows. He always does, Majesty. Trust me.'], ['Rufus', 'Felix planted half those rows himself. Why burn them?']],
+      before: [['Vesper', 'He\u2019ll start with the western rows, Majesty. His father did, in the border fires. I pulled the old war letters last night.'], ['Garrow', 'Aye. Burned west to east, with the wind behind him.'], ['Rufus', 'Felix planted half those rows himself. Why burn them?']],
       after: [['Rufus', 'Felix\u2026 the letter. Tell me someone forged it.'], ['Felix', 'I wrote every word.'], ['Rufus', 'Why? I forgave your tithe!'], ['Felix', 'In front of every king at that table. Like a beggar. Never again, Rufus.']], cut: ['ch1_m01_briefing', 'ch1_m01_red_eyes'] },
     M02: { region: 'eastmarch', allowedUnits: A1.M02, act: 1, name: 'Save the Harvest', type: 'EVAC', map: 'farmland', gold: 150, reward: ['G1', 'X1'], unlock: [],
       ai: { level: 'normal', strat: 'balanced', income: 0.6 },
       brief: 'Noon. Smoke over the rows. Farmers are running toward your lines with what they could carry. Bring them home; lose no more than 3. Pawns shield them, archers cover them.',
       objectives: [{ k: 'evac', count: 10, every: 8, lossMax: 3, fromY: 1180, name: 'Farmers' }], noNexusWin: true,
       stars: ['Evacuate the farmers', 'Lose at most 1 farmer', 'Lose zero farmers'],
-      before: [['Rufus', 'Farmers first. Fields can wait.'], ['Garrow', 'Fields can\u2019t run, Majesty. Farmers can. Cover them.']], after: [['Farmer', 'I\u2019m Tam. My shield\u2019s yours. The fire took the rest.'], ['Rufus', 'Then I\u2019ll carry it until you want it back.']], cut: ['ch1_m02_farmers'] },
+      before: [['Rufus', 'Farmers first. Fields can wait.'], ['Garrow', 'Fields can\u2019t run, Majesty. Farmers can. Cover them.']], after: [['Tam', 'I\u2019m Tam. My shield\u2019s yours. The fire took the rest.'], ['Rufus', 'Then I\u2019ll carry it until you want it back.']], cut: ['ch1_m02_farmers'] },
     M03: { region: 'eastmarch', allowedUnits: A1.M03, act: 1, name: 'Fire-Oil Wagons', type: 'INT', map: 'farmland', gold: 180, reward: ['G2', 'X1'], unlock: [],
       ai: { level: 'normal', strat: 'balanced', income: 0.7 },
       brief: 'Dusk. Garrow\u2019s outriders say the oil wagons come up the east road when the light goes. Eight are hauling fire-oil to Felix\u2019s archers. Stop at least 6. Wizard fire bursts wagons and anything bunched around them.',
@@ -111,13 +111,13 @@
       brief: 'Night wind from the east. Garrow rode out at first light and hasn\u2019t come back. The windmill on the ridge is Eastmarch\u2019s signal beacon. Hold it until the wind turns and the fire is lit.',
       objectives: [{ k: 'defend', zone: { y: 1460, h: 110, name: 'Windmill' }, secs: 240, maxEnemy: 25 }], hazards: [{ k: 'fireline', every: 22, warn: 2.2, dur: 3, dps: 10, h: 40, minY: 1250, maxY: 1700 }],
       noNexusWin: true, stars: ['Hold the windmill', 'Enemy holds it under 10s', 'Lose no turrets'],
-      before: [['Rufus', 'If the windmill burns, the whole valley starves.'], ['Vesper', 'And Garrow, Majesty?'], ['Rufus', 'Garrow can take care of himself. The mill can\u2019t.'], ['Vesper', 'The beacon is lit, Majesty. I\u2019ll make sure Paradale reads it.']], after: [['Farmer', 'Fire\u2019s out. Mill\u2019s still turning.'], ['Rufus', 'Good. Now let\u2019s find my general.']], cut: ['ch1_m05_windmill'] },
+      before: [['Rufus', 'If the windmill burns, the whole valley starves.'], ['Vesper', 'And Garrow, Majesty?'], ['Rufus', 'Garrow can take care of himself. The mill can\u2019t.']], after: [['Farmer', 'Fire\u2019s out. Mill\u2019s still turning.'], ['Rufus', 'Good. Now let\u2019s find my general.'], ['Vesper', 'The beacon is burning, Majesty. Paradale will see it by morning.']], cut: ['ch1_m05_windmill'] },
     M06: { region: 'eastmarch', allowedUnits: A1.M06, act: 1, name: 'The Cavalier\u2019s Charge', type: 'RSC', map: 'farmland', gold: 220, reward: ['G2', 'X2'], unlock: [],
       ai: { level: 'normal', strat: 'pulse', income: 1.0 },
       brief: 'Day four. As usual, General Garrow rode ahead to scout Felix\u2019s camp. He didn\u2019t ride back. Push to his jail-wagon, free him, then break the nexus.',
       objectives: [{ k: 'rescue', cages: [{ y: 760, hero: true, name: 'General Garrow' }] }, { k: 'nexus' }],
       stars: ['Win', 'Free Garrow', 'The Cavalier lands 3 jousts'],
-      before: [['Vesper', 'Garrow always did ride too far ahead.'], ['Rufus', 'So nobody else has to.'], ['Vesper', 'I\u2019d trust him with my life.']], after: [['Garrow', 'I meant to get captured. Tactically. \u2026Mostly.'], ['Garrow', 'He\u2019s right. I went alone. Somebody told me Felix wanted to talk.'], ['Garrow', 'Felix cries in his tent. Every night. Holds that amulet like it\u2019s choking him.']], cut: ['ch1_m06_garrow'] },
+      before: [['Vesper', 'Garrow always did ride too far ahead.'], ['Rufus', 'So nobody else has to.'], ['Vesper', 'I\u2019d trust him with my life.']], after: [['Garrow', 'I meant to get captured. Tactically. \u2026Mostly.'], ['Garrow', 'I went alone. One of Felix\u2019s own riders swore he wanted to talk. I believed him.'], ['Garrow', 'Felix cries in his tent. Every night. Holds that amulet like it\u2019s choking him.']], cut: ['ch1_m06_garrow'] },
     M07: { region: 'eastmarch', allowedUnits: A1.M07, act: 1, name: 'BOSS: The Scorched King', type: 'BOSS + CUR', map: 'farmland', gold: 260, reward: ['G3', 'X2'], unlock: ['region:eastmarch', 'pawn:shield', 'army:green', 'archer:flame'], final: true,
       ai: { level: 'normal', strat: 'balanced', income: 1.1 },
       brief: 'The fourth night. Felix takes the field himself. His nexus is shielded while he stands; break him three times as he falls back to his fortress. Free him. Don\u2019t kill him.',
@@ -125,8 +125,8 @@
       boss: { hp: 1000, atk: 30, range: 170, interval: 1.2, speed: 24, y: 300 },
       stars: ['Defeat Felix', 'Nexus above 50%', 'Nexus never below 75%'],
       before: [['Felix', 'You want my fields? Come and take the ashes.'], ['Rufus', 'I don\u2019t want your fields, Felix. I want my friend.']],
-      after: [['Felix', 'Rufus\u2026 I wrote it. I meant it, while I wrote it. And I burned everything.'], ['Rufus', 'Fields grow back. You\u2019re home now.'], ['Vesper', 'How\u2026 touching.'], ['Garrow', 'I\u2019ll send word to the Loft. They can pin Eastmarch green.'], ['Felix', 'Send a bird home for me, Chancellor.'], ['Vesper', 'Of course.']],
-      cut: ['ch1_m07_apology', 'ch1_m07_cold_smile'] }
+      after: [['Felix', 'Rufus\u2026 I wrote it. I meant it, while I wrote it. And I burned everything.'], ['Rufus', 'Fields grow back. You\u2019re home now.'], ['Vesper', 'He\u2019s home, Majesty. You brought him home.'], ['Garrow', 'I\u2019ll send word to the Loft. They can pin Eastmarch green.'], ['Felix', 'Send a bird home for me, Chancellor.'], ['Vesper', 'Tonight, Your Majesty. First bird out.']],
+      cut: ['ch1_m07_apology', 'ch1_m07_cliffhanger'] }
   };
   Object.entries(M).forEach(([id, m]) => { m.id = id; });
 
@@ -762,10 +762,12 @@
     felix_flee: ['Felix', 'Not yet! Back to the walls!'],
   };
   S.BARKS = BARKS;
-  const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', '???': 'mystery' };
-  const LEFT = { Rufus: 1, Ruphene: 1, Garrow: 1, Pip: 1, Farmer: 1, Vesper: 1 };
+  const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', Tam: 'tam', Glade: 'glade', '???': 'mystery' };
+  let felixAfter = false;   // v36.6: Felix wears felix_tainted until his M07 apology (M07 after-dialogue / apology cutscene) or once M07 is cleared
+  const felixPortrait = () => (felixAfter || (SAVE && SAVE.missions && SAVE.missions.M07 && SAVE.missions.M07.wins > 0)) ? 'felix' : 'felix_tainted';
+  const LEFT = { Rufus: 1, Ruphene: 1, Garrow: 1, Pip: 1, Farmer: 1, Tam: 1, Vesper: 1 };
   let VO = null, voAudio = null;
-  const VO_LINE = {"P0_b0": "p0_ruphene_01.m4a?fc4d0b", "P0_b1": "p0_rufus_01.m4a?b00906", "P0_b2": "p0_ruphene_02.m4a?f9a5a8", "P0_b3": "p0_vesper_02.m4a?c5df9a", "P0_b4": "p0_garrow_01.m4a?88faaa", "P0_b5": "p0_garrow_02.m4a?601911", "bark_lantern": "p0_ruphene_03.m4a?58913c", "bark_lantern_2": "p0_ruphene_04.m4a?5f445f", "bark_lantern_3": "p0_ruphene_05.m4a?14f3fc", "P0_a0": "p0_vesper_03.m4a?3b1b70", "P0_a1": "p0_rufus_02.m4a?cda406", "prologue_lanterns_l0": "p0_storyteller_04.m4a?ac5ed3", "prologue_lanterns_l1": "p0_tobb_01.m4a?90bc3b", "prologue_lanterns_l2": "p0_vesper_01.m4a?d2dc22", "prologue_lanterns_l3": "p0_tobb_02.m4a?392171", "M01_b0": "m01_vesper_02.m4a?dc7c41", "M01_b1": "m01_rufus_01.m4a?f2cb1e", "M01_a0": "m01_rufus_02.m4a?f8e5fa", "M01_a1": "m01_felix_01.m4a?ec7bb8", "M01_a2": "m01_rufus_03.m4a?79254d", "M01_a3": "m01_felix_02.m4a?e9036e", "M02_b0": "m02_rufus_02.m4a?b63d96", "M02_b1": "m02_garrow_02.m4a?dfa0bd", "M02_a0": "m02_farmer_01.m4a?f14da3", "M02_a1": "m02_rufus_03.m4a?8ff55a", "M03_b0": "m03_garrow_01.m4a?d40200", "bark_wagon_in": "m03_felix_01.m4a?d03507", "M03_a0": "m03_rufus_01.m4a?15b168", "M03_a1": "m03_garrow_02.m4a?8f7f67", "M04_b0": "m04_garrow_01.m4a?b65354", "M04_b1": "m04_vesper_01.m4a?036eac", "M04_b2": "m04_garrow_02.m4a?970c80", "bark_farm_won": "m04_farmer_01.m4a?f6ae59", "bark_farm_lost": "m04_farmer_02.m4a?e3d457", "bark_guard_down": "m04_garrow_03.m4a?7f45d2", "M04_a0": "m04_rufus_01.m4a?e4bf19", "M05_b0": "m05_rufus_02.m4a?d7cc80", "M05_b1": "m05_vesper_01.m4a?72fcff", "M05_b2": "m05_rufus_03.m4a?154949", "M05_a0": "m05_farmer_01.m4a?44faa6", "M05_a1": "m05_rufus_04.m4a?3aaffb", "M06_b0": "m06_vesper_01.m4a?7a0dbd", "M06_b1": "m06_rufus_01.m4a?8a2396", "M06_b2": "m06_vesper_02.m4a?9e1e44", "bark_freed": "m06_garrow_01.m4a?9edeee", "M06_a0": "m06_garrow_02.m4a?2855bd", "M06_a1": "m06_garrow_03.m4a?9d5470", "M07_b0": "m07_felix_01.m4a?f3dce6", "M07_b1": "m07_rufus_01.m4a?f20ea0", "bark_phase2": "m07_felix_02.m4a?679afe", "bark_phase3": "m07_felix_03.m4a?047a84", "bark_felix_down": "m07_felix_04.m4a?dd7614", "bark_felix_flee": "m07_felix_05.m4a?9fd59e", "M07_a0": "m07_felix_06.m4a?1d34f8", "M07_a1": "m07_rufus_02.m4a?2c6d1b", "M07_a2": "m07_vesper_01.m4a?9e6322", "M07_a3": "m07_garrow_01.m4a?5445f0", "M07_a4": "m07_felix_07.m4a?4d38dc", "M07_a5": "m07_vesper_02.m4a?1b09e9", "bark_reinf": "ch1_global_ruphene_01.m4a?bb0ab0"};
+  const VO_LINE = {"P0_b0": "p0_ruphene_01.m4a?fc4d0b", "P0_b1": "p0_rufus_01.m4a?b00906", "P0_b2": "p0_ruphene_02.m4a?f9a5a8", "P0_b3": "p0_vesper_02.m4a?2d210a", "P0_b4": "p0_garrow_01.m4a?7e7925", "P0_b5": "p0_garrow_02.m4a?601911", "bark_lantern": "p0_ruphene_03.m4a?d3bbc6", "bark_lantern_2": "p0_ruphene_04.m4a?5f445f", "bark_lantern_3": "p0_ruphene_05.m4a?411c5b", "P0_a0": "p0_vesper_03.m4a?0f41b4", "P0_a1": "p0_rufus_02.m4a?cda406", "prologue_lanterns_l0": "p0_storyteller_04.m4a?051159", "prologue_lanterns_l1": "p0_tobb_01.m4a?90bc3b", "prologue_lanterns_l2": "p0_vesper_01.m4a?f5b24a", "prologue_lanterns_l3": "p0_tobb_02.m4a?392171", "M01_b0": "m01_vesper_01.m4a?050bb5", "M01_b1": "m01_garrow_brief.m4a?4f3991", "M01_a0": "m01_rufus_02.m4a?f8fc22", "M01_a1": "m01_felix_01.m4a?ec7bb8", "M01_a2": "m01_rufus_03.m4a?79254d", "M01_a3": "m01_felix_02.m4a?e9036e", "M02_b0": "m02_rufus_02.m4a?b63d96", "M02_b1": "m02_garrow_02.m4a?dfa0bd", "M02_a0": "m02_farmer_01.m4a?f14da3", "M02_a1": "m02_rufus_03.m4a?8ff55a", "M03_b0": "m03_garrow_01.m4a?d40200", "bark_wagon_in": "m03_felix_01.m4a?63707a", "M03_a0": "m03_rufus_01.m4a?15b168", "M03_a1": "m03_garrow_02.m4a?8f7f67", "M04_b0": "m04_garrow_01.m4a?b65354", "M04_b1": "m04_vesper_01.m4a?521a91", "M04_b2": "m04_garrow_02.m4a?970c80", "bark_farm_won": "m04_farmer_01.m4a?f6ae59", "bark_farm_lost": "m04_farmer_02.m4a?e3d457", "bark_guard_down": "m04_garrow_03.m4a?7f45d2", "M04_a0": "m04_rufus_01.m4a?e4bf19", "M05_b0": "m05_rufus_02.m4a?d7cc80", "M05_b1": "m05_vesper_01.m4a?7307f9", "M05_b2": "m05_rufus_03.m4a?154949", "M05_a0": "m05_farmer_01.m4a?44faa6", "M05_a1": "m05_rufus_04.m4a?3aaffb", "M06_b0": "m06_vesper_01.m4a?02e150", "M06_b1": "m06_rufus_01.m4a?bba3c8", "M06_b2": "m06_vesper_02.m4a?1d8689", "bark_freed": "m06_garrow_01.m4a?9edeee", "M06_a0": "m06_garrow_02.m4a?2855bd", "M06_a1": "ch1_m06_garrow_somebody.m4a?637301", "M07_b0": "m07_felix_01.m4a?f3dce6", "M07_b1": "m07_rufus_01.m4a?f20ea0", "bark_phase2": "m07_felix_02.m4a?679afe", "bark_phase3": "m07_felix_03.m4a?047a84", "bark_felix_down": "m07_felix_04.m4a?dd7614", "bark_felix_flee": "m07_felix_05.m4a?7bd2cb", "M07_a0": "m07_felix_06.m4a?1d34f8", "M07_a1": "m07_rufus_02.m4a?2c6d1b", "M07_a2": "m07_vesper_01.m4a?7b3884", "M07_a3": "m07_garrow_01.m4a?5445f0", "M07_a4": "m07_felix_07.m4a?4d38dc", "M07_a5": "m07_vesper_02.m4a?d07eeb", "bark_reinf": "ch1_global_ruphene_01.m4a?bb0ab0", "M01_b2": "m01_rufus_01.m4a?f2cb1e", "M05_a2": "ch1_m05_vesper_beacon.m4a?8979d2", "M06_a2": "m06_garrow_03.m4a?9d5470", "ch1_m07_apology_l0": "m07_rufus_03.m4a?8a49ca"};
   fetch('assets/vo/index.json').then(r => r.json()).then(j => VO = j).catch(() => {});
   S.voMuted = () => localStorage.getItem('rb.voMute') === '1';
   S.setVoMute = m => { localStorage.setItem('rb.voMute', m ? '1' : '0'); if (m && voAudio) voAudio.pause(); };
@@ -777,11 +779,12 @@
     try { voAudio = new Audio('assets/vo/' + (fx || key + '.m4a?' + VO[key].h)); voAudio.volume = 0.95; voAudio.play().catch(() => {}); } catch (e) { voAudio = null; }
     return voAudio;
   }
-  const portraitHtml = (who, size) => { const p = PORTRAIT[who];
+  const portraitHtml = (who, size) => { const p = who === 'Felix' ? felixPortrait() : PORTRAIT[who];
     return p ? `<img src="assets/portraits/${p}.webp" alt="${esc(who)}" style="width:${size}px;height:${size}px" class="rounded-2xl bg-gradient-to-b from-sky-700 to-slate-900 border-[3px] border-amber-300 shadow-xl object-contain">`
              : `<div style="width:${size}px;height:${size}px" class="rounded-2xl bg-slate-800 border-[3px] border-amber-300 shadow-xl flex items-center justify-center text-4xl">\u{1F4DC}</div>`; };
   // full-screen dialogue: tap to advance, Skip, mute toggle. prefix = mission id + '_b' / '_a'
   S.dialogue = function (lines, prefix) {
+    felixAfter = prefix === 'M07_a' || prefix === 'ch1_m07_apology_l';   // redemption point: M07 after-dialogue ("Rufus… I wrote it") / apology cutscene
     lines = (lines || []).filter(l => l && l[1]);
     if (!lines.length) return Promise.resolve();
     let el = $('rb-dialogue');
@@ -843,17 +846,20 @@
     ['ch1_m01_briefing', 'M01', 'start', 'Smoke on the Horizon'], ['ch1_m01_red_eyes', 'M01', 'end', 'Red Eyes'],
     ['ch1_m02_farmers', 'M02', 'start', 'Save the Harvest'], ['ch1_m03_wagons', 'M03', 'start', 'Fire-Oil Wagons'],
     ['ch1_m04_fields_reclaimed', 'M04', 'end', 'Fields Reclaimed'], ['ch1_m05_windmill', 'M05', 'start', 'The Windmill'],
-    ['ch1_m06_garrow', 'M06', 'end', 'Garrow Rides Again'], ['ch1_m07_apology', 'M07', 'end', "Felix's Apology"], ['ch1_m07_cold_smile', 'M07', 'end', 'A Cold Smile']
+    ['ch1_m06_garrow', 'M06', 'end', 'Garrow Rides Again'], ['ch1_m07_apology', 'M07', 'end', "Felix's Apology"], ['ch1_m07_cliffhanger', 'M07', 'end', 'The First Bird']
   ];
   S.CINE = CINE;
   // v36.1: intro_realm v2 (27s, Storyteller voice + text baked into the video, no in-game captions). Per Cut's act1_story_changes_v9 /
   // intro_realm_v2_script: p0_storyteller_04 + p0_tobb_01 + p0_vesper_01 + p0_tobb_02 left the intro and play in prologue_lanterns (P0 end), text unchanged.
   const CINE_LINES = {
     prologue_lanterns: [
-      ['p0_storyteller_04', 'Storyteller', 'The King\u2019s letters fly on the King\u2019s birds, and every secret in the realm passes through the hands of his advisor, Vesper.'],
+      ['p0_storyteller_04', 'Storyteller', 'The King\u2019s birds carry the King\u2019s letters, and for ten years his advisor, Vesper, has kept every one of them flying.'],
       ['p0_tobb_01', 'Tobb', 'Two keys to every door, Chancellor. Mine and yours. Even the Undergate.'],
       ['p0_vesper_01', 'Vesper', 'The door that goes nowhere.'],
       ['p0_tobb_02', 'Tobb', 'Why it stays locked.']
+    ],
+    ch1_m07_apology: [   // v36.6 Cut: m07_rufus_03 after the apology video
+      ['m07_rufus_03', 'Rufus', 'Tobb\u2019ll know what went wrong with it.']
     ]
   };
   S.CINE_LINES = CINE_LINES;
@@ -900,7 +906,7 @@
     b.querySelectorAll('[data-cine]').forEach(x => x.onclick = () => { b.classList.add('hidden'); S.playCine(x.dataset.cine).then(() => S.openCinematics()); });
     const all = $('cine-all'); if (all) all.onclick = () => { b.classList.add('hidden'); S.playCine(seen.map(c => c[0])).then(() => S.openCinematics()); };
   };
-  const BIG_CUTS = { prologue_contact_lost: 1, ch1_m01_red_eyes: 1, ch1_m07_apology: 1, ch1_m07_cold_smile: 1 };   // v29: video slots only for big story moments
+  const BIG_CUTS = { prologue_contact_lost: 1, ch1_m01_red_eyes: 1, ch1_m07_apology: 1, ch1_m07_cliffhanger: 1 };   // v29: video slots only for big story moments
   const cutSlot = key => '';   // v33: real cutscenes play instead (see CINE); gallery on the story map
   const cutSlot0 = key => `<div class="my-2 mx-auto rounded-lg border border-dashed border-amber-500/60 bg-black/60 flex flex-col items-center justify-center text-amber-200/80" style="width:120px;aspect-ratio:9/16" data-cutscene="${key}"><div class="text-2xl">\u{1F3AC}</div><div class="text-[9px] font-bold px-1">Cutscene<br>${esc(key)}<br>(9:16, coming)</div></div>`;
   const beats = lines => lines.map(([who, t]) => `<p class="text-xs text-slate-200 mb-1">${who ? `<b class="text-amber-300">${esc(who)}:</b> ` : ''}<i>${esc(t)}</i></p>`).join('');
@@ -1182,7 +1188,7 @@
     ] }
   };
   S.heroLabel = k => k === 'cavalier' ? (won('M06') || (S.m && S.m.id === 'M06' && S.R && Object.values(S.R.obj).some(st => st.cages && st.cages.every(c => c.freed))) ? 'General Garrow' : 'Garrow\u2019s Outrider') : null;
-  S.TUT = TUT; const TUT_VO = S.TUT_VO = {};
+  S.TUT = TUT; const TUT_VO = S.TUT_VO = { tut_m05_roster: true, tut_m05_limits: true };   // v36.6 Cut's Vesper VO -> assets/vo/<lineId>.m4a
   const blueWorkers = () => state.units.filter(u => !u.dead && u.team === 'blue' && u.type === 'worker');
   const lineFrac = () => { const y = calculateBattlelineY(), b = state.cores.blue.y, r = state.cores.red.y; return (b - y) / (b - r); };   // 0 = at our nexus, 1 = at theirs
   const EV = {   // polled each frame; the first true starts the step
@@ -1220,7 +1226,7 @@
     freeCage() {   // v36.0.1: point at Garrow's wagon with how-to; if still caged 15s later, stage the rescue (clear the guards, free him)
       const st = Object.values(S.R.obj).find(s => s.cages); if (!st) return; const cg = st.cages.find(c => !c.freed); if (!cg) return;
       const T = S.T; T.box = true; const ps = state.paused; state.paused = true;
-      tipBox('Vesper', line('tut_m06_cagehint'), unitPoint({ at: cg.u }), 'cagehint', () => { state.paused = ps; T.box = false; T.log.push('cagehint'); });
+      tipBox('Rufus', line('tut_m06_cagehint'), unitPoint({ at: cg.u }), 'cagehint', () => { state.paused = ps; T.box = false; T.log.push('cagehint'); });
       T.stageAt = T.since + 15; T.stageCage = cg;
     },
     camera(f) { const b = $('snap-' + (f.v || 'mid')); if (b) b.click(); }

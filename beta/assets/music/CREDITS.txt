@@ -1,4 +1,4 @@
-Royal Blight music (v36.5):
-- menu_a, menu_b, menu_c, map, P0, victory, defeat: new instrumental tracks generated with CloneVoice AI music for Ian Russell / XstreamFlex. Instrumental only; no TTS vocals.
-- M01-M06 and felix_1-3 (until replaced): original procedural compositions (music/compose.py), rendered with FluidSynth using FluidR3_GM.sf2 (Frank Wen, MIT licence). Their vocal layers come from the game's TTS voices: Kokoro-82M af_heart and bm_fable (Apache-2.0) and Piper en_US-joe-medium, pitched and harmonised with rubberband/sox.
+Royal Blight music (v36.6):
+- menu_a, menu_b, menu_c, map, P0, victory, defeat: instrumental tracks generated with CloneVoice AI music for Ian Russell / XstreamFlex. Instrumental only; no TTS vocals.
+- M01-M06 and felix_1-3 (Felix boss phase variants, same length, crossfaded in sync): CloneVoice AI music by Cut for Ian Russell / XstreamFlex (v36.6).
 No third-party recordings or samples are used.

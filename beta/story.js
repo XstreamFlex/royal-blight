@@ -66,10 +66,11 @@
     M02: ['worker', 'pawn:sword', 'archer:short'],                                    // pawns + archers
     M03: ['worker', 'wizard:battle', 'archer:short'],                                 // wizards + archers
     M04: ['worker', 'brute:base', 'archer:short', 'wizard:battle', 'hero:cavalier'],  // brutes + archers + wizards + Outrider
-    M05: ['worker', 'brute:base', 'archer:short', 'wizard:battle', 'hero:cavalier', 'turret'],   // M04 + turrets
+    M05: ['worker', 'brute:base', 'archer:short', 'wizard:battle', 'turret'],   // v37.4 no Outrider hero in M05   // M04 + turrets
     M06: A1_BASIC, M07: A1_BASIC                                                      // all basic units
   };
-  const M01_GOLD = 900;   // v36.4 tuned by bot run (see report)
+  const M01_GOLD = 450;   // v37.4 Ian: 450 (was 900)
+  const M01_GOLD_OLD = 900;   // v36.4 tuned by bot run (see report)
   const M = {
     P0: { region: 'paradale', allowedUnits: A1.P0, act: 1, name: 'Festival of Lanterns', type: 'STD + LIM', map: 'arena', gold: 150, reward: ['G1', 'X1'],
       ai: { level: 'easy', strat: 'balanced', income: 0.55 }, cards: ['worker', 'archers', 'turret'], enemy: 'drill',
@@ -678,6 +679,7 @@
     state.units.forEach(u => {
       if (!u.story || u.dead) return;
       if (u.npcSprite) { drawNpc(c, { x: u.x, y: u.y + 10, sprite: u.npcSprite, anim: 'flee', sc: 1, ph: u.id || 0, flip: false }, now); drawHealthBar(u.x, u.y - u.radius - 24, u.radius * 2, 4, u.hp, u.lagHp, u.maxHp); return; }   // v37 spawnAs
+      if (u.type === 'civilian' && (() => { const f = npcFrames(['npc_villager_farmhand', 'npc_villager_man', 'npc_villager_woman'][(u.id || 0) % 3], 'flee')[0]; return f && stImg('npc', f); })()) { const vs = ['npc_villager_farmhand', 'npc_villager_man', 'npc_villager_woman'][(u.id || 0) % 3]; drawNpc(c, { x: u.x, y: u.y + 10, sprite: vs, anim: 'flee', sc: 1, ph: u.id || 0, flip: false }, now); drawHealthBar(u.x, u.y - u.radius - 24, u.radius * 2, 4, u.hp, u.lagHp, u.maxHp); return; }   // v37.4 villager NPC art (was bouncing emoji head)
       const icon = { civilian: '\u{1F9D1}\u200D\u{1F33E}', wagon: u.team === 'red' ? '\u{1F6E2}' : '\u{1F6D2}', structure: '\u{1F3DB}', cage: '\u26D3', vip: '\u{1F451}' }[u.type] || '?';
       c.save(); c.translate(u.x, u.y + Math.sin(u.walkAnim) * 1.5);
       if (u.type === 'wagon') {   // v34 oil-wagon art: intact, then burning below half HP
@@ -1514,7 +1516,7 @@
       { id: 'splash', line: 'tut_m07_splash', speaker: 'Garrow', trigger: { k: 'cond', c: 'pushing', v: 8 }, forceAfter: 15, pause: 'slow' }
     ] }
   };
-  S.heroLabel = k => k === 'cavalier' ? (S.m && (S.m.heroTrial || S.m.id === 'M04' || S.m.id === 'M05')) ? 'Garrow\u2019s Outrider' : (won('M06') || (S.m && S.m.id === 'M06' && S.R && Object.values(S.R.obj).some(st => st.cages && st.cages.every(c => c.freed))) ? 'General Garrow' : 'Garrow\u2019s Outrider') : null;
+  S.heroLabel = k => k === 'cavalier' ? (S.m && (S.m.heroTrial || S.m.id === 'M04')) ? 'Garrow\u2019s Outrider' : (won('M06') || (S.m && S.m.id === 'M06' && S.R && Object.values(S.R.obj).some(st => st.cages && st.cages.every(c => c.freed))) ? 'General Garrow' : 'Garrow\u2019s Outrider') : null;
   S.TUT = TUT; const TUT_VO = S.TUT_VO = { tut_m05_roster: true, tut_m05_limits: true };   // v36.6 Cut's Vesper VO -> assets/vo/<lineId>.m4a
   const blueWorkers = () => state.units.filter(u => !u.dead && u.team === 'blue' && u.type === 'worker');
   const lineFrac = () => { const y = calculateBattlelineY(), b = state.cores.blue.y, r = state.cores.red.y; return (b - y) / (b - r); };   // 0 = at our nexus, 1 = at theirs

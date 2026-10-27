@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v37.3</title>
+  <title>Royal Blight BETA v37.4</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -324,7 +324,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v37.3</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v37.4</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -1987,8 +1987,11 @@
         svg = `<svg viewBox="0 0 ${W} ${H}" class="w-full h-16 mt-1 bg-slate-900/70 rounded">${pl(ib[0], mx, 0, '#38bdf8')}${pl(ir[0], mx, 0, '#fb7185')}${pl(ib[1], ma, 1, '#7dd3fc')}${pl(ir[1], ma, 1, '#fda4af')}</svg>
           <div class="text-[9px] text-slate-400 text-center">solid = gold earned · dashed = army size</div>`;
       }
+      const DL = { easy: 'Easy', normal: 'Normal', hard: 'Hard', brutal: 'Very Hard', veryhard: 'Very Hard' };   // v37.4 difficulty on the stats screen
+      const dk = (window.Story && Story.active && Story.save) ? (Story.save().diff || 'normal') : (state.mode === 'cpu' || state.aiTeams) ? state.difficulty : null;
+      const diffLbl = dk ? (DL[dk] || dk) : (state.mode === 'host' || state.mode === 'guest' ? 'PvP' : '');
       return `<div id="match-stats" class="w-full max-w-xs bg-slate-800/90 rounded-xl p-2 border border-slate-700 text-[11px] text-slate-200 mb-3">
-        <div class="flex justify-between font-black text-[11px] mb-1"><span class="text-sky-300">${nm(me)}</span><span class="text-slate-400">⏱ ${Math.floor(tm / 60)}:${String(tm % 60).padStart(2, '0')}</span><span class="text-rose-300">${nm(op)}</span></div>
+        <div class="flex justify-between font-black text-[11px] mb-1"><span class="text-sky-300">${nm(me)}</span><span class="text-slate-400">${diffLbl ? '⚔ ' + diffLbl + ' · ' : ''}⏱ ${Math.floor(tm / 60)}:${String(tm % 60).padStart(2, '0')}</span><span class="text-rose-300">${nm(op)}</span></div>
         <table class="w-full"><tbody>
         ${row('Gold earned', A.earned, B.earned)}${row('Gold spent', A.spent, B.spent)}${row('Units made', sum(A.made), sum(B.made))}${row('Units lost', sum(A.lost), sum(B.lost))}${row('Kills', A.kills, B.kills)}
         ${row('Dmg to units', A.dmgU, B.dmgU)}${row('Dmg to turrets/nexus', A.dmgS, B.dmgS)}${row('Turrets lost', A.turLost, B.turLost)}${row('Turret upgrades', A.turUp, B.turUp)}
@@ -4358,7 +4361,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v37.3';
+    window.APP_VERSION = 'v37.4';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

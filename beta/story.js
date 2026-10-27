@@ -1007,7 +1007,7 @@
    "tut_m05_turret": "A turret pulls enemies onto itself and buys the army time.",
    "tut_m05_limits": "A turret alone won't hold, Majesty. It can't march and it can't win. Soldiers do that.",
    "tut_m06_guide": "Lost track of the goal? ☰, then Mission Guide. Garrow's cage is the target.",
-   "tut_m06_cagehint": "Garrow's in that wagon. March troops onto it and keep enemies clear for 3 seconds to break the lock.",
+   "tut_m06_cagehint": "Garrow's locked in that wagon. Get troops on it and keep it clear for three seconds. That breaks the lock.",
    "tut_m06_freed": "Garrow's free! His Cavalier fights under his own name now.",
    "tut_m06_counter": "They're beating us the same way every time. Mix in something they can't handle.",
    "tut_m07_shield": "His nexus is shielded while Felix stands. Break Felix first, then the walls.",

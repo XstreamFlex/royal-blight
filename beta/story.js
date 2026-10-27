@@ -1007,6 +1007,7 @@
    "tut_m05_turret": "A turret pulls enemies onto itself and buys the army time.",
    "tut_m05_limits": "A turret alone won't hold, Majesty. It can't march and it can't win. Soldiers do that.",
    "tut_m06_guide": "Lost track of the goal? ☰, then Mission Guide. Garrow's cage is the target.",
+   "tut_m06_cagehint": "Garrow's in that wagon. March troops onto it and keep enemies clear for 3 seconds to break the lock.",
    "tut_m06_freed": "Garrow's free! His Cavalier fights under his own name now.",
    "tut_m06_counter": "They're beating us the same way every time. Mix in something they can't handle.",
    "tut_m07_shield": "His nexus is shielded while Felix stands. Break Felix first, then the walls.",
@@ -1096,7 +1097,7 @@
     ] },
     M06: { steps: [
       { id: 'guide', line: 'tut_m06_guide', speaker: 'Vesper', trigger: { k: 'time', t: 5 }, pause: false, point: '#btn-pause' },
-      { id: 'freed', line: 'tut_m06_freed', speaker: 'Rufus', voiced: true, trigger: { k: 'event', e: 'cageFreed' }, pause: true },
+      { id: 'freed', line: 'tut_m06_freed', speaker: 'Rufus', voiced: true, trigger: { k: 'event', e: 'cageFreed' }, forceAfter: 150, force: { k: 'freeCage' }, pause: true },   // v36.0.1: hint at 150s, staged rescue 15s later
       { id: 'counter', line: 'tut_m06_counter', speaker: 'Rufus', trigger: { k: 'cond', c: 'pushedBack', v: 90 }, forceAfter: 120, pause: false }
     ] },
     M07: { steps: [
@@ -1142,6 +1143,12 @@
       const u = spawnUnit('pawn', 'red', 'C', 0); u.x = w.x + 18; u.y = w.y - 30; u.tutForced = true; dealDamage(w, w.hp + 1, u, 'physical');
     },
     spawnWorker() { spawnWorker('blue', 'MID'); },
+    freeCage() {   // v36.0.1: point at Garrow's wagon with how-to; if still caged 15s later, stage the rescue (clear the guards, free him)
+      const st = Object.values(S.R.obj).find(s => s.cages); if (!st) return; const cg = st.cages.find(c => !c.freed); if (!cg) return;
+      const T = S.T; T.box = true; const ps = state.paused; state.paused = true;
+      tipBox('Vesper', line('tut_m06_cagehint'), unitPoint({ at: cg.u }), 'cagehint', () => { state.paused = ps; T.box = false; T.log.push('cagehint'); });
+      T.stageAt = T.since + 15; T.stageCage = cg;
+    },
     camera(f) { const b = $('snap-' + (f.v || 'mid')); if (b) b.click(); }
   };
   S.tutForce = FORCE; S.tutEvents = EV; S.tutConds = COND;
@@ -1162,6 +1169,8 @@
     if (T.tipsOn) firstTips();
     if (!T.on || T.box || T.i >= T.steps.length) return;
     const st = T.steps[T.i], tr = st.trigger || { k: 'delay', t: 0 }; T.since += dt;
+    if (T.stageCage && T.since >= T.stageAt) { const cg = T.stageCage; T.stageCage = null;
+      if (!cg.freed) { state.units.forEach(u => { if (u.team === 'red' && !u.dead && !u.story && Math.hypot(u.x - cg.u.x, u.y - cg.u.y) < 90) u.y = Math.max(0, u.y - 160); }); cg.prog = 3.5; cg.staged = true; T.log.push('stage:freed'); } }
     let go = tr.k === 'time' ? S.R.t >= tr.t : tr.k === 'delay' ? T.since >= tr.t : tr.k === 'event' ? !!(EV[tr.e] && EV[tr.e]()) : tr.k === 'cond' ? !!(COND[tr.c] && COND[tr.c](tr.v)) : true;
     if (!go && st.forceAfter != null && T.since >= st.forceAfter && !T.forced) { T.forced = true; if (st.force && FORCE[st.force.k]) FORCE[st.force.k](st.force); else go = !st.force; T.log.push('force:' + st.id); }
     if (!go && T.since >= (st.forceAfter != null ? st.forceAfter + 20 : 1e9)) go = true;   // safety: never stall the script

@@ -552,24 +552,30 @@
   // yellow (same filter as the Glade leader skin), Northcrag = blue art shifted silver-white. Pure decoration: not units.
   const KART = { paradale: ['blue', ''], eastmarch: ['green', ''], westreach: ['blue', 'hue-rotate(-175deg) saturate(1.3) brightness(1.08)'], northcrag: ['blue', 'saturate(0.2) brightness(1.45) contrast(0.95)'] };
   let FEST = null;
+  S.lanternSide = y => { const P = state.turretPads || [], near = sd => P.some(p => Math.sign(p.x - LANE_X) === sd && Math.abs(p.y - y) < 150);
+    return near(1) && !near(-1) ? -1 : 1; };
   function festLayout() {
     const L = [], ys = [1560, 1110, 660], pact = ['eastmarch', 'westreach', 'northcrag'], mines = [2000, 1320, 740, 220, 900, 1480];
-    const guard = (x, y, side, k, n) => { const g = []; const kinds = ['knight', 'knight_shield', 'archer']; for (let i = 0; i < n; i++) g.push({ x: x + side * (16 + 20 * (i % 2)), y: y - 22 + i * 22, key: kinds[i % 3], k, ph: i * 1.7 + y }); return g; };
+    const guard = (x, y, side, k, n) => { const g = []; const kinds = ['knight', 'knight_shield', 'archer']; for (let i = 0; i < n; i++) g.push({ x: x + side * (16 + 20 * (i % 2)), y: y - 22 + (i >> 1) * 16 + (i % 2) * 8, key: kinds[i % 3], k, ph: i * 1.7 + y }); return g; };
     for (let y = 330; y <= 1900; y += 225) {
       const pi = ys.findIndex(v => Math.abs(v - y) < 120), xr = LANE_X + LANE_HALF_W + 30, xl = LANE_X - LANE_HALF_W - 30;
-      if (pi < 0) L.push({ x: xr, y, post: true, g: guard(xr, y, 1, 'paradale', mines.some(m => Math.abs(m - y) < 90) ? 1 : 2) });
-      L.push({ x: xl, y, post: true, g: guard(xl, y, -1, 'paradale', mines.some(m => Math.abs(m - y) < 90) ? 1 : 2) });
+      const pr = pi < 0 || S.lanternSide(ys[pi]) < 0, pl = pi < 0 || S.lanternSide(ys[pi]) > 0, gn = mines.some(m => Math.abs(m - y) < 90) ? 2 : 4;
+      if (pr) L.push({ x: xr, y, post: true, g: guard(xr, y, 1, 'paradale', gn) });
+      if (pl) L.push({ x: xl, y, post: true, g: guard(xl, y, -1, 'paradale', gn) });
     }
-    ys.forEach((y, i) => L.push({ x: LANE_X + LANE_HALF_W + 34, y, post: false, g: guard(LANE_X + LANE_HALF_W + 40, y + 6, 1, pact[i], 3) }));
-    return L;
+    // v37.3: pact lanterns go to the lane side with no turret pad (the 1560 lantern + its eastmarch guards sat on the b_outer pad);
+    // posts that would stand on a pad are dropped. Guard counts doubled (x2 soldiers at the lanterns and along the parade).
+    ys.forEach((y, i) => { const sd = S.lanternSide(y), x = LANE_X + sd * (LANE_HALF_W + 34); L.push({ x, y, post: false, side: sd, g: guard(LANE_X + sd * (LANE_HALF_W + 40), y + 6, sd, pact[i], 6) }); });
+    return L.filter(f => !f.post || !(state.turretPads || []).some(p => Math.abs(p.x - f.x) < 70 && Math.abs(p.y - f.y) < 90));
   }
   // v37: general backdrop lookup. No stage block = exactly the old rule (festival dressing only for the P0 drill).
   // stage.bg = assets/bg/<name>.webp over the whole arena; until delivered, BG_FALLBACK draws the built-in dressing for that name.
-  const BG_FALLBACK = { bg_p0_festival: c => festDress(c, false) };
-  const BG_DRESS = { bg_p0_festival: (c, painted) => festDress(c, painted) };   // painted bg: keep the parade soldiers + lantern posts, drop the procedural night wash
+  let FEST_FG = null;   // v37.3: festival guards + lantern posts are drawn in Story.drawMid (above turrets/citadels), glow + wash stay under
+  const BG_FALLBACK = { bg_p0_festival: c => { festDress(c, false); FEST_FG = false; } };
+  const BG_DRESS = { bg_p0_festival: (c, painted) => { festDress(c, painted); FEST_FG = painted; } };   // painted bg: keep the parade soldiers + lantern posts, drop the procedural night wash
   S.drawBg = function (c) {
-    const m = S.m; if (!m) return;
-    if (!m.stage) { if (m.enemy === 'drill') festDress(c); return; }
+    const m = S.m; FEST_FG = null; if (!m) return;
+    if (!m.stage) { if (m.enemy === 'drill') { festDress(c); FEST_FG = false; } return; }
     const sg = m.stage, bimg = sg.bg && stImg('bg', sg.bg);
     if (bimg) { const k = bimg.height / WORLD_H, y0 = Math.max(0, state.cameraY - 20), y1 = Math.min(WORLD_H, state.cameraY + viewportH + 20);   // visible slice only
       c.drawImage(bimg, 0, y0 * k, bimg.width, (y1 - y0) * k, 0, y0, WORLD_W, y1 - y0); }
@@ -585,16 +591,17 @@
   let PAL = null; fetch('assets/palette/troops_palette.json?v=' + (window.APP_VERSION || 1)).then(r => r.json()).then(j => PAL = j).catch(() => {});
   const PAL_KEY = { eastmarch: 'green', westreach: 'yellow', northcrag: 'silver' };
   S.troopPalette = () => PAL;
-  function festDress(c, painted) {
+  S.drawMid = function (c) { if (FEST_FG !== null) festDress(c, FEST_FG, true); if (S.R && S.R.stage) stageDrawNpcs(c); };
+  function festDress(c, painted, fg) {
     const m = S.m;
     const now = performance.now() / 1000, y0 = state.cameraY - 120, y1 = state.cameraY + viewportH + 120;
-    if (!painted) { c.fillStyle = 'rgba(6,12,38,0.40)'; c.fillRect(0, Math.max(0, y0), WORLD_W, Math.min(WORLD_H, y1) - Math.max(0, y0)); }   // night (the painted bg is already night)
+    if (!painted && !fg) { c.fillStyle = 'rgba(6,12,38,0.40)'; c.fillRect(0, Math.max(0, y0), WORLD_W, Math.min(WORLD_H, y1) - Math.max(0, y0)); }   // night (the painted bg is already night)
     FEST = FEST || festLayout();
     for (const f of FEST) {
       if (f.y < y0 || f.y > y1) continue;
       const fl = 0.85 + 0.15 * Math.sin(now * 5 + f.y);
-      const g = c.createRadialGradient(f.x, f.y - 40, 4, f.x, f.y - 30, 80); g.addColorStop(0, `rgba(253,200,90,${0.42 * fl})`); g.addColorStop(1, 'rgba(253,160,60,0)');
-      c.fillStyle = g; c.beginPath(); c.arc(f.x, f.y - 30, 80, 0, Math.PI * 2); c.fill();
+      if (!fg) { const g = c.createRadialGradient(f.x, f.y - 40, 4, f.x, f.y - 30, 80); g.addColorStop(0, `rgba(253,200,90,${0.42 * fl})`); g.addColorStop(1, 'rgba(253,160,60,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(f.x, f.y - 30, 80, 0, Math.PI * 2); c.fill(); continue; }
       for (const p of f.g) {   // idle soldiers: front-view sprite (facing the field), gentle breathing bob
         let [team, tint] = KART[p.k], img = loadSprite(p.key + '_' + team) || loadSprite(p.key.split('_')[0] + '_' + team);
         const pe = m.stage && PAL && PAL[PAL_KEY[p.k]];
@@ -648,7 +655,7 @@
         if (open) label(c, '\u2694 ' + cg.c.name + ' rides!', x, y - 74);
       });
       if (o.k === 'beacons') o.ys.forEach((y, i) => {
-        const x = LANE_X + LANE_HALF_W + 34, img = (S.m.stage && stImg('prop', st.lit[i] ? 'prop_lantern_lit' : 'prop_lantern_off')) || loadSprite(st.lit[i] ? 'lantern_on' : 'lantern_off');   // v34 lantern-post art
+        const x = LANE_X + S.lanternSide(y) * (LANE_HALF_W + 34), img = (S.m.stage && stImg('prop', st.lit[i] ? 'prop_lantern_lit' : 'prop_lantern_off')) || loadSprite(st.lit[i] ? 'lantern_on' : 'lantern_off');   // v34 lantern-post art
         if (st.lit[i]) { c.fillStyle = `rgba(250,204,21,${0.22 + 0.08 * Math.sin(now * 6)})`; c.beginPath(); c.arc(x - 12, y - 44, 30, 0, Math.PI * 2); c.fill(); }
         if (img) c.drawImage(img, x - 50, y - 100, 100, 100);
         else { c.fillStyle = '#44403c'; c.fillRect(x - 2, y - 26, 4, 26); c.fillStyle = st.lit[i] ? '#facc15' : '#57534e'; c.beginPath(); c.arc(x, y - 30, 8, 0, Math.PI * 2); c.fill(); }
@@ -691,7 +698,9 @@
   const NPC_ART = {"army_westreach_knight":[1,0,0.5,0.953125],"army_westreach_knight_back":[1,0,0.5,0.953125],"army_westreach_archer":[1,0,0.5,0.953125],"army_westreach_archer_back":[1,0,0.5,0.953125],"army_westreach_wizard":[1,0,0.5,0.953125],"army_westreach_wizard_back":[1,0,0.5,0.953125],"army_westreach_brute":[1,0,0.5,0.953125],"army_westreach_brute_back":[1,0,0.5,0.953125],"army_westreach_worker":[1,0,0.5,0.953125],"army_westreach_worker_back":[1,0,0.5,0.953125],"army_westreach_cavalier":[1,0,0.5,0.953125],"army_westreach_cavalier_back":[1,0,0.5,0.953125],"army_cline_knight":[1,0,0.5,0.953125],"army_cline_knight_back":[1,0,0.5,0.953125],"army_cline_archer":[1,0,0.5,0.953125],"army_cline_archer_back":[1,0,0.5,0.953125],"army_cline_wizard":[1,0,0.5,0.953125],"army_cline_wizard_back":[1,0,0.5,0.953125],"army_cline_brute":[1,0,0.5,0.953125],"army_cline_brute_back":[1,0,0.5,0.953125],"army_cline_worker":[1,0,0.5,0.953125],"army_cline_worker_back":[1,0,0.5,0.953125],"army_cline_cavalier":[1,0,0.5,0.953125],"army_cline_cavalier_back":[1,0,0.5,0.953125],"army_northern_knight":[1,0,0.5,0.953125],"army_northern_knight_back":[1,0,0.5,0.953125],"army_northern_archer":[1,0,0.5,0.953125],"army_northern_archer_back":[1,0,0.5,0.953125],"army_northern_wizard":[1,0,0.5,0.953125],"army_northern_wizard_back":[1,0,0.5,0.953125],"army_northern_brute":[1,0,0.5,0.953125],"army_northern_brute_back":[1,0,0.5,0.953125],"army_northern_worker":[1,0,0.5,0.953125],"army_northern_worker_back":[1,0,0.5,0.953125],"army_northern_cavalier":[1,0,0.5,0.953125],"army_northern_cavalier_back":[1,0,0.5,0.953125],"army_shadow_skeleton":[1,0,0.5,0.953125],"army_shadow_skeleton_back":[1,0,0.5,0.953125],"army_shadow_archer":[1,0,0.5,0.953125],"army_shadow_archer_back":[1,0,0.5,0.953125],"army_shadow_wizard":[1,0,0.5,0.953125],"army_shadow_wizard_back":[1,0,0.5,0.953125],"army_shadow_brute":[1,0,0.5,0.953125],"army_shadow_brute_back":[1,0,0.5,0.953125],"npc_villager_man":[1,0,0.5,0.953125],"npc_villager_man_idle":[4,8,0.5,0.953125],"npc_villager_man_dance":[4,8,0.5,0.953125],"npc_villager_man_cheer":[4,8,0.5,0.953125],"npc_villager_man_flee":[4,8,0.5,0.953125],"npc_villager_man_cower":[4,8,0.5,0.953125],"npc_villager_woman":[1,0,0.5,0.953125],"npc_villager_woman_idle":[4,8,0.5,0.953125],"npc_villager_woman_dance":[4,8,0.5,0.953125],"npc_villager_woman_cheer":[4,8,0.5,0.953125],"npc_villager_woman_flee":[4,8,0.5,0.953125],"npc_villager_woman_cower":[4,8,0.5,0.953125],"npc_villager_child":[1,0,0.5,0.953125],"npc_villager_child_idle":[4,8,0.5,0.953125],"npc_villager_child_dance":[4,8,0.5,0.953125],"npc_villager_child_cheer":[4,8,0.5,0.953125],"npc_villager_child_flee":[4,8,0.5,0.953125],"npc_villager_child_cower":[4,8,0.5,0.953125],"npc_villager_elder":[1,0,0.5,0.953125],"npc_villager_elder_idle":[4,8,0.5,0.953125],"npc_villager_elder_dance":[4,8,0.5,0.953125],"npc_villager_elder_cheer":[4,8,0.5,0.953125],"npc_villager_elder_flee":[4,8,0.5,0.953125],"npc_villager_elder_cower":[4,8,0.5,0.953125],"npc_villager_merchant":[1,0,0.5,0.953125],"npc_villager_merchant_idle":[4,8,0.5,0.953125],"npc_villager_merchant_dance":[4,8,0.5,0.953125],"npc_villager_merchant_cheer":[4,8,0.5,0.953125],"npc_villager_merchant_flee":[4,8,0.5,0.953125],"npc_villager_merchant_cower":[4,8,0.5,0.953125],"npc_villager_musician":[1,0,0.5,0.953125],"npc_villager_musician_idle":[4,8,0.5,0.953125],"npc_villager_musician_dance":[4,8,0.5,0.953125],"npc_villager_musician_cheer":[4,8,0.5,0.953125],"npc_villager_musician_flee":[4,8,0.5,0.953125],"npc_villager_musician_cower":[4,8,0.5,0.953125],"npc_villager_dancer":[1,0,0.5,0.953125],"npc_villager_dancer_idle":[4,8,0.5,0.953125],"npc_villager_dancer_dance":[4,8,0.5,0.953125],"npc_villager_dancer_cheer":[4,8,0.5,0.953125],"npc_villager_dancer_flee":[4,8,0.5,0.953125],"npc_villager_dancer_cower":[4,8,0.5,0.953125],"npc_villager_farmhand":[1,0,0.5,0.953125],"npc_villager_farmhand_idle":[4,8,0.5,0.953125],"npc_villager_farmhand_dance":[4,8,0.5,0.953125],"npc_villager_farmhand_cheer":[4,8,0.5,0.953125],"npc_villager_farmhand_flee":[4,8,0.5,0.953125],"npc_villager_farmhand_cower":[4,8,0.5,0.953125],"npc_garrow":[1,0,0.5,0.953125],"npc_garrow_idle":[4,8,0.5,0.953125],"npc_rufus_torch":[1,0,0.5,0.953125],"npc_rufus_torch_idle":[4,8,0.5,0.953125],"npc_ruphene_cline_cloak":[1,0,0.5,0.953125],"npc_ruphene_cline_cloak_idle":[4,8,0.5,0.953125],"npc_glade":[1,0,0.5,0.953125],"npc_glade_idle":[4,8,0.5,0.953125],"npc_vesper":[1,0,0.5,0.953125],"npc_vesper_idle":[4,8,0.5,0.953125],"npc_tam":[1,0,0.5,0.953125],"npc_tam_idle":[4,8,0.5,0.953125],"npc_garrow_dais":[1,0,0.5,0.9765625],"npc_felix":[1,0,0.5,0.953125],"npc_felix_back":[1,0,0.5,0.953125],"npc_garrow_kneel":[4,2,0.5,0.953125],"npc_garrow_point":[4,2,0.5,0.953125],"npc_tam_kneel":[4,2,0.5,0.953125],"npc_tam_point":[4,2,0.5,0.953125],"npc_felix_kneel":[4,2,0.5,0.953125],"npc_horse_riderless":[4,6,0.5,0.953125]};   // name -> [frames, fps, anchorX, anchorY] (from art/final/npcs/manifest.json; frames 128px)
   const NPC_ALIAS = { npc_felix_clean: 'npc_felix', npc_farmer: 'npc_villager_farmhand', npc_ruphene_white: 'npc_ruphene_cline_cloak', npc_vesper_ledger: 'npc_vesper' };
   const VILLAGER_MIX = ['man', 'woman', 'farmhand', 'child', 'elder', 'merchant', 'musician', 'dancer'];
-  const NPC_CAP = 24;   // hard cap on staged NPCs per match (draw cost stays flat)
+  // v37.3 named story characters draw at 2x (feet stay on the anchor: NPC_ART ay). Villagers/farmers/children/horses/army stay 1x.
+  S.isNamedNpc = sp => /^npc_/.test(sp) && !/^npc_(villager|farmer|horse|child|crowd|army)/.test(sp) && !/child/.test(sp);
+  const NPC_CAP = 48;   // v37.3 (was 24)   // hard cap on staged NPCs per match (draw cost stays flat)
   const STIMG = {};
   // only request art that has shipped: npc/ strips from NPC_ART, anything else listed in STAGE_ART (bg/lane/prop/nexus — empty until delivered, so no 404s)
   const STAGE_ART = S.STAGE_ART = new Set([   // v37.1 Cut's delivered art (loaded lazily: only what the current mission's stage names)
@@ -706,6 +715,9 @@
   // mission load: fetch + decode the current stage's big images up front so the first draw doesn't hitch
   function stPreload(sg) {
     const names = [['bg', sg.bg], ['lane', sg.lane]];
+    // v37.3 memory: release the previous missions' backdrops (a 960x4800 bg is ~18 MB decoded; all of them used to stay resident)
+    const keep = new Set(names.map(([d, n]) => d + '/' + n));
+    for (const k in STIMG) if (/^(bg|lane)\//.test(k) && !keep.has(k)) { const i = STIMG[k]; if (i && i.src) try { i.src = ''; } catch (e) {} delete STIMG[k]; }
     if (sg.nexus) for (const k in sg.nexus) { const n = sg.nexus[k]; if (n.sprite) { names.push(['nexus', n.sprite]); (n.states || []).forEach(x => x !== 'normal' && names.push(['nexus', n.sprite + '_' + x])); } }
     names.forEach(([d, n]) => { if (!n) return; const k = d + '/' + n; if (k in STIMG || !STAGE_ART.has(k)) return; STIMG[k] = null; const i = new Image(); i.src = 'assets/' + (ST_FILE[k] || k) + (ST_EXT[d] || '.webp') + '?v=' + (window.APP_VERSION || 1);
       (i.decode ? i.decode() : Promise.reject()).then(() => { try { const w = document.createElement('canvas'); w.width = w.height = 2; w.getContext('2d').drawImage(i, 0, 0, 2, 2); } catch (e) {} STIMG[k] = i; },   // decode + GPU warm-up before first use
@@ -743,7 +755,7 @@
     const add = (d, i, n, extra) => { if (ST.npcs.length >= NPC_CAP) return; let sp = d.sprite;
       if (sp === 'npc_villager' || sp === 'npc_villagers') sp = 'npc_villager_' + VILLAGER_MIX[(i + (d.mix || 0)) % VILLAGER_MIX.length];
       const [x, y] = d.x != null ? [d.x * WORLD_W, d.y * WORLD_H] : stAnchor(d.at, i, n);
-      ST.npcs.push(Object.assign({ id: d.id, sprite: sp, anim: d.anim || 'idle', flip: !!d.flip, x: x + (d.dx || 0) + (n > 1 && d.at !== 'lane_edge' ? (i - (n - 1) / 2) * 22 : 0), y: y + (d.dy || 0) + (n > 1 && d.at !== 'lane_edge' ? (i % 2) * 10 : 0), ph: Math.random() * 9, vx: d.vx || 0, tx: d.tx != null ? d.tx * WORLD_W : null, sc: /child/.test(sp) ? 0.78 : (d.scale || 1) }, extra)); };
+      ST.npcs.push(Object.assign({ id: d.id, sprite: sp, anim: d.anim || 'idle', flip: !!d.flip, x: x + (d.dx && S.isNamedNpc(sp) ? Math.sign(d.dx) * Math.max(Math.abs(d.dx), 122) : (d.dx || 0)) + (n > 1 && d.at !== 'lane_edge' ? (i - (n - 1) / 2) * 22 : 0), y: y + (d.dy || 0) + (n > 1 && d.at !== 'lane_edge' ? (i % 2) * 10 : 0), ph: Math.random() * 9, vx: d.vx || 0, tx: d.tx != null ? d.tx * WORLD_W : null, sc: (/child/.test(sp) ? 0.78 : (d.scale || 1)) * (S.isNamedNpc(sp) ? 2 : 1) }, extra)); };
     (sg.npcs || []).forEach(d => { if (d.grow) { ST.grow.push({ d, n: 0 }); return; } const n = d.count || 1; for (let i = 0; i < n; i++) add(d, i, n); });
     ST.add = add;
     (sg.props || []).forEach(p => { ST.props[p.id] = { p, state: p.state || (p.states && p.states[0]) || 'normal' }; });
@@ -799,12 +811,10 @@
     el.style.display = 'block'; clearTimeout(barkT);
     const gap = (ch.ev.gap != null ? ch.ev.gap : 0.4) * 1000, timed = () => setTimeout(() => stNextLine(ST), 1600 + String(text).length * 45 + gap);
     let a = null;
-    if (vk && !S.voMuted()) { if (voAudio) voAudio.pause();
-      const fx = VO_LINE[vk] || (VO && VO[vk] && vk + '.m4a?' + VO[vk].h); if (fx) try { a = voAudio = new Audio('assets/vo/' + fx); a.volume = 0.95; } catch (e) { a = null; } }
+    // v37.3: goes through the VO priority queue (stage = 2). It used to pause whatever was talking (story/unit lines cut),
+    // and a stage line cut by a unit bark never fired onended, so the rest of the chain stalled.
+    if (vk && !S.voMuted()) { const fx = VO_LINE[vk] || (VO && VO[vk] && vk + '.m4a?' + VO[vk].h); if (fx) a = voSay(fx, 2, why => { if (why === 'ended') ch.timer = setTimeout(() => stNextLine(ST), 500 + gap); else ch.timer = timed(); }); }
     if (!a) { ch.timer = timed(); return; }
-    let done = false; const go = d => { if (done) return; done = true; ch.timer = setTimeout(() => stNextLine(ST), d); };
-    a.onended = () => go(500 + gap); a.onerror = () => { if (!done) { done = true; ch.timer = timed(); } };
-    a.play().catch(() => { if (!done) { done = true; ch.timer = timed(); } });
   }
   function stFire(ST, ev) {
     if (ev.lines && ev.lines.length) {
@@ -952,7 +962,7 @@
                { on: 'win', once: true, then: { spawn: { id: 'felix_kneel', sprite: 'npc_felix', anim: 'kneel', at: 'enemy_nexus', dy: 46, scale: 1.2 } } }] }
   };
   for (const k in STAGES) if (M[k]) M[k].stage = STAGES[k];
-  { const draw0 = S.draw; S.draw = function (c) { draw0(c); if (S.R && S.R.stage) { stageDrawProps(c); stageDrawNpcs(c); } }; }
+  { const draw0 = S.draw; S.draw = function (c) { draw0(c); if (S.R && S.R.stage) stageDrawProps(c); }; }
   function label(c, t, x, y) { c.save(); c.font = 'bold 12px sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(15,23,42,0.85)'; c.strokeText(t, x, y); c.fillStyle = '#f8fafc'; c.fillText(t, x, y); c.restore(); }
 
   // ------------------------------------------------------------------ DOM / UI
@@ -1064,18 +1074,40 @@
   let felixAfter = false;   // v36.7: Felix wears felix_tainted in Act 1 until his redemption (M07 after-dialogue); clean from Act 2 on
   const felixPortrait = () => (felixAfter || (S.m && S.m.act > 1)) ? 'felix' : 'felix_tainted';   // v36.7 X5: keyed on the mission, not the save
   const LEFT = { Rufus: 1, Ruphene: 1, Garrow: 1, Pip: 1, Farmer: 1, Tam: 1, Vesper: 1, Outrider: 1, 'Garrow\u2019s Outrider': 1 };
-  let VO = null, voAudio = null;
+  let VO = null;
+  // ---- v37.3 VO manager: one voice at a time, priority story(3) > stage barks(2) > unit barks(1).
+  // A line never interrupts an equal/higher one; it waits in the queue (unit barks: max 1 queued, dropped when stale).
+  // Only a new story line replaces the current story line (player tapped ahead). onend(why) always fires exactly once.
+  const VOQ = { cur: null, q: [], log: [] }; S.VOQ = VOQ;
+  const voLog = (ev, j) => { VOQ.log.push([Math.round(performance.now()), ev, j.prio, j.file]); if (VOQ.log.length > 200) VOQ.log.shift(); };
+  function voEnd(j, why) { if (j.fin) return; j.fin = true; voLog(why, j); if (j.a) { try { j.a.onended = j.a.onerror = null; if (why !== 'ended') j.a.pause(); j.a.removeAttribute('src'); j.a.load(); } catch (e) {} }
+    if (VOQ.cur === j) VOQ.cur = null; try { j.onend && j.onend(why); } catch (e) {} if (!VOQ.cur) voNext(); }
+  function voNext() { const now = performance.now();
+    while (VOQ.q.length) { const j = VOQ.q.shift(); const age = now - j.t;
+      if ((j.prio === 1 && age > 4000) || (j.prio === 2 && age > 15000) || S.voMuted()) { voEnd(j, 'dropped'); continue; } return voStart(j); } }
+  function voStart(j) { VOQ.cur = j; voLog('start', j);
+    try { const a = j.a = new Audio('assets/vo/' + j.file); a.volume = 0.95; a.onended = () => voEnd(j, 'ended'); a.onerror = () => voEnd(j, 'error');
+      const p = a.play(); if (p && p.catch) p.catch(() => voEnd(j, 'error')); } catch (e) { voEnd(j, 'error'); } }
+  function voSay(file, prio, onend) {
+    if (S.voMuted()) return null;
+    const j = { file, prio, onend, t: performance.now() }, c = VOQ.cur;
+    if (c && !c.fin) {
+      if (prio >= 3) { VOQ.cur = j; voEnd(c, 'stopped'); }   // story line: takes over now
+      else { if (prio === 1 && (c.prio === 1 || VOQ.q.some(x => x.prio === 1))) { voLog('dropped', j); return null; }
+        voLog('queued', j); VOQ.q.push(j); VOQ.q.sort((a, b) => b.prio - a.prio); return j; }
+    }
+    voStart(j); return j;
+  }
+  S.voStop = (minPrio) => { VOQ.q.slice().forEach(j => { if (j.prio >= (minPrio || 0)) { VOQ.q.splice(VOQ.q.indexOf(j), 1); voEnd(j, 'dropped'); } }); if (VOQ.cur && VOQ.cur.prio >= (minPrio || 0)) voEnd(VOQ.cur, 'stopped'); };
   const VO_LINE = {"m01_garrow_bark1": "m01_garrow_bark1.m4a?be62fd", "m01_rufus_bark1": "m01_rufus_bark1.m4a?5099d7", "P0_b0": "p0_ruphene_01.m4a?fc4d0b", "P0_b1": "p0_rufus_01.m4a?b00906", "P0_b2": "p0_ruphene_02.m4a?f9a5a8", "P0_b3": "p0_vesper_02.m4a?2d210a", "P0_b4": "p0_garrow_01.m4a?7e7925", "P0_b5": "p0_garrow_02.m4a?601911", "bark_lantern": "p0_ruphene_03.m4a?d3bbc6", "bark_lantern_2": "p0_ruphene_04.m4a?5f445f", "bark_lantern_3": "p0_ruphene_05.m4a?411c5b", "P0_a0": "p0_vesper_03.m4a?0f41b4", "P0_a1": "p0_rufus_02.m4a?cda406", "prologue_lanterns_l0": "p0_storyteller_04.m4a?051159", "prologue_lanterns_l1": "p0_tobb_01.m4a?90bc3b", "prologue_lanterns_l2": "p0_vesper_01.m4a?f5b24a", "prologue_lanterns_l3": "p0_tobb_02.m4a?392171", "M01_b0": "m01_vesper_01.m4a?050bb5", "M01_b1": "m01_garrow_brief.m4a?4f3991", "M01_a0": "m01_rufus_02.m4a?f8fc22", "M01_a1": "m01_felix_01.m4a?ec7bb8", "M01_a2": "m01_rufus_03.m4a?79254d", "M01_a3": "m01_felix_02.m4a?e9036e", "M02_b0": "m02_rufus_02.m4a?b63d96", "M02_b1": "m02_garrow_02.m4a?dfa0bd", "M02_a0": "m02_farmer_01.m4a?f14da3", "M02_a1": "m02_rufus_03.m4a?8ff55a", "M03_b0": "m03_garrow_01.m4a?d40200", "bark_wagon_in": "m03_felix_01.m4a?63707a", "M03_a0": "m03_rufus_01.m4a?15b168", "M03_a1": "m03_garrow_02.m4a?8f7f67", "M04_b0": "m04_garrow_01.m4a?528b8b", "M04_b1": "m04_vesper_01.m4a?3f4605", "M04_b2": "m04_garrow_02.m4a?8a83cd", "bark_farm_won": "m04_farmer_01.m4a?f6ae59", "bark_farm_lost": "m04_farmer_02.m4a?e3d457", "bark_guard_down": "m04_garrow_03.m4a?7f45d2", "M04_a0": "m04_rufus_01.m4a?e4bf19", "M05_b0": "m05_rufus_02.m4a?d7cc80", "M05_b1": "m05_vesper_01.m4a?7307f9", "M05_b2": "m05_rufus_03.m4a?154949", "M05_a0": "m05_farmer_01.m4a?44faa6", "M05_a1": "m05_rufus_04.m4a?3aaffb", "M06_b0": "m06_vesper_01.m4a?02e150", "M06_b1": "m06_rufus_01.m4a?bba3c8", "M06_b2": "m06_vesper_02.m4a?1d8689", "bark_freed": "m06_garrow_01.m4a?9edeee", "M06_a0": "m06_garrow_02.m4a?2855bd", "M06_a1": "ch1_m06_garrow_somebody.m4a?637301", "M07_b0": "m07_felix_01.m4a?f3dce6", "M07_b1": "m07_rufus_01.m4a?f20ea0", "bark_phase2": "m07_felix_02.m4a?679afe", "bark_phase3": "m07_felix_03.m4a?047a84", "bark_felix_down": "m07_felix_04.m4a?dd7614", "bark_felix_flee": "m07_felix_05.m4a?7bd2cb", "M07_a0": "m07_felix_06.m4a?1d34f8", "M07_a1": "m07_rufus_02.m4a?2c6d1b", "M07_a2": "m07_vesper_01.m4a?7b3884", "M07_a3": "m07_garrow_01.m4a?5445f0", "M07_a4": "m07_felix_07.m4a?4d38dc", "M07_a5": "m07_vesper_02.m4a?d07eeb", "bark_reinf": "ch1_global_ruphene_01.m4a?bb0ab0", "M01_b2": "m01_rufus_01.m4a?f2cb1e", "M05_a2": "ch1_m05_vesper_beacon.m4a?8979d2", "M06_a2": "m06_garrow_03.m4a?9d5470", "P0_a2": "p0_garrow_05.m4a?e87c1c"};
   fetch('assets/vo/index.json').then(r => r.json()).then(j => VO = j).catch(() => {});
   S.voMuted = () => localStorage.getItem('rb.voMute') === '1';
-  S.setVoMute = m => { localStorage.setItem('rb.voMute', m ? '1' : '0'); if (m && voAudio) voAudio.pause(); };
-  S.pauseVo = p => { if (!voAudio) return; if (p) voAudio.pause(); else if (!S.voMuted() && !voAudio.ended) voAudio.play().catch(() => {}); };
-  function playVo(key) {
-    if (voAudio) { voAudio.pause(); voAudio = null; }
+  S.setVoMute = m => { localStorage.setItem('rb.voMute', m ? '1' : '0'); if (m) S.voStop(0); };
+  S.pauseVo = p => { const c = VOQ.cur; if (!c || !c.a) return; if (p) c.a.pause(); else if (!S.voMuted() && !c.a.ended) c.a.play().catch(() => {}); };
+  function playVo(key, prio, onend) {
     const fx = VO_LINE[key];   // v34.9: Cut's recorded lines (lineId files) override old Piper VO
     if (S.voMuted() || (!fx && (!VO || !VO[key]))) return null;
-    try { voAudio = new Audio('assets/vo/' + (fx || key + '.m4a?' + VO[key].h)); voAudio.volume = 0.95; voAudio.play().catch(() => {}); } catch (e) { voAudio = null; }
-    return voAudio;
+    return voSay(fx || key + '.m4a?' + VO[key].h, prio || 3, onend);
   }
   const portraitHtml = (who, size) => { const p = who === 'Felix' ? felixPortrait() : PORTRAIT[who];
     return p ? `<img src="assets/portraits/${p}.webp" alt="${esc(who)}" style="width:${size}px;height:${size}px" class="rounded-2xl bg-gradient-to-b from-sky-700 to-slate-900 border-[3px] border-amber-300 shadow-xl object-contain">`
@@ -1090,7 +1122,7 @@
     el.classList.remove('hidden');
     return new Promise(done => {
       let i = 0, t = null;
-      const finish = () => { clearTimeout(t); if (voAudio) voAudio.pause(); el.classList.add('hidden'); el.innerHTML = ''; done(); };
+      const finish = () => { clearTimeout(t); S.voStop(3); el.classList.add('hidden'); el.innerHTML = ''; done(); };
       const show = () => {
         clearTimeout(t);
         if (i >= lines.length) return finish();
@@ -1107,11 +1139,10 @@
               ${who === 'Narrator' ? `<i>${esc(clean)}</i>` : esc(clean).replace(/\*([^*]+)\*/g, '<b><i>$1</i></b>').replace(/\(([^)]*)\)/g, '<span class="block text-[11px] text-slate-500 italic font-semibold">($1)</span>')}
               <div class="text-right text-[10px] text-slate-500 font-black mt-1">${i + 1}/${lines.length} \u00B7 tap \u25B6</div></div></div>
           <style>@keyframes rbpop{from{transform:translateY(14px) scale(.96);opacity:.3}to{transform:none;opacity:1}}</style>`;
-        const a = playVo(prefix + i);
         // auto-advance after voice ends (+0.9s) or reading time when muted
-        const next = () => { i++; show(); };
-        if (a) a.onended = () => { t = setTimeout(next, 900); };
-        else t = setTimeout(next, 1800 + clean.length * 55);
+        const next = () => { i++; show(); }, li = i;
+        const a = playVo(prefix + i, 3, why => { if (li !== i) return; if (why === 'ended') t = setTimeout(next, 900); else if (why === 'error') t = setTimeout(next, 1800 + clean.length * 55); });
+        if (!a) t = setTimeout(next, 1800 + clean.length * 55);
         el.onclick = e => { const d = e.target.closest('[data-d]'); if (d && d.dataset.d === 'skip') return finish();
           if (d && d.dataset.d === 'mute') { S.setVoMute(!S.voMuted()); d.textContent = S.voMuted() ? '\u{1F507}' : '\u{1F50A}'; return; } next(); };
       };
@@ -1122,10 +1153,11 @@
   let barkT = null;
   S.bark = function (key) {
     const b = BARKS[key]; if (!b || !S.R) return;
+    if (S.R.stage && S.R.stage.chain) { playVo('bark_' + key, 1); return; }   // v37.3: don't overwrite / auto-hide a stage line's bubble
     let el = $('rb-bark');
     if (!el) { el = document.createElement('div'); el.id = 'rb-bark'; el.className = 'fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-none w-[92%] max-w-sm'; el.style.top = 'calc(var(--sat, 0px) + 118px)'; document.body.appendChild(el); }
     el.innerHTML = `<div class="flex items-center gap-2" style="animation:rbpop .18s ease-out">${portraitHtml(b[0], 54)}<div class="flex-1 bg-white text-slate-900 rounded-2xl px-2 py-1.5 border-[3px] border-slate-900 shadow-xl text-[12px] font-bold leading-tight"><span class="text-[10px] font-black uppercase text-amber-700">${esc(b[0])}</span><br>${esc(b[1])}</div></div>`;
-    el.style.display = 'block'; playVo('bark_' + key);
+    el.style.display = 'block'; playVo('bark_' + key, 1);
     clearTimeout(barkT); barkT = setTimeout(() => { el.style.display = 'none'; }, 3800);
   };
   const CREDITS_HTML = `<div class="text-xs text-slate-200 space-y-2">
@@ -1572,9 +1604,9 @@
     else if (st.point && st.point.unit) r = unitPoint(st.point);
     else if (st.point && st.point.pad) { const pd = state.turretPads.find(p => p.team === st.point.pad); if (pd) r = unitPoint({ at: pd }); }
     else if (st.point && st.point.node) { const e = $('node-' + st.point.node.toLowerCase()); if (e) r = e.getBoundingClientRect(); }
-    let vo = null;   // voice hook: Cut's <lineId>.m4a in assets/vo/, enabled per id via Story.TUT_VO[lineId] = true (or 'file.m4a')
-    if (st.voiced && TUT_VO[st.line] && !S.voMuted()) { try { vo = new Audio('assets/vo/' + (typeof TUT_VO[st.line] === 'string' ? TUT_VO[st.line] : st.line + '.m4a')); vo.play().catch(() => {}); } catch (e) {} }
-    tipBox(st.speaker || 'Garrow', line(st.line), r, st.id, () => { if (vo) vo.pause();
+    let vo = null;   // v37.3: through VO queue (story prio) — voice hook: Cut's <lineId>.m4a in assets/vo/, enabled per id via Story.TUT_VO[lineId] = true (or 'file.m4a')
+    if (st.voiced && TUT_VO[st.line] && !S.voMuted()) vo = voSay(typeof TUT_VO[st.line] === 'string' ? TUT_VO[st.line] : st.line + '.m4a', 3);
+    tipBox(st.speaker || 'Garrow', line(st.line), r, st.id, () => { if (vo && !vo.fin) voEnd(vo, 'stopped');
       if (st.pause === 'slow') state.timeSpeed = prevSpeed; else if (st.pause !== false) state.paused = false;
       T.box = false; T.i++; T.since = 0; T.forced = false;
     });

@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v37.2</title>
+  <title>Royal Blight BETA v37.3</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -324,7 +324,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v37.2</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v37.3</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -786,6 +786,7 @@
       if (!bg) return null;
       const w = Math.round(WORLD_W * scale), h = Math.round(WORLD_H * scale);
       if (!bgCache || bgCache.width !== w || bgCache.height !== h || bgCache.src !== bg) {
+        if (bgCache) bgCache.width = bgCache.height = 0;   // v37.3: free the old backing store now (iOS keeps it until GC)
         const c = document.createElement('canvas'); c.width = w; c.height = h;
         const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(bg, 0, 0, w, h);
         bgCache = c; bgCache.src = bg;
@@ -824,10 +825,27 @@
     window.addEventListener('resize', resizeCanvas);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas);
 
+    // v37.3 scroll extension: the camera may scroll CAM_EXT CSS px past both world edges (every mission/mode) so the enemy
+    // nexus + HP bar clear the top HUD / notch and the player's base clears the bottom bar. World positions are unchanged;
+    // the extra band is painted by fillCamBands() (mirror of the backdrop edge).
+    const CAM_EXT = { top: 110, bot: 80 };   // top 110: at 80 the enemy nexus art still sat under the objective HUD at --sat 59px
+    const camExt = () => { const cssPerWorld = (parseFloat(canvas.style.width) || canvas.getBoundingClientRect().width) / WORLD_W || 1; return [CAM_EXT.top / cssPerWorld, CAM_EXT.bot / cssPerWorld]; };
     function clampCamera() {
-      const maxCam = Math.max(0, WORLD_H - viewportH);
-      state.cameraY = Math.max(0, Math.min(maxCam, state.cameraY));
-      state.targetCameraY = Math.max(0, Math.min(maxCam, state.targetCameraY));
+      const [et, eb] = camExt(), maxCam = Math.max(0, WORLD_H - viewportH) + eb;
+      state.cameraY = Math.max(-et, Math.min(maxCam, state.cameraY));
+      state.targetCameraY = Math.max(-et, Math.min(maxCam, state.targetCameraY));
+    }
+    window.camExt = camExt;
+    function fillCamBands() {
+      const t = ctx.getTransform(), H = canvas.height, ya = t.f, yb = t.d * WORLD_H + t.f;
+      const top = Math.round(Math.min(ya, yb)), bot = Math.round(Math.max(ya, yb));
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (top > 0) { const h = Math.min(top, bot - top); ctx.fillStyle = '#1e1b2e'; ctx.fillRect(0, 0, canvas.width, top);
+        if (h > 0) { ctx.translate(0, top); ctx.scale(1, -1); ctx.drawImage(canvas, 0, top, canvas.width, h, 0, 0, canvas.width, h); } }
+      ctx.restore(); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (bot < H) { const h = Math.min(H - bot, bot - Math.max(0, top)); ctx.fillStyle = '#1e1b2e'; ctx.fillRect(0, bot, canvas.width, H - bot);
+        if (h > 0) { ctx.translate(0, bot); ctx.scale(1, -1); ctx.drawImage(canvas, 0, bot - h, canvas.width, h, 0, -h, canvas.width, h); } }
+      ctx.restore();
     }
 
     // --- OPTIONAL SPRITE LOADER ---
@@ -2666,6 +2684,7 @@
       // 1. Draw 3-Zone Environment: Cobblestone Road, River, Grass & Wildflowers
       drawEnvironment();
       if (window.Story && Story.active && Story.drawBg) Story.drawBg(ctx);   // v36.2 P0 festival night dressing (under nodes/units)
+      fillCamBands();   // v37.3 paint the scroll-extension bands (camera past the world edge)
 
       // 2. Draw 3 Mining Nodes (Sapphire, Gold, Amethyst)
       drawNodes();
@@ -2678,6 +2697,7 @@
       // depth: units just 'behind' a citadel on screen are drawn before it, the rest after
       drawUnits(behindCitadel);
       drawCitadels();
+      if (window.Story && Story.active && Story.drawMid) Story.drawMid(ctx);   // v37.3 stage NPCs + festival guards above turrets/citadels
 
       // 5. Draw Units (Vector Anatomies, Weapons, Plumes, Skeletons)
       drawUnits(u => !behindCitadel(u));
@@ -4286,20 +4306,47 @@
       requestAnimationFrame(tick);
     }
     // wake on state changes that matter (start, unpause, rematch) without touching every call site
+    // v37.3 resume snapshot: read once before anything can clear it (cold start after iOS killed the backgrounded app)
+    const RESUME0 = (() => { try { const r = JSON.parse(localStorage.getItem('rb.resume') || 'null'); return r && Date.now() - r.at < 12 * 3600e3 ? r : null; } catch (e) { return null; } })();
+    const clearResume = () => { try { localStorage.removeItem('rb.resume'); } catch (e) {} };
     ['paused', 'started', 'gameOver'].forEach(key => {
       let v = state[key];
-      Object.defineProperty(state, key, { get: () => v, set: x => { v = x; if (loopWanted()) wakeLoop(); }, configurable: true });
+      Object.defineProperty(state, key, { get: () => v, set: x => { v = x; if ((key === 'gameOver' && x) || (key === 'started' && !x)) clearResume(); if (loopWanted()) wakeLoop(); }, configurable: true });
     });
+    // v37.3 leave-app handling. Before: hiding only suspended SFX and stopped the rAF loop; on return the update flow could
+    // location.reload() (any non-mission screen), and iOS often killed the page outright (300+ MB of decoded music + bgs), so
+    // coming back = restart. Now: auto-pause with the pause menu, audio suspended/resumed, and a resume snapshot in localStorage.
+    const inMission = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
+    function onLeave(why) {
+      if (!inMission()) return;
+      try { localStorage.setItem('rb.resume', JSON.stringify({ mid: window.Story && Story.active && Story.m ? Story.m.id : null, mode: state.mode, ver: window.APP_VERSION, at: Date.now(), why })); } catch (e) {}
+      if (state.mode === 'cpu' && !state.paused) { try { openPause(); } catch (e) { setPaused(true); } }
+    }
+    window.__rbLeave = onLeave;
     document.addEventListener('visibilitychange', () => {
-      try { if (sound && sound.ctx) { if (document.hidden) sound.ctx.suspend(); else sound.ctx.resume(); } } catch (e) {}
-      if (!document.hidden) { wakeLoop(); }
+      try { if (sound && sound.ctx) { if (document.hidden) sound.ctx.suspend(); else if (!state.paused) sound.ctx.resume(); } } catch (e) {}
+      if (document.hidden) onLeave('hidden'); else { wakeLoop(); }
     });
+    window.addEventListener('pagehide', () => onLeave('pagehide'));
+    window.addEventListener('blur', () => { if (!document.hasFocus()) onLeave('blur'); });
+    function offerResume() {
+      const r = RESUME0; clearResume(); if (!r || !r.mid || !window.Story || !Story.missions || !Story.missions[r.mid]) return;
+      const nm = Story.missions[r.mid].name || r.mid, d = document.createElement('div'); d.id = 'rb-resume';
+      d.className = 'fixed inset-0 z-[95] bg-black/75 flex items-center justify-center p-6';
+      d.innerHTML = `<div class="w-full max-w-xs rounded-2xl bg-slate-900 border-2 border-amber-400 p-4 text-center text-slate-100"><div class="text-lg font-black text-amber-300">Resume mission?</div>
+        <div class="text-sm mt-1">${r.mid} \u00B7 ${String(nm).replace(/[<>&]/g, '')}</div><div class="text-[11px] text-slate-400 mt-1">The game was closed mid-mission. It restarts from the mission start.</div>
+        <div class="flex gap-2 mt-3"><button id="rb-resume-no" class="flex-1 py-2 rounded-xl bg-slate-700 font-black text-xs uppercase">Not now</button><button id="rb-resume-yes" class="flex-1 py-2 rounded-xl bg-amber-400 text-slate-950 font-black text-xs uppercase">\u25B6 Resume</button></div></div>`;
+      document.body.appendChild(d);
+      d.querySelector('#rb-resume-no').onclick = () => d.remove();
+      d.querySelector('#rb-resume-yes').onclick = () => { d.remove(); document.querySelectorAll('#modal-menu,#modal-story').forEach(e => e.classList.add('hidden')); Story.start(r.mid); };
+    }
     // touches / camera drags on an idle board still need a redraw
     ['pointerdown', 'pointermove', 'wheel', 'resize'].forEach(ev => window.addEventListener(ev, () => wakeLoop(), { passive: true }));
 
     window.onload = function() {
       initGame();
       wakeLoop();
+      setTimeout(offerResume, 400);
     };
   </script>
   <script src="assets/lib/qrcode.js"></script>
@@ -4311,7 +4358,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v37.2';
+    window.APP_VERSION = 'v37.3';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;
@@ -4328,7 +4375,11 @@
         b.onclick = () => { sessionStorage.removeItem('rb-reload-ver'); location.reload(); };
         document.body.appendChild(b);
       }
-      function onNewer(v) { if (!busy() && reloadOnce('ver')) return; banner(v); }
+      // v37.3: never reload on return-from-background (that read as "the app restarted"); only on a cold load sitting in the
+      // main menu. Otherwise a banner, shown only while in menus (hidden during missions / story dialogue).
+      const T0 = Date.now(), inMenus = () => !busy() && !document.querySelector('#rb-dialogue:not(.hidden),#rb-resume');
+      function onNewer(v) { if (Date.now() - T0 < 8000 && inMenus() && reloadOnce('ver')) return; banner(v); }
+      setInterval(() => { const b = document.getElementById('update-banner'); if (b) b.style.display = inMenus() ? '' : 'none'; }, 1000);
       async function checkVersion() {
         try {
           if (!navigator.onLine) return; const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return;
@@ -4340,7 +4391,7 @@
         const hadController = !!navigator.serviceWorker.controller;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (!hadController) return;                                     // first install: nothing to refresh
-          if (busy()) banner('new'); else reloadOnce('sw');
+          if (Date.now() - T0 < 8000 && inMenus()) reloadOnce('sw'); else banner('new');
         });
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {

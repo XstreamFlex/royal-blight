@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-beta-v37.2';   // BETA build (/royal-blight/beta/): own cache namespace
+const CACHE_VERSION = 'royal-blight-beta-v37.3';   // BETA build (/royal-blight/beta/): own cache namespace
 const CORE = [
   './', './index.html', './manifest.json', './mp.js', './story.js', './cloud.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/kingdom_map.jpg', './assets/fonts/fonts.css',
@@ -55,7 +55,20 @@ self.addEventListener('fetch', e => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin) return;
   if (url.pathname.includes('/assets/music/')) return;   // v34.5 music streams from the network, never cached
-  const store = r => { if (r && r.ok) { const copy = r.clone(); caches.open(CACHE_VERSION).then(c => c.put(req, copy)); } return r; };
+  // v37.3: Range requests (Safari/iOS <audio> for VO .m4a ALWAYS asks for bytes=0-1 first) used to get the cached full 200
+  // back, which WebKit rejects/aborts mid-line; and a network 206 was then put() into the cache (r.ok is true for 206).
+  // Now: answer from the cache with a real 206 slice, else straight to the network, never stored.
+  if (req.headers.has('range')) {
+    e.respondWith(caches.open(CACHE_VERSION).then(c => c.match(req, { ignoreSearch: true })).then(async hit => {
+      if (!hit) return fetch(req);
+      const buf = await hit.arrayBuffer(), n = buf.byteLength, m = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
+      let a = m && m[1] ? +m[1] : 0, b = m && m[2] ? +m[2] : n - 1; if (m && !m[1] && m[2]) { a = Math.max(0, n - +m[2]); b = n - 1; }
+      b = Math.min(b, n - 1); if (a > b || a >= n) return new Response(null, { status: 416, headers: { 'Content-Range': 'bytes */' + n } });
+      return new Response(buf.slice(a, b + 1), { status: 206, headers: { 'Content-Type': hit.headers.get('Content-Type') || 'audio/mp4', 'Content-Range': `bytes ${a}-${b}/${n}`, 'Content-Length': String(b - a + 1), 'Accept-Ranges': 'bytes' } });
+    }).catch(() => fetch(req)));
+    return;
+  }
+  const store = r => { if (r && r.ok && r.status === 200) { const copy = r.clone(); caches.open(CACHE_VERSION).then(c => c.put(req, copy)); } return r; };
   const fromCache = () => caches.open(CACHE_VERSION).then(c => c.match(req, { ignoreSearch: true }).then(h => h || (req.mode === 'navigate' ? c.match('./index.html') : undefined)));
   if (req.mode === 'navigate' || NET_FIRST.test(url.pathname)) {
     e.respondWith(fetch(req, { cache: 'no-store' }).then(store).catch(() => fromCache()));

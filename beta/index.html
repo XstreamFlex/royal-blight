@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v36.2</title>
+  <title>Royal Blight BETA v36.3</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -322,7 +322,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v36.2</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v36.3</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -878,7 +878,7 @@
               doom: { name: 'Doom', key: 'nexus_doom', tint: 'hue-rotate(-75deg)', color: '#8b5cf6' },
               vexis: { name: 'Vexis', key: 'nexus_vexis', tint: 'saturate(1.25)', color: '#dc2626' },
               malgrave: { name: 'Malgrave', key: 'nexus_necromancer', tint: 'grayscale(0.85) brightness(1.45) contrast(1.05)', color: '#e7e5e4' },
-              drill: { name: 'Garrow\u2019s Training Troops', key: 'nexus_king', tint: 'grayscale(1) brightness(1.05) contrast(0.95)', color: '#9ca3af', story: true },   // v36.2 P0 only
+              drill: { name: 'Garrow\u2019s Training Troops', key: 'nexus_king', tint: 'grayscale(1)', color: '#9ca3af', story: true },   // v36.2 P0 only
               emperor: { name: 'Doom Emperor', key: 'nexus_necromancer', tint: 'saturate(1.6) hue-rotate(20deg) brightness(0.75) contrast(1.2)', color: '#7f1d1d' } }
     };
     const DEFAULT_LEADER = { blue: 'rufus', red: 'necro' };
@@ -3616,7 +3616,7 @@
       document.getElementById('king-hp-num').textContent = Math.max(0, Math.ceil(state.cores.blue.hp));
       document.getElementById('necro-hp-num').textContent = Math.max(0, Math.ceil(state.cores.red.hp));
       { const en = document.getElementById('enemy-name'); const nm = (window.Story && Story.active && Story.m) ? (Story.m.region === 'eastmarch' ? (Story.m.objectives.some(o => o.k === 'boss') ? 'Felix' : 'Green Army') : leaderOf('red').name) : 'Necro'; if (en.textContent !== nm) { en.textContent = nm; en.style.marginLeft = '4px'; en.style.whiteSpace = 'nowrap'; en.style.fontSize = nm.length > 6 ? '9px' : ''; en.style.color = (window.Story && Story.active && Story.m && Story.m.region === 'eastmarch') ? '#86efac' : ''; }
-        const ei = document.getElementById('enemy-icon'), dr = isDrill(); if (ei && ei.dataset.drill !== String(dr)) { ei.dataset.drill = dr; ei.textContent = dr ? '\u2694\uFE0F' : '\u{1F480}'; ei.style.filter = dr ? 'grayscale(1)' : ''; ei.style.background = dr ? 'linear-gradient(#6b7280,#374151)' : ''; ei.style.borderColor = dr ? '#d1d5db' : ''; } }
+        const ei = document.getElementById('enemy-icon'), dr = isDrill(); if (ei && ei.dataset.drill !== String(dr)) { ei.dataset.drill = dr; ei.textContent = dr ? '\u2694\uFE0F' : '\u{1F480}'; ei.style.filter = dr ? 'grayscale(1)' : ''; ei.style.background = dr ? 'linear-gradient(#6b7280,#374151)' : ''; ei.style.borderColor = dr ? '#d1d5db' : ''; const hb = document.getElementById('necro-hp-bar'); if (hb) hb.style.background = dr ? '#9ca3af' : ''; } }
 
       // Wave Counter
       document.getElementById('wave-num').textContent = state.waveCount;
@@ -4305,7 +4305,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v36.2';
+    window.APP_VERSION = 'v36.3';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

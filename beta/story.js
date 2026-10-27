@@ -537,41 +537,40 @@
   };
 
   // ------------------------------------------------------------------ DRAW (inside the world transform)
-  // v36.2 P0: Paradale Festival of Lanterns at night. Lantern posts both sides of the lane, a crowd at each in
-  // its kingdom's colours (STORY_BIBLE 2.2 / 8.6: Paradale royal blue + gold, Eastmarch green, Westreach yellow,
-  // Northcrag silver-white). The 3 pact lanterns (beacons, right side) get the crowd of the kingdom they stand for.
-  const KCOL = { paradale: ['#1d4ed8', '#3b82f6', '#facc15'], eastmarch: ['#15803d', '#22c55e', '#a3e635'], westreach: ['#ca8a04', '#eab308', '#fde047'], northcrag: ['#e5e7eb', '#cbd5e1', '#f8fafc'] };
+  // v36.3 P0: Paradale Festival of Lanterns at night (painted backdrop arena_p0_festival via MAPS.festival). Lantern posts
+  // both sides of the lane; at each one 2-3 idle NPC soldiers drawn with the game's own unit sprites in their kingdom's
+  // uniform (STORY_BIBLE 2.2 / 8.6): Paradale = Kingdom blue art, Eastmarch = Green Army art, Westreach = blue art shifted
+  // yellow (same filter as the Glade leader skin), Northcrag = blue art shifted silver-white. Pure decoration: not units.
+  const KART = { paradale: ['blue', ''], eastmarch: ['green', ''], westreach: ['blue', 'hue-rotate(-175deg) saturate(1.3) brightness(1.08)'], northcrag: ['blue', 'saturate(0.2) brightness(1.45) contrast(0.95)'] };
   let FEST = null;
   function festLayout() {
-    const L = [], ys = [1560, 1110, 660], pact = ['eastmarch', 'westreach', 'northcrag'];
-    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    const crowd = (x, y, side, k) => { const p = []; for (let i = 0; i < 9; i++) p.push({ x: x + side * (8 + rnd() * 40), y: y - 34 + rnd() * 62, c: KCOL[k][i % 3], h: 9 + rnd() * 4, ph: rnd() * 6.3 }); p.sort((a, b) => a.y - b.y); return p; };
+    const L = [], ys = [1560, 1110, 660], pact = ['eastmarch', 'westreach', 'northcrag'], mines = [2000, 1320, 740, 220, 900, 1480];
+    const guard = (x, y, side, k, n) => { const g = []; const kinds = ['knight', 'knight_shield', 'archer']; for (let i = 0; i < n; i++) g.push({ x: x + side * (16 + 20 * (i % 2)), y: y - 22 + i * 22, key: kinds[i % 3], k, ph: i * 1.7 + y }); return g; };
     for (let y = 330; y <= 1900; y += 225) {
-      const pi = ys.findIndex(v => Math.abs(v - y) < 120);
-      if (pi < 0) L.push({ x: LANE_X + LANE_HALF_W + 30, y, post: true, k: 'paradale', crowd: crowd(LANE_X + LANE_HALF_W + 30, y, 1, 'paradale') });
-      L.push({ x: LANE_X - LANE_HALF_W - 30, y, post: true, k: 'paradale', crowd: crowd(LANE_X - LANE_HALF_W - 30, y, -1, 'paradale') });
+      const pi = ys.findIndex(v => Math.abs(v - y) < 120), xr = LANE_X + LANE_HALF_W + 30, xl = LANE_X - LANE_HALF_W - 30;
+      if (pi < 0) L.push({ x: xr, y, post: true, g: guard(xr, y, 1, 'paradale', mines.some(m => Math.abs(m - y) < 90) ? 1 : 2) });
+      L.push({ x: xl, y, post: true, g: guard(xl, y, -1, 'paradale', mines.some(m => Math.abs(m - y) < 90) ? 1 : 2) });
     }
-    ys.forEach((y, i) => L.push({ x: LANE_X + LANE_HALF_W + 34, y, post: false, k: pact[i], crowd: crowd(LANE_X + LANE_HALF_W + 46, y, 1, pact[i]) }));
+    ys.forEach((y, i) => L.push({ x: LANE_X + LANE_HALF_W + 34, y, post: false, g: guard(LANE_X + LANE_HALF_W + 40, y + 6, 1, pact[i], 3) }));
     return L;
   }
   S.drawBg = function (c) {
     const m = S.m; if (!m || m.enemy !== 'drill') return;
     const now = performance.now() / 1000, y0 = state.cameraY - 120, y1 = state.cameraY + viewportH + 120;
-    c.fillStyle = 'rgba(6,12,38,0.58)'; c.fillRect(0, Math.max(0, y0), WORLD_W, Math.min(WORLD_H, y1) - Math.max(0, y0));   // night
+    c.fillStyle = 'rgba(6,12,38,0.40)'; c.fillRect(0, Math.max(0, y0), WORLD_W, Math.min(WORLD_H, y1) - Math.max(0, y0));   // night
     FEST = FEST || festLayout();
     for (const f of FEST) {
       if (f.y < y0 || f.y > y1) continue;
       const fl = 0.85 + 0.15 * Math.sin(now * 5 + f.y);
       const g = c.createRadialGradient(f.x, f.y - 40, 4, f.x, f.y - 30, 80); g.addColorStop(0, `rgba(253,200,90,${0.42 * fl})`); g.addColorStop(1, 'rgba(253,160,60,0)');
       c.fillStyle = g; c.beginPath(); c.arc(f.x, f.y - 30, 80, 0, Math.PI * 2); c.fill();
-      for (const p of f.crowd) {   // spectators: body in kingdom colour, head, idle bob
-        const b = Math.sin(now * 2.2 + p.ph) * 1.4, px = p.x, py = p.y + b;
-        c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(px, p.y + 2, 5, 2, 0, 0, Math.PI * 2); c.fill();
-        c.fillStyle = p.c; c.beginPath(); c.moveTo(px - 5, py); c.lineTo(px + 5, py); c.lineTo(px + 3, py - p.h); c.lineTo(px - 3, py - p.h); c.closePath(); c.fill();
-        c.fillStyle = '#f2c79b'; c.beginPath(); c.arc(px, py - p.h - 3, 3.2, 0, Math.PI * 2); c.fill();
-        if (Math.sin(now * 1.3 + p.ph * 3) > 0.7) { c.strokeStyle = p.c; c.lineWidth = 1.6; c.beginPath(); c.moveTo(px + 2, py - p.h + 1); c.lineTo(px + 5, py - p.h - 7); c.stroke(); }   // a waving arm
+      for (const p of f.g) {   // idle soldiers: front-view sprite (facing the field), gentle breathing bob
+        const [team, tint] = KART[p.k], img = loadSprite(p.key + '_' + team) || loadSprite(p.key.split('_')[0] + '_' + team); if (!img) continue;
+        const sz = 34, b = Math.sin(now * 1.8 + p.ph) * 0.8;
+        c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(p.x, p.y + 4, 9, 3.5, 0, 0, Math.PI * 2); c.fill();
+        c.drawImage(scaledSprite(img, sz, sz, tint), p.x - sz / 2, p.y + 6 - sz + b, sz, sz - b);
       }
-      if (f.post) {   // drawn festival lantern post (pact lanterns use the existing art in S.draw)
+      if (f.post) {
         c.fillStyle = '#3f2a14'; c.fillRect(f.x - 2, f.y - 52, 4, 54); c.fillRect(f.x - 2, f.y - 52, 12, 3);
         const sw = Math.sin(now * 1.7 + f.y) * 1.5, lx = f.x + 9 + sw;
         c.fillStyle = '#b91c1c'; c.beginPath(); c.ellipse(lx, f.y - 41, 6, 8, 0, 0, Math.PI * 2); c.fill();

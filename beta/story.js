@@ -240,6 +240,7 @@
     if (m.region === 'eastmarch' && unlocked('bonus:worker_east')) spawnWorker('blue', 'MID');     // M04 reward: +1 starting worker
     const R = S.R = { t: 0, obj: {}, lost: 0, minCoreFrac: 1, turretsLost: 0, spent: 0, jousts: 0, lastJoust: -9, hazards: [], done: null, msgs: [] };
     (m.objectives || []).forEach((o, i) => setupObjective(o, i));
+    R.stage = stageInit(m);   // v37 level staging (null when the mission has no stage block)
     if (m.boss) spawnBoss(m.boss);
     S.prevDmgHook = window.dmgHook;
     window.dmgHook = (owner, dealt, target) => {
@@ -340,6 +341,7 @@
     R.minCoreFrac = Math.min(R.minCoreFrac, cb.hp / cb.maxHp);
     const B = blueArmy(), Rd = redArmy();
     for (const st of Object.values(R.obj)) tickObjective(st, dt, B, Rd);
+    if (R.stage) stageTick(dt);
     (m.hazards || []).forEach((h, i) => tickHazard(h, i, dt));
     if (R.boss) tickBoss(dt);
     tickGuards();
@@ -374,7 +376,7 @@
       if (st.spawned < o.count && st.next <= 0) {
         st.next = o.every; st.spawned++;
         const u = storyUnit({ type: 'civilian', team: 'blue', x: LANE_X + (Math.random() - 0.5) * 60, y: o.fromY, hp: 90, speed: 34, radius: 11 });
-        u.goal = state.cores.blue.y - 40; u.evac = st;
+        u.goal = state.cores.blue.y - 40; u.evac = st; if (S.m.stage) S.stageSpawnAs(u, st.spawned);
       }
       if (st.lost > o.lossMax) st.failed = true;
       else if (st.spawned >= o.count && st.saved + st.lost >= o.count) st.done = true;
@@ -515,7 +517,7 @@
   // end of a story match (called from showGameOver). Returns true = story handled the end screen.
   S.onEnd = function (win) {
     const R = S.R, m = S.m; if (!R || R.done) return true;
-    R.done = true; if (S.tutStop) S.tutStop();
+    R.done = true; if (S.tutStop) S.tutStop(); if (R.stage) stageEnd(win);
     const st = starsFor(win);
     const rec = SAVE.missions[m.id] = SAVE.missions[m.id] || { stars: 0, wins: 0, plays: 0, best: 0, starSet: [false, false, false] };
     const firstClear = win && !rec.wins;
@@ -561,8 +563,21 @@
     ys.forEach((y, i) => L.push({ x: LANE_X + LANE_HALF_W + 34, y, post: false, g: guard(LANE_X + LANE_HALF_W + 40, y + 6, 1, pact[i], 3) }));
     return L;
   }
+  // v37: general backdrop lookup. No stage block = exactly the old rule (festival dressing only for the P0 drill).
+  // stage.bg = assets/bg/<name>.webp over the whole arena; until delivered, BG_FALLBACK draws the built-in dressing for that name.
+  const BG_FALLBACK = { bg_p0_festival: c => festDress(c) };
   S.drawBg = function (c) {
-    const m = S.m; if (!m || m.enemy !== 'drill') return;
+    const m = S.m; if (!m) return;
+    if (!m.stage) { if (m.enemy === 'drill') festDress(c); return; }
+    const sg = m.stage, bimg = sg.bg && stImg('bg', sg.bg);
+    if (bimg) c.drawImage(bimg, 0, 0, WORLD_W, WORLD_H); else if (sg.bg && BG_FALLBACK[sg.bg]) BG_FALLBACK[sg.bg](c);
+    const limg = sg.lane && stImg('lane', sg.lane);
+    if (limg) { const w = LANE_HALF_W * 2, th = w * limg.height / limg.width, y0 = Math.max(0, Math.floor(state.cameraY / th) * th);
+      for (let y = y0; y < Math.min(WORLD_H, state.cameraY + viewportH + th); y += th) c.drawImage(limg, LANE_X - LANE_HALF_W, y, w, th); }
+  };
+  const ARMY_SKIN = { westreach: 'westreach', northcrag: 'northern' };   // v37: P0 parade troops use the delivered army art when staged
+  function festDress(c) {
+    const m = S.m;
     const now = performance.now() / 1000, y0 = state.cameraY - 120, y1 = state.cameraY + viewportH + 120;
     c.fillStyle = 'rgba(6,12,38,0.40)'; c.fillRect(0, Math.max(0, y0), WORLD_W, Math.min(WORLD_H, y1) - Math.max(0, y0));   // night
     FEST = FEST || festLayout();
@@ -572,7 +587,9 @@
       const g = c.createRadialGradient(f.x, f.y - 40, 4, f.x, f.y - 30, 80); g.addColorStop(0, `rgba(253,200,90,${0.42 * fl})`); g.addColorStop(1, 'rgba(253,160,60,0)');
       c.fillStyle = g; c.beginPath(); c.arc(f.x, f.y - 30, 80, 0, Math.PI * 2); c.fill();
       for (const p of f.g) {   // idle soldiers: front-view sprite (facing the field), gentle breathing bob
-        const [team, tint] = KART[p.k], img = loadSprite(p.key + '_' + team) || loadSprite(p.key.split('_')[0] + '_' + team); if (!img) continue;
+        let [team, tint] = KART[p.k], img = loadSprite(p.key + '_' + team) || loadSprite(p.key.split('_')[0] + '_' + team);
+        if (m.stage && ARMY_SKIN[p.k]) { const a = stImg('npc', 'army_' + ARMY_SKIN[p.k] + '_' + p.key.split('_')[0]); if (a) { img = a; tint = ''; } }
+        if (!img) continue;
         const sz = 34, b = Math.sin(now * 1.8 + p.ph) * 0.8;
         c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(p.x, p.y + 4, 9, 3.5, 0, 0, Math.PI * 2); c.fill();
         c.drawImage(scaledSprite(img, sz, sz, tint), p.x - sz / 2, p.y + 6 - sz + b, sz, sz - b);
@@ -584,7 +601,7 @@
         c.fillStyle = `rgba(254,240,138,${0.8 * fl})`; c.beginPath(); c.ellipse(lx, f.y - 41, 3, 5, 0, 0, Math.PI * 2); c.fill();
       }
     }
-  };
+  }
   S.draw = function (c) {
     const R = S.R, m = S.m; if (!R) return;
     const now = performance.now() / 1000;
@@ -641,6 +658,7 @@
     // story units
     state.units.forEach(u => {
       if (!u.story || u.dead) return;
+      if (u.npcSprite) { drawNpc(c, { x: u.x, y: u.y + 10, sprite: u.npcSprite, anim: 'flee', sc: 1, ph: u.id || 0, flip: false }, now); drawHealthBar(u.x, u.y - u.radius - 24, u.radius * 2, 4, u.hp, u.lagHp, u.maxHp); return; }   // v37 spawnAs
       const icon = { civilian: '\u{1F9D1}\u200D\u{1F33E}', wagon: u.team === 'red' ? '\u{1F6E2}' : '\u{1F6D2}', structure: '\u{1F3DB}', cage: '\u26D3', vip: '\u{1F451}' }[u.type] || '?';
       c.save(); c.translate(u.x, u.y + Math.sin(u.walkAnim) * 1.5);
       if (u.type === 'wagon') {   // v34 oil-wagon art: intact, then burning below half HP
@@ -655,6 +673,239 @@
       else { const cg = Object.values(S.R.obj).find(s => s.o.k === 'rescue'); const cc = cg && cg.cages.find(x => x.u === u); label(c, '\u26D3 ' + (cc ? cc.c.name : '') + (cc && cc.prog > 0 ? ' ' + Math.round(cc.prog / 3 * 100) + '%' : ''), u.x, u.y - 30); }
     });
   };
+  // ------------------------------------------------------------------ v37 LEVEL STAGING ENGINE (Cut's level_engine_spec_v1)
+  // One optional data-only `stage` block per mission. Missions without `stage` take none of these paths.
+  // Art: assets/{npc,bg,lane,prop,nexus}/<name>.webp. A missing file falls back silently (default arena art, no sprite).
+  const NPC_ART = {"army_westreach_knight":[1,0,0.5,0.953125],"army_westreach_knight_back":[1,0,0.5,0.953125],"army_westreach_archer":[1,0,0.5,0.953125],"army_westreach_archer_back":[1,0,0.5,0.953125],"army_westreach_wizard":[1,0,0.5,0.953125],"army_westreach_wizard_back":[1,0,0.5,0.953125],"army_westreach_brute":[1,0,0.5,0.953125],"army_westreach_brute_back":[1,0,0.5,0.953125],"army_westreach_worker":[1,0,0.5,0.953125],"army_westreach_worker_back":[1,0,0.5,0.953125],"army_westreach_cavalier":[1,0,0.5,0.953125],"army_westreach_cavalier_back":[1,0,0.5,0.953125],"army_cline_knight":[1,0,0.5,0.953125],"army_cline_knight_back":[1,0,0.5,0.953125],"army_cline_archer":[1,0,0.5,0.953125],"army_cline_archer_back":[1,0,0.5,0.953125],"army_cline_wizard":[1,0,0.5,0.953125],"army_cline_wizard_back":[1,0,0.5,0.953125],"army_cline_brute":[1,0,0.5,0.953125],"army_cline_brute_back":[1,0,0.5,0.953125],"army_cline_worker":[1,0,0.5,0.953125],"army_cline_worker_back":[1,0,0.5,0.953125],"army_cline_cavalier":[1,0,0.5,0.953125],"army_cline_cavalier_back":[1,0,0.5,0.953125],"army_northern_knight":[1,0,0.5,0.953125],"army_northern_knight_back":[1,0,0.5,0.953125],"army_northern_archer":[1,0,0.5,0.953125],"army_northern_archer_back":[1,0,0.5,0.953125],"army_northern_wizard":[1,0,0.5,0.953125],"army_northern_wizard_back":[1,0,0.5,0.953125],"army_northern_brute":[1,0,0.5,0.953125],"army_northern_brute_back":[1,0,0.5,0.953125],"army_northern_worker":[1,0,0.5,0.953125],"army_northern_worker_back":[1,0,0.5,0.953125],"army_northern_cavalier":[1,0,0.5,0.953125],"army_northern_cavalier_back":[1,0,0.5,0.953125],"army_shadow_skeleton":[1,0,0.5,0.953125],"army_shadow_skeleton_back":[1,0,0.5,0.953125],"army_shadow_archer":[1,0,0.5,0.953125],"army_shadow_archer_back":[1,0,0.5,0.953125],"army_shadow_wizard":[1,0,0.5,0.953125],"army_shadow_wizard_back":[1,0,0.5,0.953125],"army_shadow_brute":[1,0,0.5,0.953125],"army_shadow_brute_back":[1,0,0.5,0.953125],"npc_villager_man":[1,0,0.5,0.953125],"npc_villager_man_idle":[4,8,0.5,0.953125],"npc_villager_man_dance":[4,8,0.5,0.953125],"npc_villager_man_cheer":[4,8,0.5,0.953125],"npc_villager_man_flee":[4,8,0.5,0.953125],"npc_villager_man_cower":[4,8,0.5,0.953125],"npc_villager_woman":[1,0,0.5,0.953125],"npc_villager_woman_idle":[4,8,0.5,0.953125],"npc_villager_woman_dance":[4,8,0.5,0.953125],"npc_villager_woman_cheer":[4,8,0.5,0.953125],"npc_villager_woman_flee":[4,8,0.5,0.953125],"npc_villager_woman_cower":[4,8,0.5,0.953125],"npc_villager_child":[1,0,0.5,0.953125],"npc_villager_child_idle":[4,8,0.5,0.953125],"npc_villager_child_dance":[4,8,0.5,0.953125],"npc_villager_child_cheer":[4,8,0.5,0.953125],"npc_villager_child_flee":[4,8,0.5,0.953125],"npc_villager_child_cower":[4,8,0.5,0.953125],"npc_villager_elder":[1,0,0.5,0.953125],"npc_villager_elder_idle":[4,8,0.5,0.953125],"npc_villager_elder_dance":[4,8,0.5,0.953125],"npc_villager_elder_cheer":[4,8,0.5,0.953125],"npc_villager_elder_flee":[4,8,0.5,0.953125],"npc_villager_elder_cower":[4,8,0.5,0.953125],"npc_villager_merchant":[1,0,0.5,0.953125],"npc_villager_merchant_idle":[4,8,0.5,0.953125],"npc_villager_merchant_dance":[4,8,0.5,0.953125],"npc_villager_merchant_cheer":[4,8,0.5,0.953125],"npc_villager_merchant_flee":[4,8,0.5,0.953125],"npc_villager_merchant_cower":[4,8,0.5,0.953125],"npc_villager_musician":[1,0,0.5,0.953125],"npc_villager_musician_idle":[4,8,0.5,0.953125],"npc_villager_musician_dance":[4,8,0.5,0.953125],"npc_villager_musician_cheer":[4,8,0.5,0.953125],"npc_villager_musician_flee":[4,8,0.5,0.953125],"npc_villager_musician_cower":[4,8,0.5,0.953125],"npc_villager_dancer":[1,0,0.5,0.953125],"npc_villager_dancer_idle":[4,8,0.5,0.953125],"npc_villager_dancer_dance":[4,8,0.5,0.953125],"npc_villager_dancer_cheer":[4,8,0.5,0.953125],"npc_villager_dancer_flee":[4,8,0.5,0.953125],"npc_villager_dancer_cower":[4,8,0.5,0.953125],"npc_villager_farmhand":[1,0,0.5,0.953125],"npc_villager_farmhand_idle":[4,8,0.5,0.953125],"npc_villager_farmhand_dance":[4,8,0.5,0.953125],"npc_villager_farmhand_cheer":[4,8,0.5,0.953125],"npc_villager_farmhand_flee":[4,8,0.5,0.953125],"npc_villager_farmhand_cower":[4,8,0.5,0.953125],"npc_garrow":[1,0,0.5,0.953125],"npc_garrow_idle":[4,8,0.5,0.953125],"npc_rufus_torch":[1,0,0.5,0.953125],"npc_rufus_torch_idle":[4,8,0.5,0.953125],"npc_ruphene_cline_cloak":[1,0,0.5,0.953125],"npc_ruphene_cline_cloak_idle":[4,8,0.5,0.953125],"npc_glade":[1,0,0.5,0.953125],"npc_glade_idle":[4,8,0.5,0.953125],"npc_vesper":[1,0,0.5,0.953125],"npc_vesper_idle":[4,8,0.5,0.953125],"npc_tam":[1,0,0.5,0.953125],"npc_tam_idle":[4,8,0.5,0.953125],"npc_garrow_dais":[1,0,0.5,0.9765625],"npc_felix":[1,0,0.5,0.953125],"npc_felix_back":[1,0,0.5,0.953125]};   // name -> [frames, fps, anchorX, anchorY] (from art/final/npcs/manifest.json; frames 128px)
+  const NPC_ALIAS = { npc_felix_clean: 'npc_felix', npc_farmer: 'npc_villager_farmhand', npc_ruphene_white: 'npc_ruphene_cline_cloak', npc_vesper_ledger: 'npc_vesper' };
+  const VILLAGER_MIX = ['man', 'woman', 'farmhand', 'child', 'elder', 'merchant', 'musician', 'dancer'];
+  const NPC_CAP = 24;   // hard cap on staged NPCs per match (draw cost stays flat)
+  const STIMG = {};
+  // only request art that has shipped: npc/ strips from NPC_ART, anything else listed in STAGE_ART (bg/lane/prop/nexus — empty until delivered, so no 404s)
+  const STAGE_ART = S.STAGE_ART = new Set([]);
+  const stImg = (dir, name) => { const k = dir + '/' + name; if (k in STIMG) return STIMG[k]; STIMG[k] = null;
+    if (dir === 'npc' ? !NPC_ART[name] : !STAGE_ART.has(k)) return null; const i = new Image();
+    i.onload = () => { STIMG[k] = i; }; i.onerror = () => { STIMG[k] = false; }; i.src = 'assets/' + k + '.webp?v=' + (window.APP_VERSION || 1); return null; };
+  const npcName = n => NPC_ALIAS[n] || n;
+  // sprite for an NPC state: <sprite>_<anim> strip if delivered, else <sprite>_idle with a 2px bob, else the single base frame + bob
+  function npcFrames(sprite, anim) {
+    const b = npcName(sprite);
+    if (anim && NPC_ART[b + '_' + anim]) return [b + '_' + anim, 0];
+    if (NPC_ART[b + '_idle']) return [b + '_idle', anim && anim !== 'idle' ? 2 : 0];
+    return [NPC_ART[b] ? b : null, 2];
+  }
+  function stAnchor(at, i, n) {
+    const cb = state.cores.blue, cr = state.cores.red, side = i % 2 ? -1 : 1;
+    switch (at) {
+      case 'ally_nexus': return [cb.x, cb.y - 40];
+      case 'enemy_nexus': return [cr.x, cr.y + 60];
+      case 'lane_mid': return [LANE_X, BRIDGE_Y];
+      case 'lane_edge': return [LANE_X + side * (LANE_HALF_W + 26), (cb.y - 260) - Math.floor(i / 2) * ((cb.y - 260 - (cr.y + 260)) / Math.max(1, Math.ceil(n / 2)))];
+      case 'spawn': return [LANE_X, cb.y - 140];
+      case 'ridge_left': return [LANE_X - LANE_HALF_W - 90, WORLD_H * 0.62];
+      default: return [LANE_X, BRIDGE_Y];
+    }
+  }
+  // build the live stage state at match start
+  function stageInit(m) {
+    const sg = m.stage; if (!sg) return null;
+    const ST = { npcs: [], props: {}, nexus: {}, tint: sg.tint ? Object.assign({ a: 0 }, sg.tint) : null, tintTo: null, overlay: sg.overlay || null, parts: [],
+      fired: {}, chain: null, queue: [], wave: 0, lastWT: 0, grow: [] };
+    const add = (d, i, n, extra) => { if (ST.npcs.length >= NPC_CAP) return; let sp = d.sprite;
+      if (sp === 'npc_villager' || sp === 'npc_villagers') sp = 'npc_villager_' + VILLAGER_MIX[(i + (d.mix || 0)) % VILLAGER_MIX.length];
+      const [x, y] = d.x != null ? [d.x * WORLD_W, d.y * WORLD_H] : stAnchor(d.at, i, n);
+      ST.npcs.push(Object.assign({ id: d.id, sprite: sp, anim: d.anim || 'idle', flip: !!d.flip, x: x + (d.dx || 0) + (n > 1 && d.at !== 'lane_edge' ? (i - (n - 1) / 2) * 22 : 0), y: y + (d.dy || 0) + (n > 1 && d.at !== 'lane_edge' ? (i % 2) * 10 : 0), ph: Math.random() * 9, sc: /child/.test(sp) ? 0.78 : (d.scale || 1) }, extra)); };
+    (sg.npcs || []).forEach(d => { if (d.grow) { ST.grow.push({ d, n: 0 }); return; } const n = d.count || 1; for (let i = 0; i < n; i++) add(d, i, n); });
+    ST.add = add;
+    (sg.props || []).forEach(p => { ST.props[p.id] = { p, state: p.state || (p.states && p.states[0]) || 'normal' }; });
+    if (sg.nexus) ['ally', 'enemy'].forEach(k => { const nx = sg.nexus[k]; if (!nx) return; ST.nexus[k] = { cfg: nx, state: (nx.states && nx.states[0]) || 'normal' };
+      if (nx.npc) add({ id: k + '_nexus_npc', sprite: 'npc_' + nx.npc, at: k + '_nexus', dy: k === 'ally' ? 30 : 0 }, 0, 1); });
+    return ST;
+  }
+  // trigger evaluation (hooks into the objective tick)
+  function stVal(R, key) {
+    const objs = Object.values(R.obj), sum = (k, f) => objs.filter(s => s.o.k === k).reduce((a, s) => a + (s[f] || 0), 0);
+    if (key === 'evac_saved') return sum('evac', 'saved');
+    if (key === 'wagons_burst') return sum('intercept', 'killed') + sum('escort', 'killed');
+    if (key === 'gold') return state.blueGold;
+    if (key === 't') return R.t;
+    return 0;
+  }
+  function stTrig(on, R, ST) {
+    let mm;
+    if (on === 'start') return true;
+    if ((mm = /^(t|gold|evac_saved|wagons_burst)>=(\d+(?:\.\d+)?)$/.exec(on))) return stVal(R, mm[1]) >= +mm[2];
+    if ((mm = /^farm_taken:(\w+)$/.exec(on))) { const h = Object.values(R.obj).find(s => s.o.k === 'hold'); if (!h) return false;
+      const i = h.o.zones.findIndex(z => z.name.toLowerCase().startsWith(mm[1].toLowerCase())); return i >= 0 && !!h.owned[i]; }
+    if ((mm = /^nexus_hp<=(\d+)(?::(ally|enemy))?$/.exec(on))) { const c = state.cores[mm[2] === 'ally' ? 'blue' : 'red']; return c.hp <= c.maxHp * (+mm[1]) / 100; }
+    if ((mm = /^boss_phase:(\d+)$/.exec(on))) return (R.phase || 0) >= +mm[1];
+    if ((mm = /^wave:(\d+)$/.exec(on))) return ST.wave >= +mm[1];
+    if ((mm = /^unit_spawned:(\w+)$/.exec(on))) return state.units.some(u => !u.dead && !u.story && u.team === 'blue' && u.type === mm[1]);
+    return false;   // win / lose fire from S.onEnd
+  }
+  function stThen(ST, t) {
+    if (!t) return;
+    if (t.prop && ST.props[t.prop]) ST.props[t.prop].state = t.state;
+    if (t.npc) ST.npcs.forEach(n => { if (n.id === t.npc) { if (t.anim) n.anim = t.anim; if (t.state) n.anim = t.state; } });
+    if (t.nexus) { const [side, s] = typeof t.nexus === 'string' ? ['enemy', t.nexus] : [t.nexus.side || 'enemy', t.nexus.state]; if (ST.nexus[side]) ST.nexus[side].state = s; else ST.nexus[side] = { cfg: {}, state: s }; }
+    if (t.tint !== undefined) { ST.tintFrom = ST.tint ? Object.assign({}, ST.tint) : { color: (t.tint || {}).color || '#000', alpha: 0 }; ST.tintTo = t.tint || { color: ST.tintFrom.color, alpha: 0 }; ST.tintK = 0; if (!ST.tint) ST.tint = Object.assign({}, ST.tintFrom); }
+    if (t.overlay !== undefined) { ST.overlay = t.overlay; ST.parts = []; }
+    if (t.fx) stBurst(ST, t.fx);
+  }
+  // bark chains: [speaker, voKey, text] lines in the existing bark bubble; VO via VO_LINE, then assets/vo/<key>.m4a
+  function stPlayChain(ST, ev) {
+    ST.chain = { ev, i: -1 }; stNextLine(ST);
+  }
+  function stNextLine(ST) {
+    const ch = ST.chain; if (!ch || ST !== (S.R && S.R.stage)) return;
+    ch.i++;
+    const L = ch.ev.lines || [];
+    if (ch.i >= L.length) { ST.chain = null; const el = $('rb-bark'); if (el) el.style.display = 'none'; stThen(ST, ch.ev.then); const q = ST.queue.shift(); if (q) stPlayChain(ST, q); return; }
+    const [who, vk, text] = L[ch.i];
+    let el = $('rb-bark');
+    if (!el) { el = document.createElement('div'); el.id = 'rb-bark'; el.className = 'fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-none w-[92%] max-w-sm'; el.style.top = 'calc(var(--sat, 0px) + 118px)'; document.body.appendChild(el); }
+    el.innerHTML = `<div class="flex items-center gap-2" style="animation:rbpop .18s ease-out">${portraitHtml(who, 54)}<div class="flex-1 bg-white text-slate-900 rounded-2xl px-2 py-1.5 border-[3px] border-slate-900 shadow-xl text-[12px] font-bold leading-tight"><span class="text-[10px] font-black uppercase text-amber-700">${esc(who)}</span><br>${esc(text)}</div></div>`;
+    el.style.display = 'block'; clearTimeout(barkT);
+    const gap = (ch.ev.gap != null ? ch.ev.gap : 0.4) * 1000, timed = () => setTimeout(() => stNextLine(ST), 1600 + String(text).length * 45 + gap);
+    let a = null;
+    if (vk && !S.voMuted()) { if (voAudio) voAudio.pause();
+      const fx = VO_LINE[vk] || (VO && VO[vk] && vk + '.m4a?' + VO[vk].h); if (fx) try { a = voAudio = new Audio('assets/vo/' + fx); a.volume = 0.95; } catch (e) { a = null; } }
+    if (!a) { ch.timer = timed(); return; }
+    let done = false; const go = d => { if (done) return; done = true; ch.timer = setTimeout(() => stNextLine(ST), d); };
+    a.onended = () => go(500 + gap); a.onerror = () => { if (!done) { done = true; ch.timer = timed(); } };
+    a.play().catch(() => { if (!done) { done = true; ch.timer = timed(); } });
+  }
+  function stFire(ST, ev) {
+    if (ev.lines && ev.lines.length) {
+      if (ST.chain) { if (ev.priority) ST.queue.push(ev); return; }   // spec: skipped during another chain unless priority:1
+      if (ev.pause) { /* pause:true not used in Act 1; plays like a normal chain (gameplay keeps running) */ }
+      stPlayChain(ST, ev);
+    } else stThen(ST, ev.then);
+  }
+  function stageTick(dt) {
+    const R = S.R, m = S.m, ST = R && R.stage; if (!ST) return;
+    if (state.waveTimer > ST.lastWT + 0.5) ST.wave++; ST.lastWT = state.waveTimer;
+    (m.stage.events || []).forEach((ev, i) => {
+      if (ev.on === 'win' || ev.on === 'lose') return;
+      if (ST.fired[i] && ev.once !== false) return;
+      const now = stTrig(ev.on, R, ST);
+      if (now && !ST.fired[i]) { ST.fired[i] = true; stFire(ST, ev); }
+      else if (!now && ev.once === false) ST.fired[i] = false;   // repeatable events re-arm when the condition clears
+    });
+    for (const k in ST.props) { const P = ST.props[k], b = P.p.bind; if (!b || P.bound) continue;
+      if (b !== 'objective_win' && stTrig(b, R, ST)) { P.bound = true; P.state = (P.p.states && P.p.states[1]) || P.state; } }
+    ST.grow.forEach(g => { const want = Math.min(g.d.max || 10, stVal(R, g.d.grow)); while (g.n < want && ST.npcs.length < NPC_CAP) { ST.add(Object.assign({}, g.d, { count: 1 }), g.n, g.d.max || 10, { grown: true }); g.n++; } });
+    if (ST.tintTo) { ST.tintK = Math.min(1, ST.tintK + dt / 0.6); const a = ST.tintFrom.alpha || 0, b = ST.tintTo.alpha || 0; ST.tint.alpha = a + (b - a) * ST.tintK; ST.tint.color = ST.tintTo.color || ST.tint.color; ST.tint.blend = ST.tintTo.blend || ST.tint.blend; if (ST.tintK >= 1) ST.tintTo = null; }
+  }
+  function stageEnd(win) {
+    const R = S.R, m = S.m, ST = R && R.stage; if (!ST) return;
+    (m.stage.events || []).forEach((ev, i) => { if (ev.on === (win ? 'win' : 'lose') && !ST.fired[i]) { ST.fired[i] = true; stThen(ST, ev.then); } });
+    if (win) for (const k in ST.props) { const P = ST.props[k]; if (P.p.bind === 'objective_win') P.state = (P.p.states && P.p.states[1]) || P.state; }
+    const en = ST.nexus.enemy, d = en && en.cfg.defeat;
+    if (win && d && state.cores.red.hp <= 0) { if (d.mode === 'transform') { en.state = d.to; if (d.fx) stBurst(ST, d.fx); } }
+  }
+  S.stageSpawnAs = function (u, idx) {   // M02: the Nth evac unit uses a named NPC sprite (spawnAs:{index, sprite})
+    const sg = S.m && S.m.stage; if (!sg) return; (sg.npcs || []).forEach(d => { if (d.spawnAs && d.spawnAs.index === idx) u.npcSprite = d.spawnAs.sprite; });
+  };
+  // ---- drawing
+  function drawNpc(c, n, now) {
+    const [nm, bob0] = npcFrames(n.sprite, n.anim); if (!nm) return;
+    const img = stImg('npc', nm); if (!img) return;
+    const [fr, fps, ax, ay] = NPC_ART[nm], f = fr > 1 ? Math.floor(now * (fps || 8) + n.ph) % fr : 0;
+    const sz = 42 * n.sc, bob = bob0 ? Math.sin(now * 2.2 + n.ph) * bob0 : 0;
+    c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(n.x, n.y + 1, sz * 0.22, sz * 0.08, 0, 0, Math.PI * 2); c.fill();
+    if (n.flip) { c.save(); c.translate(n.x, 0); c.scale(-1, 1); c.drawImage(img, f * 128, 0, 128, 128, -sz * ax, n.y - sz * ay + bob, sz, sz); c.restore(); }
+    else c.drawImage(img, f * 128, 0, 128, 128, n.x - sz * ax, n.y - sz * ay + bob, sz, sz);
+  }
+  function stageDrawNpcs(c) {
+    const ST = S.R && S.R.stage; if (!ST || !ST.npcs.length) return;
+    const now = performance.now() / 1000;
+    if (ST.sorted !== ST.npcs.length) { ST.npcs.sort((a, b) => a.y - b.y); ST.sorted = ST.npcs.length; }   // back-to-front, re-sorted only when NPCs are added
+    for (const n of ST.npcs) { if (n.y < state.cameraY - 80 || n.y > state.cameraY + viewportH + 80) continue; drawNpc(c, n, now); }
+  }
+  function stageDrawProps(c) {
+    const ST = S.R && S.R.stage; if (!ST) return;
+    for (const k in ST.props) { const P = ST.props[k], p = P.p, img = stImg('prop', p.sprite + '_' + P.state) || stImg('prop', p.sprite); if (!img) continue;
+      const w = p.w || 80, h = w * img.height / img.width, x = p.x * WORLD_W, y = p.y * WORLD_H; c.drawImage(img, x - w / 2, y - h, w, h); }
+  }
+  // nexus override (sprite only; HP/shield untouched): nexus_<id>_<state>.webp, else nexus_<id>.webp, else the default leader art
+  S.nexusImg = function (team) {
+    const ST = S.R && S.R.stage; if (!ST) return null; const N = ST.nexus[team === 'blue' ? 'ally' : 'enemy']; if (!N || !N.cfg.sprite) return null;
+    return (N.state && N.state !== 'normal' && stImg('nexus', N.cfg.sprite + '_' + N.state)) || stImg('nexus', N.cfg.sprite) || null;
+  };
+  // code-particle overlays: fx_ash | fx_rain | fx_wind | fx_embers | fx_confetti (screen-space, drawn over the world)
+  const FX_N = { fx_ash: 36, fx_rain: 80, fx_wind: 18, fx_embers: 28, fx_confetti: 50 };
+  const CONF = ['#facc15', '#f472b6', '#60a5fa', '#4ade80', '#fb923c', '#e879f9'];
+  function stBurst(ST, fx) { for (let i = 0; i < 70; i++) ST.parts.push(newPart(fx, true)); }
+  function newPart(fx, burst) {
+    const W = WORLD_W, H = viewportH, r = Math.random;
+    switch (fx) {
+      case 'fx_rain': return { fx, x: r() * W * 1.2, y: r() * H, vx: -60, vy: 900 + r() * 300, l: 14 + r() * 10 };
+      case 'fx_wind': return { fx, x: -80 - r() * W, y: r() * H, vx: 260 + r() * 160, vy: 0, l: 40 + r() * 60, ph: r() * 6 };
+      case 'fx_embers': return { fx, x: r() * W, y: H + r() * 40, vx: (r() - 0.5) * 30, vy: -40 - r() * 50, l: 1.5 + r() * 2, ph: r() * 6, life: 0 };
+      case 'fx_confetti': return { fx, x: burst ? W / 2 + (r() - 0.5) * 120 : r() * W, y: burst ? H * 0.3 : -10 - r() * H, vx: burst ? (r() - 0.5) * 420 : (r() - 0.5) * 30, vy: burst ? -200 - r() * 260 : 60 + r() * 60, l: 3 + r() * 3, ph: r() * 6, col: CONF[(r() * CONF.length) | 0], g: burst ? 420 : 0, burst };
+      default: return { fx: 'fx_ash', x: r() * W, y: r() * H - (burst ? 0 : 0), vx: 8 + r() * 14, vy: 18 + r() * 22, l: 1.2 + r() * 1.8, ph: r() * 6 };
+    }
+  }
+  let stLastT = 0;
+  S.drawTop = function (c) {
+    const ST = S.R && S.R.stage; if (!ST) return;
+    const now = performance.now() / 1000, dt = Math.min(0.05, stLastT ? now - stLastT : 0.016); stLastT = now;
+    const y0 = state.cameraY;
+    if (ST.tint && ST.tint.alpha > 0) { c.save(); c.globalCompositeOperation = ST.tint.blend || 'source-over'; c.globalAlpha = ST.tint.alpha; c.fillStyle = ST.tint.color; c.fillRect(0, y0, WORLD_W, viewportH); c.restore(); }
+    const ov = ST.overlay, want = ov ? FX_N[ov] || 0 : 0;
+    let live = 0; for (const p of ST.parts) if (p.fx === ov && !p.burst) live++;
+    for (let i = live; i < want; i++) ST.parts.push(newPart(ov));
+    if (!ST.parts.length) return;
+    if (window.SETTINGS && SETTINGS.reduceMotion && !ov) { ST.parts.length = 0; return; }
+    c.save();
+    const keep = [];
+    for (const p of ST.parts) {
+      p.x += p.vx * dt; p.y += p.vy * dt; if (p.g) p.vy += p.g * dt;
+      const H = viewportH, W = WORLD_W;
+      let dead = p.fx !== ov && !p.burst;
+      if (p.fx === 'fx_rain') { if (p.y > H) { p.y = -20; p.x = Math.random() * W * 1.2; } c.strokeStyle = 'rgba(186,213,255,0.45)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(p.x, y0 + p.y); c.lineTo(p.x + p.vx * 0.016, y0 + p.y - p.l); c.stroke(); }
+      else if (p.fx === 'fx_wind') { if (p.x > W + 80) { p.x = -80 - Math.random() * 200; p.y = Math.random() * H; } c.strokeStyle = 'rgba(236,252,203,0.22)'; c.lineWidth = 1.5; c.beginPath(); const yy = y0 + p.y + Math.sin(now * 3 + p.ph) * 4; c.moveTo(p.x, yy); c.quadraticCurveTo(p.x + p.l / 2, yy - 5, p.x + p.l, yy); c.stroke(); }
+      else if (p.fx === 'fx_embers') { if (p.y < -10) { p.y = H + 10; p.x = Math.random() * W; } c.fillStyle = `rgba(251,146,60,${0.55 + 0.35 * Math.sin(now * 7 + p.ph)})`; c.fillRect(p.x + Math.sin(now + p.ph) * 6, y0 + p.y, p.l, p.l); }
+      else if (p.fx === 'fx_confetti') { if (p.burst) { if (p.y > H + 20) dead = true; } else if (p.y > H) { p.y = -10; p.x = Math.random() * W; } c.fillStyle = p.col; c.save(); c.translate(p.x, y0 + p.y); c.rotate(now * 4 + p.ph); c.fillRect(-p.l / 2, -p.l / 4, p.l, p.l / 2); c.restore(); }
+      else { if (p.y > H) { p.y = -5; p.x = Math.random() * W; } c.fillStyle = 'rgba(203,213,225,0.55)'; c.fillRect(p.x + Math.sin(now * 1.3 + p.ph) * 8, y0 + p.y, p.l, p.l); }
+      if (!dead) keep.push(p);
+    }
+    ST.parts = keep;
+    c.restore();
+  };
+
+  // ---- Act 1 stage blocks: only what level_engine_spec_v1 states per mission (overlays §4, nexus §1/§5, NPCs §2, props §6, example chain §3).
+  // bg/lane/prop/nexus art has not been delivered yet: those names are wired and fall back to today's art until the files land.
+  const STAGES = {
+    P0: { bg: 'bg_p0_festival', overlay: null,
+      nexus: { ally: { sprite: 'nexus_garrow_dais', npc: 'rufus_torch' },
+               enemy: { sprite: 'nexus_puppet', states: ['normal', 'burning', 'lantern'], defeat: { mode: 'transform', to: 'lantern', fx: 'fx_confetti' } } },
+      npcs: [{ id: 'garrow', sprite: 'npc_garrow_dais', at: 'ally_nexus', dx: -78, dy: 6 },
+             { id: 'dancers', sprite: 'npc_villager', count: 6, at: 'lane_edge', anim: 'dance', mix: 6 }],
+      props: [{ id: 'lan1', sprite: 'prop_lantern', x: 0.3, y: 0.7, states: ['off', 'lit'] }, { id: 'lan2', sprite: 'prop_lantern', x: 0.3, y: 0.5, states: ['off', 'lit'] },
+              { id: 'lan3', sprite: 'prop_lantern', x: 0.3, y: 0.3, states: ['off', 'lit'] }, { id: 'chair', sprite: 'prop_empty_chair', x: 0.78, y: 0.88, states: ['normal'] }],
+      events: [{ on: 'nexus_hp<=50:enemy', once: true, then: { nexus: 'burning' } }] },
+    M01: { npcs: [{ id: 'garrow', sprite: 'npc_garrow', at: 'ally_nexus', dx: -60, anim: 'point' },
+                  { id: 'villagers', sprite: 'npc_farmer', count: 3, at: 'lane_edge', anim: 'flee', team: 'green' }],
+      props: [1, 2, 3, 4].map(i => ({ id: 'hay' + i, sprite: 'prop_haystack', x: i % 2 ? 0.14 : 0.86, y: 0.3 + i * 0.1, state: 'normal', states: ['normal', 'burning'] })),
+      events: [{ on: 'gold>=120', once: true, lines: [['Garrow', 'm01_garrow_bark1', 'They\u2019re falling back!'], ['Rufus', 'm01_rufus_bark1', 'After them!']], gap: 0.4, pause: false, then: { prop: 'hay1', state: 'burning' } }] },
+    M02: { overlay: 'fx_ash',
+      npcs: [{ id: 'rescued', sprite: 'npc_farmer', grow: 'evac_saved', max: 10, at: 'ally_nexus', dy: 22 }, { id: 'tam_unit', spawnAs: { index: 10, sprite: 'npc_tam' } }],
+      props: [{ id: 'cart', sprite: 'prop_cart_overturned', x: 0.2, y: 0.52, states: ['normal'] }, { id: 'shield', sprite: 'prop_scorched_shield', x: 0.5, y: 0.6, states: ['normal', 'gone'] }] },
+    M03: { props: [{ id: 'barrels', sprite: 'prop_oil_barrels', x: 0.82, y: 0.35, states: ['normal'] }, { id: 'puddle', sprite: 'prop_oil_puddle', x: 0.5, y: 0.45, states: ['normal'] }] },
+    M04: { overlay: 'fx_ash', nexus: { enemy: { defeat: { mode: 'none' } } },
+      npcs: [{ id: 'tam', sprite: 'npc_tam', at: 'ally_nexus', dx: 64, anim: 'kneel' }],
+      props: [{ id: 'banner', sprite: 'prop_banner', x: 0.5, y: 0.66, state: 'green', states: ['green', 'blue'], bind: 'farm_taken:south' }] },
+    M05: { overlay: 'fx_wind', nexus: { enemy: { defeat: { mode: 'none' } } },
+      props: [{ id: 'beacon', sprite: 'prop_windmill', x: 0.2, y: 0.6, state: 'normal', states: ['normal', 'beacon_lit'], bind: 'objective_win' }] },
+    M06: { props: [{ id: 'tent', sprite: 'prop_felix_tent', x: 0.8, y: 0.22, state: 'glow', states: ['glow', 'empty'] }] },
+    M07: { bg: 'bg_m07_fortress_rain', lane: 'lane_wet_cobble', overlay: 'fx_rain',
+      nexus: { enemy: { sprite: 'nexus_felix_fortress', states: ['normal', 'lantern_lit'], defeat: { mode: 'transform', to: 'lantern_lit' } } },
+      props: [{ id: 'lantern', sprite: 'prop_green_lantern', x: 0.5, y: 0.12, state: 'dark', states: ['dark', 'lit'], bind: 'objective_win' }] }
+  };
+  for (const k in STAGES) if (M[k]) M[k].stage = STAGES[k];
+  { const draw0 = S.draw; S.draw = function (c) { draw0(c); if (S.R && S.R.stage) { stageDrawProps(c); stageDrawNpcs(c); } }; }
   function label(c, t, x, y) { c.save(); c.font = 'bold 12px sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(15,23,42,0.85)'; c.strokeText(t, x, y); c.fillStyle = '#f8fafc'; c.fillText(t, x, y); c.restore(); }
 
   // ------------------------------------------------------------------ DOM / UI
@@ -762,7 +1013,7 @@
     felix_flee: ['Felix', 'Not yet! Back to the walls!'],
   };
   S.BARKS = BARKS;
-  const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', Tam: 'tam', Glade: 'glade', Tobb: 'tobb', '???': 'mystery' };
+  const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', Tam: 'tam', Glade: 'glade', Tobb: 'tobb', Storyteller: 'storyteller', '???': 'mystery' };
   let felixAfter = false;   // v36.7: Felix wears felix_tainted in Act 1 until his redemption (M07 after-dialogue); clean from Act 2 on
   const felixPortrait = () => (felixAfter || (S.m && S.m.act > 1)) ? 'felix' : 'felix_tainted';   // v36.7 X5: keyed on the mission, not the save
   const LEFT = { Rufus: 1, Ruphene: 1, Garrow: 1, Pip: 1, Farmer: 1, Tam: 1, Vesper: 1 };

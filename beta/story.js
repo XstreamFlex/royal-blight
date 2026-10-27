@@ -429,7 +429,7 @@
       const goal = u.type === 'vip' ? state.cores.red.y + 100 : u.goal, d = goal - u.y;
       if (Math.abs(d) < 8) {
         u.dead = true;
-        if (u.evac) { u.evac.saved++; addFloatingText(u.x, u.y - 14, 'SAFE!', '#4ade80', 13); }
+        if (u.evac) { u.evac.saved++; if (u.npcSprite && S.R && S.R.stage) S.R.stage.tamSaved = true; addFloatingText(u.x, u.y - 14, 'SAFE!', '#4ade80', 13); }
         if (u.wagon) { u.wagon.arrived++; if (u.team === 'red') { state.redUpgradeLevel += 0.25; toast('A wagon reached Felix! His army burns hotter.', '#fb923c'); S.bark('wagon_in'); } else { state.blueGold += 120; addFloatingText(u.x, u.y, '+120g', '#facc15', 15); } }
         return;
       }
@@ -565,21 +565,30 @@
   }
   // v37: general backdrop lookup. No stage block = exactly the old rule (festival dressing only for the P0 drill).
   // stage.bg = assets/bg/<name>.webp over the whole arena; until delivered, BG_FALLBACK draws the built-in dressing for that name.
-  const BG_FALLBACK = { bg_p0_festival: c => festDress(c) };
+  const BG_FALLBACK = { bg_p0_festival: c => festDress(c, false) };
+  const BG_DRESS = { bg_p0_festival: (c, painted) => festDress(c, painted) };   // painted bg: keep the parade soldiers + lantern posts, drop the procedural night wash
   S.drawBg = function (c) {
     const m = S.m; if (!m) return;
     if (!m.stage) { if (m.enemy === 'drill') festDress(c); return; }
     const sg = m.stage, bimg = sg.bg && stImg('bg', sg.bg);
-    if (bimg) c.drawImage(bimg, 0, 0, WORLD_W, WORLD_H); else if (sg.bg && BG_FALLBACK[sg.bg]) BG_FALLBACK[sg.bg](c);
+    if (bimg) { const k = bimg.height / WORLD_H, y0 = Math.max(0, state.cameraY - 20), y1 = Math.min(WORLD_H, state.cameraY + viewportH + 20);   // visible slice only
+      c.drawImage(bimg, 0, y0 * k, bimg.width, (y1 - y0) * k, 0, y0, WORLD_W, y1 - y0); }
+    else if (sg.bg && BG_FALLBACK[sg.bg]) BG_FALLBACK[sg.bg](c);
     const limg = sg.lane && stImg('lane', sg.lane);
     if (limg) { const w = LANE_HALF_W * 2, th = w * limg.height / limg.width, y0 = Math.max(0, Math.floor(state.cameraY / th) * th);
-      for (let y = y0; y < Math.min(WORLD_H, state.cameraY + viewportH + th); y += th) c.drawImage(limg, LANE_X - LANE_HALF_W, y, w, th); }
+      for (let y = y0; y < Math.min(WORLD_H, state.cameraY + viewportH + th); y += th) { if (Math.abs(y + th / 2 - BRIDGE_Y) < th * 0.75) continue;   // keep the painted bridge
+        c.drawImage(limg, LANE_X - LANE_HALF_W, y, w, th); } }
+    if (bimg && BG_DRESS[sg.bg]) BG_DRESS[sg.bg](c, true);
   };
-  const ARMY_SKIN = { westreach: 'westreach', northcrag: 'northern' };   // v37: P0 parade troops use the delivered army art when staged
-  function festDress(c) {
+  // v37.1 troops palette (assets/palette/troops_palette.json): kingdom -> {css filter, ARMY_SKIN folder}. Used for the P0 parade/lantern
+  // NPC soldiers: pre-baked army_<skin>_<kind> art when it exists, else the palette's CSS filter on the base blue art.
+  let PAL = null; fetch('assets/palette/troops_palette.json?v=' + (window.APP_VERSION || 1)).then(r => r.json()).then(j => PAL = j).catch(() => {});
+  const PAL_KEY = { eastmarch: 'green', westreach: 'yellow', northcrag: 'silver' };
+  S.troopPalette = () => PAL;
+  function festDress(c, painted) {
     const m = S.m;
     const now = performance.now() / 1000, y0 = state.cameraY - 120, y1 = state.cameraY + viewportH + 120;
-    c.fillStyle = 'rgba(6,12,38,0.40)'; c.fillRect(0, Math.max(0, y0), WORLD_W, Math.min(WORLD_H, y1) - Math.max(0, y0));   // night
+    if (!painted) { c.fillStyle = 'rgba(6,12,38,0.40)'; c.fillRect(0, Math.max(0, y0), WORLD_W, Math.min(WORLD_H, y1) - Math.max(0, y0)); }   // night (the painted bg is already night)
     FEST = FEST || festLayout();
     for (const f of FEST) {
       if (f.y < y0 || f.y > y1) continue;
@@ -588,13 +597,16 @@
       c.fillStyle = g; c.beginPath(); c.arc(f.x, f.y - 30, 80, 0, Math.PI * 2); c.fill();
       for (const p of f.g) {   // idle soldiers: front-view sprite (facing the field), gentle breathing bob
         let [team, tint] = KART[p.k], img = loadSprite(p.key + '_' + team) || loadSprite(p.key.split('_')[0] + '_' + team);
-        if (m.stage && ARMY_SKIN[p.k]) { const a = stImg('npc', 'army_' + ARMY_SKIN[p.k] + '_' + p.key.split('_')[0]); if (a) { img = a; tint = ''; } }
+        const pe = m.stage && PAL && PAL[PAL_KEY[p.k]];
+        if (pe) { const a = pe.skin && stImg('npc', 'army_' + pe.skin + '_' + p.key.split('_')[0]); if (a) { img = a; tint = ''; } else if (team === 'blue' && pe.css) tint = pe.css; }
         if (!img) continue;
         const sz = 34, b = Math.sin(now * 1.8 + p.ph) * 0.8;
         c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(p.x, p.y + 4, 9, 3.5, 0, 0, Math.PI * 2); c.fill();
         c.drawImage(scaledSprite(img, sz, sz, tint), p.x - sz / 2, p.y + 6 - sz + b, sz, sz - b);
       }
-      if (f.post) {
+      const lp = painted && f.post && stImg('prop', 'prop_lantern_lit');
+      if (lp) { const h = 58, w = h * lp.width / lp.height; c.drawImage(lp, f.x - w / 2 + 4, f.y + 2 - h, w, h); }
+      else if (f.post) {
         c.fillStyle = '#3f2a14'; c.fillRect(f.x - 2, f.y - 52, 4, 54); c.fillRect(f.x - 2, f.y - 52, 12, 3);
         const sw = Math.sin(now * 1.7 + f.y) * 1.5, lx = f.x + 9 + sw;
         c.fillStyle = '#b91c1c'; c.beginPath(); c.ellipse(lx, f.y - 41, 6, 8, 0, 0, Math.PI * 2); c.fill();
@@ -636,7 +648,7 @@
         if (open) label(c, '\u2694 ' + cg.c.name + ' rides!', x, y - 74);
       });
       if (o.k === 'beacons') o.ys.forEach((y, i) => {
-        const x = LANE_X + LANE_HALF_W + 34, img = loadSprite(st.lit[i] ? 'lantern_on' : 'lantern_off');   // v34 lantern-post art
+        const x = LANE_X + LANE_HALF_W + 34, img = (S.m.stage && stImg('prop', st.lit[i] ? 'prop_lantern_lit' : 'prop_lantern_off')) || loadSprite(st.lit[i] ? 'lantern_on' : 'lantern_off');   // v34 lantern-post art
         if (st.lit[i]) { c.fillStyle = `rgba(250,204,21,${0.22 + 0.08 * Math.sin(now * 6)})`; c.beginPath(); c.arc(x - 12, y - 44, 30, 0, Math.PI * 2); c.fill(); }
         if (img) c.drawImage(img, x - 50, y - 100, 100, 100);
         else { c.fillStyle = '#44403c'; c.fillRect(x - 2, y - 26, 4, 26); c.fillStyle = st.lit[i] ? '#facc15' : '#57534e'; c.beginPath(); c.arc(x, y - 30, 8, 0, Math.PI * 2); c.fill(); }
@@ -676,16 +688,31 @@
   // ------------------------------------------------------------------ v37 LEVEL STAGING ENGINE (Cut's level_engine_spec_v1)
   // One optional data-only `stage` block per mission. Missions without `stage` take none of these paths.
   // Art: assets/{npc,bg,lane,prop,nexus}/<name>.webp. A missing file falls back silently (default arena art, no sprite).
-  const NPC_ART = {"army_westreach_knight":[1,0,0.5,0.953125],"army_westreach_knight_back":[1,0,0.5,0.953125],"army_westreach_archer":[1,0,0.5,0.953125],"army_westreach_archer_back":[1,0,0.5,0.953125],"army_westreach_wizard":[1,0,0.5,0.953125],"army_westreach_wizard_back":[1,0,0.5,0.953125],"army_westreach_brute":[1,0,0.5,0.953125],"army_westreach_brute_back":[1,0,0.5,0.953125],"army_westreach_worker":[1,0,0.5,0.953125],"army_westreach_worker_back":[1,0,0.5,0.953125],"army_westreach_cavalier":[1,0,0.5,0.953125],"army_westreach_cavalier_back":[1,0,0.5,0.953125],"army_cline_knight":[1,0,0.5,0.953125],"army_cline_knight_back":[1,0,0.5,0.953125],"army_cline_archer":[1,0,0.5,0.953125],"army_cline_archer_back":[1,0,0.5,0.953125],"army_cline_wizard":[1,0,0.5,0.953125],"army_cline_wizard_back":[1,0,0.5,0.953125],"army_cline_brute":[1,0,0.5,0.953125],"army_cline_brute_back":[1,0,0.5,0.953125],"army_cline_worker":[1,0,0.5,0.953125],"army_cline_worker_back":[1,0,0.5,0.953125],"army_cline_cavalier":[1,0,0.5,0.953125],"army_cline_cavalier_back":[1,0,0.5,0.953125],"army_northern_knight":[1,0,0.5,0.953125],"army_northern_knight_back":[1,0,0.5,0.953125],"army_northern_archer":[1,0,0.5,0.953125],"army_northern_archer_back":[1,0,0.5,0.953125],"army_northern_wizard":[1,0,0.5,0.953125],"army_northern_wizard_back":[1,0,0.5,0.953125],"army_northern_brute":[1,0,0.5,0.953125],"army_northern_brute_back":[1,0,0.5,0.953125],"army_northern_worker":[1,0,0.5,0.953125],"army_northern_worker_back":[1,0,0.5,0.953125],"army_northern_cavalier":[1,0,0.5,0.953125],"army_northern_cavalier_back":[1,0,0.5,0.953125],"army_shadow_skeleton":[1,0,0.5,0.953125],"army_shadow_skeleton_back":[1,0,0.5,0.953125],"army_shadow_archer":[1,0,0.5,0.953125],"army_shadow_archer_back":[1,0,0.5,0.953125],"army_shadow_wizard":[1,0,0.5,0.953125],"army_shadow_wizard_back":[1,0,0.5,0.953125],"army_shadow_brute":[1,0,0.5,0.953125],"army_shadow_brute_back":[1,0,0.5,0.953125],"npc_villager_man":[1,0,0.5,0.953125],"npc_villager_man_idle":[4,8,0.5,0.953125],"npc_villager_man_dance":[4,8,0.5,0.953125],"npc_villager_man_cheer":[4,8,0.5,0.953125],"npc_villager_man_flee":[4,8,0.5,0.953125],"npc_villager_man_cower":[4,8,0.5,0.953125],"npc_villager_woman":[1,0,0.5,0.953125],"npc_villager_woman_idle":[4,8,0.5,0.953125],"npc_villager_woman_dance":[4,8,0.5,0.953125],"npc_villager_woman_cheer":[4,8,0.5,0.953125],"npc_villager_woman_flee":[4,8,0.5,0.953125],"npc_villager_woman_cower":[4,8,0.5,0.953125],"npc_villager_child":[1,0,0.5,0.953125],"npc_villager_child_idle":[4,8,0.5,0.953125],"npc_villager_child_dance":[4,8,0.5,0.953125],"npc_villager_child_cheer":[4,8,0.5,0.953125],"npc_villager_child_flee":[4,8,0.5,0.953125],"npc_villager_child_cower":[4,8,0.5,0.953125],"npc_villager_elder":[1,0,0.5,0.953125],"npc_villager_elder_idle":[4,8,0.5,0.953125],"npc_villager_elder_dance":[4,8,0.5,0.953125],"npc_villager_elder_cheer":[4,8,0.5,0.953125],"npc_villager_elder_flee":[4,8,0.5,0.953125],"npc_villager_elder_cower":[4,8,0.5,0.953125],"npc_villager_merchant":[1,0,0.5,0.953125],"npc_villager_merchant_idle":[4,8,0.5,0.953125],"npc_villager_merchant_dance":[4,8,0.5,0.953125],"npc_villager_merchant_cheer":[4,8,0.5,0.953125],"npc_villager_merchant_flee":[4,8,0.5,0.953125],"npc_villager_merchant_cower":[4,8,0.5,0.953125],"npc_villager_musician":[1,0,0.5,0.953125],"npc_villager_musician_idle":[4,8,0.5,0.953125],"npc_villager_musician_dance":[4,8,0.5,0.953125],"npc_villager_musician_cheer":[4,8,0.5,0.953125],"npc_villager_musician_flee":[4,8,0.5,0.953125],"npc_villager_musician_cower":[4,8,0.5,0.953125],"npc_villager_dancer":[1,0,0.5,0.953125],"npc_villager_dancer_idle":[4,8,0.5,0.953125],"npc_villager_dancer_dance":[4,8,0.5,0.953125],"npc_villager_dancer_cheer":[4,8,0.5,0.953125],"npc_villager_dancer_flee":[4,8,0.5,0.953125],"npc_villager_dancer_cower":[4,8,0.5,0.953125],"npc_villager_farmhand":[1,0,0.5,0.953125],"npc_villager_farmhand_idle":[4,8,0.5,0.953125],"npc_villager_farmhand_dance":[4,8,0.5,0.953125],"npc_villager_farmhand_cheer":[4,8,0.5,0.953125],"npc_villager_farmhand_flee":[4,8,0.5,0.953125],"npc_villager_farmhand_cower":[4,8,0.5,0.953125],"npc_garrow":[1,0,0.5,0.953125],"npc_garrow_idle":[4,8,0.5,0.953125],"npc_rufus_torch":[1,0,0.5,0.953125],"npc_rufus_torch_idle":[4,8,0.5,0.953125],"npc_ruphene_cline_cloak":[1,0,0.5,0.953125],"npc_ruphene_cline_cloak_idle":[4,8,0.5,0.953125],"npc_glade":[1,0,0.5,0.953125],"npc_glade_idle":[4,8,0.5,0.953125],"npc_vesper":[1,0,0.5,0.953125],"npc_vesper_idle":[4,8,0.5,0.953125],"npc_tam":[1,0,0.5,0.953125],"npc_tam_idle":[4,8,0.5,0.953125],"npc_garrow_dais":[1,0,0.5,0.9765625],"npc_felix":[1,0,0.5,0.953125],"npc_felix_back":[1,0,0.5,0.953125]};   // name -> [frames, fps, anchorX, anchorY] (from art/final/npcs/manifest.json; frames 128px)
+  const NPC_ART = {"army_westreach_knight":[1,0,0.5,0.953125],"army_westreach_knight_back":[1,0,0.5,0.953125],"army_westreach_archer":[1,0,0.5,0.953125],"army_westreach_archer_back":[1,0,0.5,0.953125],"army_westreach_wizard":[1,0,0.5,0.953125],"army_westreach_wizard_back":[1,0,0.5,0.953125],"army_westreach_brute":[1,0,0.5,0.953125],"army_westreach_brute_back":[1,0,0.5,0.953125],"army_westreach_worker":[1,0,0.5,0.953125],"army_westreach_worker_back":[1,0,0.5,0.953125],"army_westreach_cavalier":[1,0,0.5,0.953125],"army_westreach_cavalier_back":[1,0,0.5,0.953125],"army_cline_knight":[1,0,0.5,0.953125],"army_cline_knight_back":[1,0,0.5,0.953125],"army_cline_archer":[1,0,0.5,0.953125],"army_cline_archer_back":[1,0,0.5,0.953125],"army_cline_wizard":[1,0,0.5,0.953125],"army_cline_wizard_back":[1,0,0.5,0.953125],"army_cline_brute":[1,0,0.5,0.953125],"army_cline_brute_back":[1,0,0.5,0.953125],"army_cline_worker":[1,0,0.5,0.953125],"army_cline_worker_back":[1,0,0.5,0.953125],"army_cline_cavalier":[1,0,0.5,0.953125],"army_cline_cavalier_back":[1,0,0.5,0.953125],"army_northern_knight":[1,0,0.5,0.953125],"army_northern_knight_back":[1,0,0.5,0.953125],"army_northern_archer":[1,0,0.5,0.953125],"army_northern_archer_back":[1,0,0.5,0.953125],"army_northern_wizard":[1,0,0.5,0.953125],"army_northern_wizard_back":[1,0,0.5,0.953125],"army_northern_brute":[1,0,0.5,0.953125],"army_northern_brute_back":[1,0,0.5,0.953125],"army_northern_worker":[1,0,0.5,0.953125],"army_northern_worker_back":[1,0,0.5,0.953125],"army_northern_cavalier":[1,0,0.5,0.953125],"army_northern_cavalier_back":[1,0,0.5,0.953125],"army_shadow_skeleton":[1,0,0.5,0.953125],"army_shadow_skeleton_back":[1,0,0.5,0.953125],"army_shadow_archer":[1,0,0.5,0.953125],"army_shadow_archer_back":[1,0,0.5,0.953125],"army_shadow_wizard":[1,0,0.5,0.953125],"army_shadow_wizard_back":[1,0,0.5,0.953125],"army_shadow_brute":[1,0,0.5,0.953125],"army_shadow_brute_back":[1,0,0.5,0.953125],"npc_villager_man":[1,0,0.5,0.953125],"npc_villager_man_idle":[4,8,0.5,0.953125],"npc_villager_man_dance":[4,8,0.5,0.953125],"npc_villager_man_cheer":[4,8,0.5,0.953125],"npc_villager_man_flee":[4,8,0.5,0.953125],"npc_villager_man_cower":[4,8,0.5,0.953125],"npc_villager_woman":[1,0,0.5,0.953125],"npc_villager_woman_idle":[4,8,0.5,0.953125],"npc_villager_woman_dance":[4,8,0.5,0.953125],"npc_villager_woman_cheer":[4,8,0.5,0.953125],"npc_villager_woman_flee":[4,8,0.5,0.953125],"npc_villager_woman_cower":[4,8,0.5,0.953125],"npc_villager_child":[1,0,0.5,0.953125],"npc_villager_child_idle":[4,8,0.5,0.953125],"npc_villager_child_dance":[4,8,0.5,0.953125],"npc_villager_child_cheer":[4,8,0.5,0.953125],"npc_villager_child_flee":[4,8,0.5,0.953125],"npc_villager_child_cower":[4,8,0.5,0.953125],"npc_villager_elder":[1,0,0.5,0.953125],"npc_villager_elder_idle":[4,8,0.5,0.953125],"npc_villager_elder_dance":[4,8,0.5,0.953125],"npc_villager_elder_cheer":[4,8,0.5,0.953125],"npc_villager_elder_flee":[4,8,0.5,0.953125],"npc_villager_elder_cower":[4,8,0.5,0.953125],"npc_villager_merchant":[1,0,0.5,0.953125],"npc_villager_merchant_idle":[4,8,0.5,0.953125],"npc_villager_merchant_dance":[4,8,0.5,0.953125],"npc_villager_merchant_cheer":[4,8,0.5,0.953125],"npc_villager_merchant_flee":[4,8,0.5,0.953125],"npc_villager_merchant_cower":[4,8,0.5,0.953125],"npc_villager_musician":[1,0,0.5,0.953125],"npc_villager_musician_idle":[4,8,0.5,0.953125],"npc_villager_musician_dance":[4,8,0.5,0.953125],"npc_villager_musician_cheer":[4,8,0.5,0.953125],"npc_villager_musician_flee":[4,8,0.5,0.953125],"npc_villager_musician_cower":[4,8,0.5,0.953125],"npc_villager_dancer":[1,0,0.5,0.953125],"npc_villager_dancer_idle":[4,8,0.5,0.953125],"npc_villager_dancer_dance":[4,8,0.5,0.953125],"npc_villager_dancer_cheer":[4,8,0.5,0.953125],"npc_villager_dancer_flee":[4,8,0.5,0.953125],"npc_villager_dancer_cower":[4,8,0.5,0.953125],"npc_villager_farmhand":[1,0,0.5,0.953125],"npc_villager_farmhand_idle":[4,8,0.5,0.953125],"npc_villager_farmhand_dance":[4,8,0.5,0.953125],"npc_villager_farmhand_cheer":[4,8,0.5,0.953125],"npc_villager_farmhand_flee":[4,8,0.5,0.953125],"npc_villager_farmhand_cower":[4,8,0.5,0.953125],"npc_garrow":[1,0,0.5,0.953125],"npc_garrow_idle":[4,8,0.5,0.953125],"npc_rufus_torch":[1,0,0.5,0.953125],"npc_rufus_torch_idle":[4,8,0.5,0.953125],"npc_ruphene_cline_cloak":[1,0,0.5,0.953125],"npc_ruphene_cline_cloak_idle":[4,8,0.5,0.953125],"npc_glade":[1,0,0.5,0.953125],"npc_glade_idle":[4,8,0.5,0.953125],"npc_vesper":[1,0,0.5,0.953125],"npc_vesper_idle":[4,8,0.5,0.953125],"npc_tam":[1,0,0.5,0.953125],"npc_tam_idle":[4,8,0.5,0.953125],"npc_garrow_dais":[1,0,0.5,0.9765625],"npc_felix":[1,0,0.5,0.953125],"npc_felix_back":[1,0,0.5,0.953125],"npc_garrow_kneel":[4,2,0.5,0.953125],"npc_garrow_point":[4,2,0.5,0.953125],"npc_tam_kneel":[4,2,0.5,0.953125],"npc_tam_point":[4,2,0.5,0.953125]};   // name -> [frames, fps, anchorX, anchorY] (from art/final/npcs/manifest.json; frames 128px)
   const NPC_ALIAS = { npc_felix_clean: 'npc_felix', npc_farmer: 'npc_villager_farmhand', npc_ruphene_white: 'npc_ruphene_cline_cloak', npc_vesper_ledger: 'npc_vesper' };
   const VILLAGER_MIX = ['man', 'woman', 'farmhand', 'child', 'elder', 'merchant', 'musician', 'dancer'];
   const NPC_CAP = 24;   // hard cap on staged NPCs per match (draw cost stays flat)
   const STIMG = {};
   // only request art that has shipped: npc/ strips from NPC_ART, anything else listed in STAGE_ART (bg/lane/prop/nexus — empty until delivered, so no 404s)
-  const STAGE_ART = S.STAGE_ART = new Set([]);
+  const STAGE_ART = S.STAGE_ART = new Set([   // v37.1 Cut's delivered art (loaded lazily: only what the current mission's stage names)
+    ...['bg_p0_festival', 'bg_m01_farmland_dawn', 'bg_m02_farmland_ash', 'bg_m03_road_dusk', 'bg_m04_farmland_ashmorning', 'bg_m05_ridge_night', 'bg_m06_camp_overcast', 'bg_m07_fortress_rain'].map(n => 'bg/' + n),
+    ...['lane_cobble', 'lane_wet_cobble', 'lane_dirt_road'].map(n => 'lane/' + n),
+    ...['nexus_puppet', 'nexus_puppet_burning', 'nexus_puppet_lantern', 'nexus_garrow_dais', 'nexus_felix_fortress', 'nexus_felix_fortress_lantern_lit'].map(n => 'nexus/' + n),
+    ...['banner_blue', 'banner_green', 'cart_overturned_normal', 'empty_chair_normal', 'felix_tent_empty', 'felix_tent_glow', 'green_lantern_dark', 'green_lantern_lit', 'haystack_burning', 'haystack_normal',
+        'lantern_lit', 'lantern_off', 'lantern_post_dark', 'oil_barrels_normal', 'oil_puddle_normal', 'scorched_shield_gone', 'scorched_shield_normal', 'wall_archer_down', 'wall_archer_up', 'windmill_beacon_lit', 'windmill_normal'].map(n => 'prop/prop_' + n),
+    'fx/fx_fire']);
+  const ST_EXT = { fx: '.png' };
+  // mission load: fetch + decode the current stage's big images up front so the first draw doesn't hitch
+  function stPreload(sg) {
+    const names = [['bg', sg.bg], ['lane', sg.lane]];
+    if (sg.nexus) for (const k in sg.nexus) { const n = sg.nexus[k]; if (n.sprite) { names.push(['nexus', n.sprite]); (n.states || []).forEach(x => x !== 'normal' && names.push(['nexus', n.sprite + '_' + x])); } }
+    names.forEach(([d, n]) => { if (!n) return; const k = d + '/' + n; if (k in STIMG || !STAGE_ART.has(k)) return; STIMG[k] = null; const i = new Image(); i.src = 'assets/' + k + (ST_EXT[d] || '.webp') + '?v=' + (window.APP_VERSION || 1);
+      (i.decode ? i.decode() : Promise.reject()).then(() => { try { const w = document.createElement('canvas'); w.width = w.height = 2; w.getContext('2d').drawImage(i, 0, 0, 2, 2); } catch (e) {} STIMG[k] = i; },   // decode + GPU warm-up before first use
+      () => { i.onload = () => { STIMG[k] = i; }; if (i.complete && i.naturalWidth) STIMG[k] = i; }); });
+  }
   const stImg = (dir, name) => { const k = dir + '/' + name; if (k in STIMG) return STIMG[k]; STIMG[k] = null;
     if (dir === 'npc' ? !NPC_ART[name] : !STAGE_ART.has(k)) return null; const i = new Image();
-    i.onload = () => { STIMG[k] = i; }; i.onerror = () => { STIMG[k] = false; }; i.src = 'assets/' + k + '.webp?v=' + (window.APP_VERSION || 1); return null; };
+    i.onload = () => { STIMG[k] = i; }; i.onerror = () => { STIMG[k] = false; }; i.src = 'assets/' + k + (ST_EXT[dir] || '.webp') + '?v=' + (window.APP_VERSION || 1); return null; };
   const npcName = n => NPC_ALIAS[n] || n;
   // sprite for an NPC state: <sprite>_<anim> strip if delivered, else <sprite>_idle with a 2px bob, else the single base frame + bob
   function npcFrames(sprite, anim) {
@@ -709,6 +736,7 @@
   // build the live stage state at match start
   function stageInit(m) {
     const sg = m.stage; if (!sg) return null;
+    stPreload(sg);
     const ST = { npcs: [], props: {}, nexus: {}, tint: sg.tint ? Object.assign({ a: 0 }, sg.tint) : null, tintTo: null, overlay: sg.overlay || null, parts: [],
       fired: {}, chain: null, queue: [], wave: 0, lastWT: 0, grow: [] };
     const add = (d, i, n, extra) => { if (ST.npcs.length >= NPC_CAP) return; let sp = d.sprite;
@@ -734,6 +762,7 @@
   function stTrig(on, R, ST) {
     let mm;
     if (on === 'start') return true;
+    if (on === 'tam_saved') return !!ST.tamSaved;   // M02: the spawnAs (Tam) evac unit arrived
     if ((mm = /^(t|gold|evac_saved|wagons_burst)>=(\d+(?:\.\d+)?)$/.exec(on))) return stVal(R, mm[1]) >= +mm[2];
     if ((mm = /^farm_taken:(\w+)$/.exec(on))) { const h = Object.values(R.obj).find(s => s.o.k === 'hold'); if (!h) return false;
       const i = h.o.zones.findIndex(z => z.name.toLowerCase().startsWith(mm[1].toLowerCase())); return i >= 0 && !!h.owned[i]; }
@@ -826,7 +855,10 @@
   function stageDrawProps(c) {
     const ST = S.R && S.R.stage; if (!ST) return;
     for (const k in ST.props) { const P = ST.props[k], p = P.p, img = stImg('prop', p.sprite + '_' + P.state) || stImg('prop', p.sprite); if (!img) continue;
-      const w = p.w || 80, h = w * img.height / img.width, x = p.x * WORLD_W, y = p.y * WORLD_H; c.drawImage(img, x - w / 2, y - h, w, h); }
+      const w = p.w || 80, h = w * img.height / img.width, x = p.x * WORLD_W, y = p.y * WORLD_H; c.drawImage(img, x - w / 2, y - h, w, h);
+      const fi = P.state === 'burning' && stImg('fx', 'fx_fire');   // fx_fire: flickering flame over burning props
+      if (fi) { const t = performance.now() / 1000, fw = w * 0.5 * (1 + 0.08 * Math.sin(t * 11 + x)), fh = fw * fi.height / fi.width * (1 + 0.1 * Math.sin(t * 7.3 + y));
+        c.save(); c.globalAlpha = 0.85; c.drawImage(fi, x - fw / 2, y - h * 0.55 - fh * 0.6, fw, fh); c.restore(); } }
   }
   // nexus override (sprite only; HP/shield untouched): nexus_<id>_<state>.webp, else nexus_<id>.webp, else the default leader art
   S.nexusImg = function (team) {
@@ -878,31 +910,39 @@
   // ---- Act 1 stage blocks: only what level_engine_spec_v1 states per mission (overlays §4, nexus §1/§5, NPCs §2, props §6, example chain §3).
   // bg/lane/prop/nexus art has not been delivered yet: those names are wired and fall back to today's art until the files land.
   const STAGES = {
-    P0: { bg: 'bg_p0_festival', overlay: null,
-      nexus: { ally: { sprite: 'nexus_garrow_dais', npc: 'rufus_torch' },
+    P0: { bg: 'bg_p0_festival', overlay: null,   // bg already paints the festival cobbles (matches mock_p0_top_v37); lane_cobble tile left unused here
+      nexus: { ally: { sprite: 'nexus_garrow_dais' },
                enemy: { sprite: 'nexus_puppet', states: ['normal', 'burning', 'lantern'], defeat: { mode: 'transform', to: 'lantern', fx: 'fx_confetti' } } },
-      npcs: [{ id: 'garrow', sprite: 'npc_garrow_dais', at: 'ally_nexus', dx: -78, dy: 6 },
+      npcs: [{ id: 'garrow', sprite: 'npc_garrow_dais', at: 'ally_nexus', dx: -88, dy: 6 },
+             { id: 'rufus', sprite: 'npc_rufus_torch', at: 'ally_nexus', dx: 88, dy: 30 },
              { id: 'dancers', sprite: 'npc_villager', count: 6, at: 'lane_edge', anim: 'dance', mix: 6 }],
-      props: [{ id: 'lan1', sprite: 'prop_lantern', x: 0.3, y: 0.7, states: ['off', 'lit'] }, { id: 'lan2', sprite: 'prop_lantern', x: 0.3, y: 0.5, states: ['off', 'lit'] },
-              { id: 'lan3', sprite: 'prop_lantern', x: 0.3, y: 0.3, states: ['off', 'lit'] }, { id: 'chair', sprite: 'prop_empty_chair', x: 0.78, y: 0.88, states: ['normal'] }],
+      // lanterns x3 (off/lit) = the existing Lanterns objective posts, drawn with prop_lantern_<off|lit> when staged (see the lantern draw)
+      props: [{ id: 'chair', sprite: 'prop_empty_chair', x: 0.93, y: 0.95, w: 54, states: ['normal'] }],
       events: [{ on: 'nexus_hp<=50:enemy', once: true, then: { nexus: 'burning' } }] },
-    M01: { npcs: [{ id: 'garrow', sprite: 'npc_garrow', at: 'ally_nexus', dx: -60, anim: 'point' },
-                  { id: 'villagers', sprite: 'npc_farmer', count: 3, at: 'lane_edge', anim: 'flee', team: 'green' }],
-      props: [1, 2, 3, 4].map(i => ({ id: 'hay' + i, sprite: 'prop_haystack', x: i % 2 ? 0.14 : 0.86, y: 0.3 + i * 0.1, state: 'normal', states: ['normal', 'burning'] })),
+    M01: { bg: 'bg_m01_farmland_dawn', lane: 'lane_dirt_road',
+      npcs: [{ id: 'garrow', sprite: 'npc_garrow', at: 'ally_nexus', dx: -86, anim: 'point' },
+             { id: 'villagers', sprite: 'npc_farmer', count: 3, at: 'lane_edge', anim: 'flee', team: 'green' }],
+      props: [1, 2, 3, 4].map(i => ({ id: 'hay' + i, sprite: 'prop_haystack', x: i % 2 ? 0.06 : 0.94, y: 0.3 + i * 0.1, w: 56, state: 'normal', states: ['normal', 'burning'] }))
+        .concat([0.3, 0.55].flatMap((y, i) => [{ id: 'post' + i + 'l', sprite: 'prop_lantern_post_dark', x: 0.31, y, w: 40, states: ['normal'] }, { id: 'post' + i + 'r', sprite: 'prop_lantern_post_dark', x: 0.69, y, w: 40, states: ['normal'] }])),
       events: [{ on: 'gold>=120', once: true, lines: [['Garrow', 'm01_garrow_bark1', 'They\u2019re falling back!'], ['Rufus', 'm01_rufus_bark1', 'After them!']], gap: 0.4, pause: false, then: { prop: 'hay1', state: 'burning' } }] },
-    M02: { overlay: 'fx_ash',
+    M02: { bg: 'bg_m02_farmland_ash', overlay: 'fx_ash',
       npcs: [{ id: 'rescued', sprite: 'npc_farmer', grow: 'evac_saved', max: 10, at: 'ally_nexus', dy: 22 }, { id: 'tam_unit', spawnAs: { index: 10, sprite: 'npc_tam' } }],
-      props: [{ id: 'cart', sprite: 'prop_cart_overturned', x: 0.2, y: 0.52, states: ['normal'] }, { id: 'shield', sprite: 'prop_scorched_shield', x: 0.5, y: 0.6, states: ['normal', 'gone'] }] },
-    M03: { props: [{ id: 'barrels', sprite: 'prop_oil_barrels', x: 0.82, y: 0.35, states: ['normal'] }, { id: 'puddle', sprite: 'prop_oil_puddle', x: 0.5, y: 0.45, states: ['normal'] }] },
-    M04: { overlay: 'fx_ash', nexus: { enemy: { defeat: { mode: 'none' } } },
-      npcs: [{ id: 'tam', sprite: 'npc_tam', at: 'ally_nexus', dx: 64, anim: 'kneel' }],
-      props: [{ id: 'banner', sprite: 'prop_banner', x: 0.5, y: 0.66, state: 'green', states: ['green', 'blue'], bind: 'farm_taken:south' }] },
-    M05: { overlay: 'fx_wind', nexus: { enemy: { defeat: { mode: 'none' } } },
-      props: [{ id: 'beacon', sprite: 'prop_windmill', x: 0.2, y: 0.6, state: 'normal', states: ['normal', 'beacon_lit'], bind: 'objective_win' }] },
-    M06: { props: [{ id: 'tent', sprite: 'prop_felix_tent', x: 0.8, y: 0.22, state: 'glow', states: ['glow', 'empty'] }] },
+      props: [{ id: 'cart', sprite: 'prop_cart_overturned', x: 0.2, y: 0.52, w: 74, states: ['normal'] }, { id: 'shield', sprite: 'prop_scorched_shield', x: 0.8, y: 0.6, w: 40, states: ['normal', 'gone'] }],
+      events: [{ on: 'tam_saved', once: true, then: { prop: 'shield', state: 'gone' } }] },
+    M03: { bg: 'bg_m03_road_dusk',
+      props: [{ id: 'barrels', sprite: 'prop_oil_barrels', x: 0.84, y: 0.35, w: 64, states: ['normal'] }, { id: 'puddle', sprite: 'prop_oil_puddle', x: 0.16, y: 0.45, w: 70, states: ['normal'] }] },
+    M04: { bg: 'bg_m04_farmland_ashmorning', overlay: 'fx_ash', nexus: { enemy: { defeat: { mode: 'none' } } },
+      npcs: [{ id: 'tam', sprite: 'npc_tam', at: 'ally_nexus', dx: 86, anim: 'kneel' }],
+      props: [{ id: 'banner', sprite: 'prop_banner', x: 0.72, y: 0.66, w: 50, state: 'green', states: ['green', 'blue'], bind: 'farm_taken:south' }] },
+    M05: { bg: 'bg_m05_ridge_night', overlay: 'fx_wind', nexus: { enemy: { defeat: { mode: 'none' } } },
+      props: [{ id: 'beacon', sprite: 'prop_windmill', x: 0.15, y: 0.6, w: 80, state: 'normal', states: ['normal', 'beacon_lit'], bind: 'objective_win' }] },
+    M06: { bg: 'bg_m06_camp_overcast', props: [{ id: 'tent', sprite: 'prop_felix_tent', x: 0.84, y: 0.22, w: 84, state: 'glow', states: ['glow', 'empty'] }] },
     M07: { bg: 'bg_m07_fortress_rain', lane: 'lane_wet_cobble', overlay: 'fx_rain',
       nexus: { enemy: { sprite: 'nexus_felix_fortress', states: ['normal', 'lantern_lit'], defeat: { mode: 'transform', to: 'lantern_lit' } } },
-      props: [{ id: 'lantern', sprite: 'prop_green_lantern', x: 0.5, y: 0.12, state: 'dark', states: ['dark', 'lit'], bind: 'objective_win' }] }
+      props: [{ id: 'lantern', sprite: 'prop_green_lantern', x: 0.66, y: 0.1, w: 44, state: 'dark', states: ['dark', 'lit'], bind: 'objective_win' },
+              { id: 'wa1', sprite: 'prop_wall_archer', x: 0.14, y: 0.12, w: 54, state: 'up', states: ['up', 'down'] }, { id: 'wa2', sprite: 'prop_wall_archer', x: 0.86, y: 0.12, w: 54, state: 'up', states: ['up', 'down'] }],
+      events: [{ on: 'boss_phase:1', once: true, then: { prop: 'wa1', state: 'down' } }, { on: 'boss_phase:1', once: true, then: { prop: 'wa2', state: 'down' } },
+               { on: 'boss_phase:2', once: true, then: { prop: 'wa1', state: 'up' } }, { on: 'boss_phase:2', once: true, then: { prop: 'wa2', state: 'up' } }] }
   };
   for (const k in STAGES) if (M[k]) M[k].stage = STAGES[k];
   { const draw0 = S.draw; S.draw = function (c) { draw0(c); if (S.R && S.R.stage) { stageDrawProps(c); stageDrawNpcs(c); } }; }
@@ -1013,12 +1053,12 @@
     felix_flee: ['Felix', 'Not yet! Back to the walls!'],
   };
   S.BARKS = BARKS;
-  const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', Tam: 'tam', Glade: 'glade', Tobb: 'tobb', Storyteller: 'storyteller', '???': 'mystery' };
+  const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', Tam: 'tam', Glade: 'glade', Tobb: 'tobb', Storyteller: 'storyteller', Outrider: 'outrider', 'Garrow\u2019s Outrider': 'outrider', '???': 'mystery' };
   let felixAfter = false;   // v36.7: Felix wears felix_tainted in Act 1 until his redemption (M07 after-dialogue); clean from Act 2 on
   const felixPortrait = () => (felixAfter || (S.m && S.m.act > 1)) ? 'felix' : 'felix_tainted';   // v36.7 X5: keyed on the mission, not the save
-  const LEFT = { Rufus: 1, Ruphene: 1, Garrow: 1, Pip: 1, Farmer: 1, Tam: 1, Vesper: 1 };
+  const LEFT = { Rufus: 1, Ruphene: 1, Garrow: 1, Pip: 1, Farmer: 1, Tam: 1, Vesper: 1, Outrider: 1, 'Garrow\u2019s Outrider': 1 };
   let VO = null, voAudio = null;
-  const VO_LINE = {"P0_b0": "p0_ruphene_01.m4a?fc4d0b", "P0_b1": "p0_rufus_01.m4a?b00906", "P0_b2": "p0_ruphene_02.m4a?f9a5a8", "P0_b3": "p0_vesper_02.m4a?2d210a", "P0_b4": "p0_garrow_01.m4a?7e7925", "P0_b5": "p0_garrow_02.m4a?601911", "bark_lantern": "p0_ruphene_03.m4a?d3bbc6", "bark_lantern_2": "p0_ruphene_04.m4a?5f445f", "bark_lantern_3": "p0_ruphene_05.m4a?411c5b", "P0_a0": "p0_vesper_03.m4a?0f41b4", "P0_a1": "p0_rufus_02.m4a?cda406", "prologue_lanterns_l0": "p0_storyteller_04.m4a?051159", "prologue_lanterns_l1": "p0_tobb_01.m4a?90bc3b", "prologue_lanterns_l2": "p0_vesper_01.m4a?f5b24a", "prologue_lanterns_l3": "p0_tobb_02.m4a?392171", "M01_b0": "m01_vesper_01.m4a?050bb5", "M01_b1": "m01_garrow_brief.m4a?4f3991", "M01_a0": "m01_rufus_02.m4a?f8fc22", "M01_a1": "m01_felix_01.m4a?ec7bb8", "M01_a2": "m01_rufus_03.m4a?79254d", "M01_a3": "m01_felix_02.m4a?e9036e", "M02_b0": "m02_rufus_02.m4a?b63d96", "M02_b1": "m02_garrow_02.m4a?dfa0bd", "M02_a0": "m02_farmer_01.m4a?f14da3", "M02_a1": "m02_rufus_03.m4a?8ff55a", "M03_b0": "m03_garrow_01.m4a?d40200", "bark_wagon_in": "m03_felix_01.m4a?63707a", "M03_a0": "m03_rufus_01.m4a?15b168", "M03_a1": "m03_garrow_02.m4a?8f7f67", "M04_b0": "m04_garrow_01.m4a?528b8b", "M04_b1": "m04_vesper_01.m4a?3f4605", "M04_b2": "m04_garrow_02.m4a?8a83cd", "bark_farm_won": "m04_farmer_01.m4a?f6ae59", "bark_farm_lost": "m04_farmer_02.m4a?e3d457", "bark_guard_down": "m04_garrow_03.m4a?7f45d2", "M04_a0": "m04_rufus_01.m4a?e4bf19", "M05_b0": "m05_rufus_02.m4a?d7cc80", "M05_b1": "m05_vesper_01.m4a?7307f9", "M05_b2": "m05_rufus_03.m4a?154949", "M05_a0": "m05_farmer_01.m4a?44faa6", "M05_a1": "m05_rufus_04.m4a?3aaffb", "M06_b0": "m06_vesper_01.m4a?02e150", "M06_b1": "m06_rufus_01.m4a?bba3c8", "M06_b2": "m06_vesper_02.m4a?1d8689", "bark_freed": "m06_garrow_01.m4a?9edeee", "M06_a0": "m06_garrow_02.m4a?2855bd", "M06_a1": "ch1_m06_garrow_somebody.m4a?637301", "M07_b0": "m07_felix_01.m4a?f3dce6", "M07_b1": "m07_rufus_01.m4a?f20ea0", "bark_phase2": "m07_felix_02.m4a?679afe", "bark_phase3": "m07_felix_03.m4a?047a84", "bark_felix_down": "m07_felix_04.m4a?dd7614", "bark_felix_flee": "m07_felix_05.m4a?7bd2cb", "M07_a0": "m07_felix_06.m4a?1d34f8", "M07_a1": "m07_rufus_02.m4a?2c6d1b", "M07_a2": "m07_vesper_01.m4a?7b3884", "M07_a3": "m07_garrow_01.m4a?5445f0", "M07_a4": "m07_felix_07.m4a?4d38dc", "M07_a5": "m07_vesper_02.m4a?d07eeb", "bark_reinf": "ch1_global_ruphene_01.m4a?bb0ab0", "M01_b2": "m01_rufus_01.m4a?f2cb1e", "M05_a2": "ch1_m05_vesper_beacon.m4a?8979d2", "M06_a2": "m06_garrow_03.m4a?9d5470", "P0_a2": "p0_garrow_05.m4a?e87c1c"};
+  const VO_LINE = {"m01_garrow_bark1": "m01_garrow_bark1.m4a?be62fd", "m01_rufus_bark1": "m01_rufus_bark1.m4a?5099d7", "P0_b0": "p0_ruphene_01.m4a?fc4d0b", "P0_b1": "p0_rufus_01.m4a?b00906", "P0_b2": "p0_ruphene_02.m4a?f9a5a8", "P0_b3": "p0_vesper_02.m4a?2d210a", "P0_b4": "p0_garrow_01.m4a?7e7925", "P0_b5": "p0_garrow_02.m4a?601911", "bark_lantern": "p0_ruphene_03.m4a?d3bbc6", "bark_lantern_2": "p0_ruphene_04.m4a?5f445f", "bark_lantern_3": "p0_ruphene_05.m4a?411c5b", "P0_a0": "p0_vesper_03.m4a?0f41b4", "P0_a1": "p0_rufus_02.m4a?cda406", "prologue_lanterns_l0": "p0_storyteller_04.m4a?051159", "prologue_lanterns_l1": "p0_tobb_01.m4a?90bc3b", "prologue_lanterns_l2": "p0_vesper_01.m4a?f5b24a", "prologue_lanterns_l3": "p0_tobb_02.m4a?392171", "M01_b0": "m01_vesper_01.m4a?050bb5", "M01_b1": "m01_garrow_brief.m4a?4f3991", "M01_a0": "m01_rufus_02.m4a?f8fc22", "M01_a1": "m01_felix_01.m4a?ec7bb8", "M01_a2": "m01_rufus_03.m4a?79254d", "M01_a3": "m01_felix_02.m4a?e9036e", "M02_b0": "m02_rufus_02.m4a?b63d96", "M02_b1": "m02_garrow_02.m4a?dfa0bd", "M02_a0": "m02_farmer_01.m4a?f14da3", "M02_a1": "m02_rufus_03.m4a?8ff55a", "M03_b0": "m03_garrow_01.m4a?d40200", "bark_wagon_in": "m03_felix_01.m4a?63707a", "M03_a0": "m03_rufus_01.m4a?15b168", "M03_a1": "m03_garrow_02.m4a?8f7f67", "M04_b0": "m04_garrow_01.m4a?528b8b", "M04_b1": "m04_vesper_01.m4a?3f4605", "M04_b2": "m04_garrow_02.m4a?8a83cd", "bark_farm_won": "m04_farmer_01.m4a?f6ae59", "bark_farm_lost": "m04_farmer_02.m4a?e3d457", "bark_guard_down": "m04_garrow_03.m4a?7f45d2", "M04_a0": "m04_rufus_01.m4a?e4bf19", "M05_b0": "m05_rufus_02.m4a?d7cc80", "M05_b1": "m05_vesper_01.m4a?7307f9", "M05_b2": "m05_rufus_03.m4a?154949", "M05_a0": "m05_farmer_01.m4a?44faa6", "M05_a1": "m05_rufus_04.m4a?3aaffb", "M06_b0": "m06_vesper_01.m4a?02e150", "M06_b1": "m06_rufus_01.m4a?bba3c8", "M06_b2": "m06_vesper_02.m4a?1d8689", "bark_freed": "m06_garrow_01.m4a?9edeee", "M06_a0": "m06_garrow_02.m4a?2855bd", "M06_a1": "ch1_m06_garrow_somebody.m4a?637301", "M07_b0": "m07_felix_01.m4a?f3dce6", "M07_b1": "m07_rufus_01.m4a?f20ea0", "bark_phase2": "m07_felix_02.m4a?679afe", "bark_phase3": "m07_felix_03.m4a?047a84", "bark_felix_down": "m07_felix_04.m4a?dd7614", "bark_felix_flee": "m07_felix_05.m4a?7bd2cb", "M07_a0": "m07_felix_06.m4a?1d34f8", "M07_a1": "m07_rufus_02.m4a?2c6d1b", "M07_a2": "m07_vesper_01.m4a?7b3884", "M07_a3": "m07_garrow_01.m4a?5445f0", "M07_a4": "m07_felix_07.m4a?4d38dc", "M07_a5": "m07_vesper_02.m4a?d07eeb", "bark_reinf": "ch1_global_ruphene_01.m4a?bb0ab0", "M01_b2": "m01_rufus_01.m4a?f2cb1e", "M05_a2": "ch1_m05_vesper_beacon.m4a?8979d2", "M06_a2": "m06_garrow_03.m4a?9d5470", "P0_a2": "p0_garrow_05.m4a?e87c1c"};
   fetch('assets/vo/index.json').then(r => r.json()).then(j => VO = j).catch(() => {});
   S.voMuted = () => localStorage.getItem('rb.voMute') === '1';
   S.setVoMute = m => { localStorage.setItem('rb.voMute', m ? '1' : '0'); if (m && voAudio) voAudio.pause(); };

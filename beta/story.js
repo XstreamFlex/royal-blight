@@ -64,8 +64,8 @@
   const A1 = {   // v35.9 Act 1 teaching order (data only: reorder/redesign missions by editing these lists)
     P0:  ['worker', 'turret', 'pawn:sword', 'archer:short'],                         // controls
     // v36.4 Ian's roster order (Cut's tut_mXX_roster lines). Free pawn waves still march in every mission (no card).
-    M01: ['worker'],                                                                  // miners only (gold-target mission)
-    M02: ['worker', 'pawn:sword', 'archer:short'],                                    // pawns + archers
+    M01: ['worker', 'archer:short'],                                                  // v38.3 Ian: miners + archer training (gold + kill a miner)
+    M02: ['worker', 'pawn:sword', 'archer:short', 'wizard:battle', 'brute:base'],    // v38.3 Ian: main tutorial: batching, combos, counters
     M03: ['worker', 'wizard:battle', 'archer:short'],                                 // wizards + archers
     M04: ['worker', 'brute:base', 'archer:short', 'wizard:battle', 'hero:cavalier'],  // brutes + archers + wizards + Outrider
     M05: ['worker', 'brute:base', 'archer:short', 'wizard:battle', 'turret'],   // v37.4 no Outrider hero in M05   // M04 + turrets
@@ -85,9 +85,10 @@
       cut: ['prologue_lanterns', 'prologue_contact_lost'] },
     M01: { region: 'eastmarch', allowedUnits: A1.M01, act: 1, name: 'Smoke on the Horizon', type: 'STD', map: 'farmland', gold: 120, reward: ['G1', 'X1'], par: 420,
       ai: { level: 'easy', strat: 'balanced', income: 0.45 },
-      brief: 'Felix\u2019s threat came true. Three days\u2019 ride east, at dawn. Felix\u2019s Green Army is burning the haystacks of Eastmarch. Garrow\u2019s troops hold the lane while you mine. Gold wins wars. Keep your miners alive.',
+      brief: 'Felix\u2019s threat came true. Three days\u2019 ride east, at dawn. Felix\u2019s Green Army is burning the haystacks of Eastmarch. Mine the gold, train archers, and take out at least one of Felix\u2019s miners. Gold wins wars.',
       // v36.4 miners-only: win by banking gold. Garrow's free pawn waves hold the lane; nexusFloor keeps the mission from being lost unfairly.
-      objectives: [{ k: 'gold', target: M01_GOLD, solo: true }], noNexusWin: true, nexusFloor: 0.4, redFloor: 0.3, allies: { every: 20, units: ['archer', 'archer', 'brute'] }, stars: ['Bank the gold', 'Nexus above 50%', 'Win under 7:00 (par)'],
+      objectives: [{ k: 'gold', target: M01_GOLD, solo: true }, { k: 'minerKill', count: 1 }], noNexusWin: true, nexusFloor: 0.4, redFloor: 0.3,   // v38.3: no free ally waves (off autopilot)
+      stars: ['Bank the gold', 'Nexus above 50%', 'Win under 7:00 (par)'],
       before: [['Vesper', 'He\u2019ll start with the western rows, Majesty. His father did, in the border fires. I pulled the old war letters last night.'], ['Garrow', 'Aye. Burned west to east, with the wind behind him.'], ['Rufus', 'Felix planted half those rows himself. Why burn them?']],
       after: [['Rufus', 'Felix\u2026 the letter. Tell me someone forged it.'], ['Felix', 'I wrote every word.'], ['Rufus', 'Why? I forgave your tithe!'], ['Felix', 'In front of every king at that table. Like a beggar. Never again, Rufus.']], cut: ['ch1_m01_briefing', 'ch1_m01_red_eyes'] },
     M02: { region: 'eastmarch', allowedUnits: A1.M02, act: 1, name: 'Save the Harvest', type: 'EVAC', map: 'farmland', gold: 150, reward: ['G1', 'X1'], unlock: [],
@@ -502,6 +503,11 @@
       if (lost > o.lossMax) st.failed = true; else st.done = true;   // v38 protect is a constraint: met while not failed
     } else if (o.k === 'vip') {
       if (st.u.dead) st.failed = true; else if (Math.abs(st.u.y - state.cores.red.y) < 120) st.done = true;
+    } else if (o.k === 'minerKill') {   // v38.3 M01: kill N enemy miners
+      st.ws = st.ws || new Set(); st.n = st.n || 0;
+      state.units.forEach(u => { if (u.team === 'red' && u.type === 'worker' && !u.story) st.ws.add(u); });
+      st.ws.forEach(u => { if (u.dead || u.hp <= 0) { st.n++; st.ws.delete(u); } });
+      if (st.n >= o.count) st.done = true;
     } else if (o.k === 'gold') {
       st.mine = state.goldMined.blue || 0; st.theirs = state.goldMined.red || 0;
       if (st.mine >= o.target) st.done = true; else if (!o.solo && st.theirs >= o.target) st.failed = true;
@@ -1435,7 +1441,8 @@
       case 'defend': return `Hold the ${o.zone.name} zone for ${Math.round(o.secs / 60)}:00 (enemy may hold it ${o.maxEnemy}s total)`;
       case 'rescue': return 'Free ' + o.cages.map(c => c.name).join(', ') + ': get troops to the cage with no enemies nearby';
       case 'boss': return 'Defeat King Felix (his nexus is shielded while he stands)';
-      case 'gold': return o.solo ? `Bank ${o.target} gold: mine it while Garrow\u2019s troops hold the lane` : `Bank ${o.target} gold before the enemy`;
+      case 'minerKill': return `Take out ${o.count} enemy miner${o.count > 1 ? 's' : ''}: push archers up to where they dig`;
+      case 'gold': return o.solo ? `Bank ${o.target} gold from your mines` : `Bank ${o.target} gold before the enemy`;
       case 'survive': return `Survive ${o.secs}s until reinforcements arrive`;
       case 'deadline': return `Win within ${o.secs}s, before enemy reinforcements arrive`;
       case 'protect': return `Protect the ${o.structs.map(s => s.name).join(', ')} (lose at most ${o.lossMax})`;
@@ -1472,6 +1479,7 @@
       if (o.k === 'defend') rows.push(`${ck} Hold ${o.zone.name} ${fmt(st.left)} \u00B7 enemy ${Math.round(st.enemyT)}/${o.maxEnemy}s`);
       if (o.k === 'rescue') rows.push(`${ck} Free ${o.cages.map(c => c.name).join(', ')}`);
       if (o.k === 'boss') rows.push(`${ck} Defeat ${(S.m && S.m.boss && S.m.boss.name) || 'Felix'}` + (R.boss && !R.boss.dead ? ` ${Math.round(100 * R.boss.hp / R.boss.maxHp)}% \u00B7 phase ${R.phase}` : ''));
+      if (o.k === 'minerKill') rows.push(`${ck} Enemy miners down: ${Math.min(st.n || 0, o.count)}/${o.count}`);
       if (o.k === 'gold') rows.push(o.solo ? `${ck} Bank ${o.target} gold: ${Math.floor(st.mine || 0)}/${o.target}` : `${ck} Gold ${Math.floor(st.mine || 0)}/${o.target} (enemy ${Math.floor(st.theirs || 0)})`);
       if (o.k === 'survive') rows.push(`${ck} Reinforcements in ${fmt(st.left)}`);
       if (o.k === 'deadline') rows.push(`${ck} Enemy host arrives in ${fmt(st.left)}`);
@@ -1504,8 +1512,15 @@
    "tut_p0_fieldguide": "Forget what something does? Open ☰, then the Field Guide. Every unit, combo and symbol you've met is in there.",
    "tut_p0_guide": "Your orders for each fight are in ☰ under Mission Guide: the goal, plus a few hints. Check it any time.",
    "tut_p0_lantern": "That's one lantern lit! March past all three and the crowd gets its show.",
-   "tut_m01_roster": "Miners only today. Gold wins wars, so we start with gold.",
-   "tut_m02_roster": "All we need is pawns up front and archers behind them.",
+   "tut_m01_roster": "Miners and archers today. Bank the gold, and knock out one of Felix's miners.",
+   "tut_m01_archers": "Tap ARCHER. Archers march behind the free pawns and shoot from range.",
+   "tut_m01_push": "See his miner digging up the lane? Get archers up there and drop him.",
+   "tut_m01_econ": "Miner down! No miner, no gold, no new soldiers. Hit his miners and his army starves.",
+   "tut_m02_timing": "One archer at a time just feeds them in. Save up and batch, so a whole group arrives together.",
+   "tut_m02_counter_pack": "Big pack coming! Wizards splash crowds. Put fire on it.",
+   "tut_m02_counter_brute": "Brute incoming. Magic barely scratches him. Archers wear him down from range.",
+   "tut_m02_counter_ranged": "Their archers are fragile. Lead with a brute and run them over.",
+   "tut_m02_roster": "Full company today: pawns, archers, wizards and brutes. Learn how they fit together.",
    "tut_m03_roster": "Wizards and archers this time. Let the fire do the work.",
    "tut_m04_roster": "Brutes, archers, wizards, and my Outrider. We'll need every one.",
    "tut_m05_roster": "Hold that beacon. Use your turrets and everything you've learned.",
@@ -1590,56 +1605,49 @@
       { id: 'lantern', line: 'tut_p0_lantern', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'lanternLit' }, forceAfter: 60, pause: 'slow' },
       { id: 'stats', line: 'tut_p0_stats', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 4 }, pause: 'slow' }
     ] },
-    M01: { steps: [
-      { id: 'roster', line: 'tut_m01_roster', speaker: 'Garrow', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing
+    M01: { steps: [   // v38.3 Ian: archer training (gold + 1 enemy miner)
+      { id: 'roster', line: 'tut_m01_roster', speaker: 'Garrow', roster: true, trigger: { k: 'time', t: 1 }, pause: true },
       { id: 'miners', line: 'tut_m01_miners', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 4 }, pause: true, point: { unit: 'worker', team: 'blue' } },
-      { id: 'attack', line: 'tut_m01_attack', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'workerHit' }, forceAfter: 20, force: { k: 'attackMiner' }, pause: 'slow', point: { unit: 'worker', team: 'blue', hit: true } },
+      { id: 'archers', line: 'tut_m01_archers', speaker: 'Garrow', trigger: { k: 'delay', t: 2 }, pause: true, point: '#btn-buy-archer' },
+      { id: 'attack', line: 'tut_m01_attack', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'workerHit' }, forceAfter: 25, force: { k: 'attackMiner' }, pause: 'slow', point: { unit: 'worker', team: 'blue', hit: true } },
       { id: 'why', line: 'tut_m01_why', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 0.3 }, pause: true, point: '#node-safe' },
-      { id: 'advance', line: 'tut_m01_advance', speaker: 'Garrow', voiced: true, trigger: { k: 'cond', c: 'pushing', v: 60 }, forceAfter: 40, pause: true, point: '#node-far' },
-      { id: 'retreat', line: 'tut_m01_retreat', speaker: 'Garrow', voiced: true, trigger: { k: 'cond', c: 'pushedBack', v: 90 }, forceAfter: 45, force: { k: 'enemyPush', n: 3 }, pause: true, point: '#node-mid' },
-      { id: 'killed', line: 'tut_m01_killed', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'workerKilled' }, forceAfter: 40, force: { k: 'killMiner' }, pause: true, point: '#btn-buy-worker' }
+      { id: 'push', line: 'tut_m01_push', speaker: 'Garrow', trigger: { k: 'delay', t: 6 }, force: { k: 'redMiner' }, forceAfter: 0.1, pause: true, point: { unit: 'worker', team: 'red' } },
+      { id: 'econ', line: 'tut_m01_econ', speaker: 'Garrow', trigger: { k: 'event', e: 'redMinerKilled' }, pause: 'slow' }
     ] },
-    M02: { steps: [
-      { id: 'roster', line: 'tut_m02_roster', speaker: 'Garrow', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing
+    M02: { steps: [   // v38.3 Ian: main tutorial: batching/timing, combos, counters
+      { id: 'roster', line: 'tut_m02_roster', speaker: 'Garrow', roster: true, trigger: { k: 'time', t: 1 }, pause: true },
       { id: 'pawns', line: 'tut_m02_pawns', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 4 }, pause: true, point: { unit: 'pawn', team: 'blue' } },
       { id: 'archers', line: 'tut_m02_archers', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 1 }, pause: true, point: '#btn-buy-archer' },
-      { id: 'batch', line: 'tut_m02_batch', speaker: 'Garrow', trigger: { k: 'event', e: 'batched' }, forceAfter: 30, pause: true, point: '#btn-buy-archer' },
-      { id: 'combo', line: 'tut_m02_combo', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'comboHit' }, forceAfter: 45, pause: 'slow' },
-      { id: 'fieldguide', line: 'tut_m02_fieldguide', speaker: 'Garrow', trigger: { k: 'delay', t: 1 }, pause: false, point: '#btn-pause' }
+      { id: 'timing', line: 'tut_m02_timing', speaker: 'Garrow', trigger: { k: 'delay', t: 4 }, pause: true, point: '#btn-buy-archer' },
+      { id: 'batch', line: 'tut_m02_batch', speaker: 'Garrow', trigger: { k: 'event', e: 'batched' }, forceAfter: 12, pause: 'slow', point: '#btn-buy-archer' },
+      { id: 'combo', line: 'tut_m02_combo', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'comboHit' }, forceAfter: 12, pause: 'slow' },
+      { id: 'wizard', line: 'tut_m03_wizard', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 3 }, pause: true, point: '#btn-buy-wizard' },
+      { id: 'pack', line: 'tut_m02_counter_pack', speaker: 'Garrow', trigger: { k: 'event', e: 'redPack' }, forceAfter: 15, force: { k: 'enemyPush', n: 5 }, pause: 'slow', point: '#btn-buy-wizard' },
+      { id: 'brute', line: 'tut_m04_brute', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 3 }, pause: true, point: '#btn-buy-brute' },
+      { id: 'wbcombo', line: 'tut_m04_combo', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'scorchHit' }, forceAfter: 12, pause: 'slow' },
+      { id: 'cbrute', line: 'tut_m02_counter_brute', speaker: 'Garrow', trigger: { k: 'event', e: 'redBrute' }, forceAfter: 10, force: { k: 'enemyUnit', t: 'brute' }, pause: 'slow', point: '#btn-buy-archer' },
+      { id: 'cranged', line: 'tut_m02_counter_ranged', speaker: 'Garrow', trigger: { k: 'event', e: 'redRanged' }, forceAfter: 8, pause: 'slow', point: '#btn-buy-brute' },
+      { id: 'fieldguide', line: 'tut_m02_fieldguide', speaker: 'Garrow', trigger: { k: 'delay', t: 3 }, pause: false, point: '#btn-pause' }
     ] },
-    M03: { steps: [
-      { id: 'roster', line: 'tut_m03_roster', speaker: 'Garrow', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing
-      { id: 'wizard', line: 'tut_m03_wizard', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 4 }, pause: true, point: '#btn-buy-wizard' },
-      { id: 'wagon', line: 'tut_m03_wagon', speaker: 'Garrow', voiced: true, trigger: { k: 'cond', c: 'time', v: 20 }, pause: 'slow' },
-      { id: 'crowd', line: 'tut_m03_crowd', speaker: 'Garrow', trigger: { k: 'delay', t: 15 }, pause: 'slow' },
-      { id: 'cover', line: 'tut_m03_cover', speaker: 'Garrow', trigger: { k: 'delay', t: 20 }, pause: false }
+    M03: { steps: [   // v38.3 minimal: roster + one hint
+      { id: 'roster', line: 'tut_m03_roster', speaker: 'Garrow', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing,
+      { id: 'wagon', line: 'tut_m03_wagon', speaker: 'Garrow', voiced: true, trigger: { k: 'cond', c: 'time', v: 20 }, pause: 'slow' }
     ] },
-    M04: { steps: [
-      { id: 'roster', line: 'tut_m04_roster', speaker: 'Garrow', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing
-      { id: 'brute', line: 'tut_m04_brute', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 4 }, pause: true, point: '#btn-buy-brute' },
-      { id: 'combo', line: 'tut_m04_combo', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'scorchHit' }, forceAfter: 40, pause: 'slow' },
-      { id: 'hero', line: 'tut_m04_hero', speaker: 'Garrow', voiced: true, trigger: { k: 'delay', t: 5 }, pause: true, point: '#btn-buy-hero' },   // Cut: #btn-hero
-      { id: 'fireline', line: 'tut_m04_fireline', speaker: 'Rufus', voiced: true, trigger: { k: 'event', e: 'firelineWarn' }, forceAfter: 30, pause: 'slow' },
-      { id: 'hold', line: 'tut_m04_hold', speaker: 'Garrow', trigger: { k: 'delay', t: 10 }, pause: false }
+    M04: { steps: [   // v38.3 minimal: roster + one hint
+      { id: 'roster', line: 'tut_m04_roster', speaker: 'Garrow', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing,
+      { id: 'fireline', line: 'tut_m04_fireline', speaker: 'Rufus', voiced: true, trigger: { k: 'event', e: 'firelineWarn' }, forceAfter: 30, pause: 'slow' }
     ] },
-    M05: { steps: [
-      { id: 'roster', line: 'tut_m05_roster', speaker: 'Vesper', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing
-      { id: 'pads', line: 'tut_m05_pads', speaker: 'Rufus', voiced: true, trigger: { k: 'time', t: 3 }, pause: true, point: { pad: 'blue' } },
-      { id: 'turret', line: 'tut_m05_turret', speaker: 'Farmer', voiced: true, trigger: { k: 'event', e: 'turretBuilt' }, forceAfter: 30, pause: 'slow', point: '#btn-buy-turret' },
-      { id: 'limits', line: 'tut_m05_limits', speaker: 'Vesper', voiced: true, trigger: { k: 'event', e: 'turretDown' }, forceAfter: 90, pause: true }
+    M05: { steps: [   // v38.3 minimal: roster + one hint
+      { id: 'roster', line: 'tut_m05_roster', speaker: 'Vesper', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing,
+      { id: 'pads', line: 'tut_m05_pads', speaker: 'Rufus', voiced: true, trigger: { k: 'time', t: 3 }, pause: true, point: { pad: 'blue' } }
     ] },
-    M06: { steps: [
-      { id: 'roster', line: 'tut_m06_roster', speaker: 'Rufus', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing
-      { id: 'guide', line: 'tut_m06_guide', speaker: 'Vesper', trigger: { k: 'time', t: 5 }, pause: false, point: '#btn-pause' },
+    M06: { steps: [   // v38.3 minimal: roster + one hint
+      { id: 'roster', line: 'tut_m06_roster', speaker: 'Rufus', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing,
       { id: 'freed', line: 'tut_m06_freed', speaker: 'Rufus', voiced: true, trigger: { k: 'event', e: 'cageFreed' }, forceAfter: 150, force: { k: 'freeCage' }, pause: true },   // v36.0.1: hint at 150s, staged rescue 15s later
-      { id: 'counter', line: 'tut_m06_counter', speaker: 'Rufus', trigger: { k: 'cond', c: 'pushedBack', v: 90 }, forceAfter: 120, pause: false }
     ] },
-    M07: { steps: [
-      { id: 'roster', line: 'tut_m07_roster', speaker: 'Garrow', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing
-      { id: 'shield', line: 'tut_m07_shield', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 3 }, pause: true },
-      { id: 'phase2', line: 'tut_m07_phase2', speaker: 'Garrow', voiced: true, trigger: { k: 'event', e: 'bossPhase2' }, pause: 'slow' },
-      { id: 'phase3', line: 'tut_m07_phase3', speaker: 'Rufus', voiced: true, trigger: { k: 'event', e: 'bossPhase3' }, pause: 'slow' },
-      { id: 'splash', line: 'tut_m07_splash', speaker: 'Garrow', trigger: { k: 'cond', c: 'pushing', v: 8 }, forceAfter: 15, pause: 'slow' }
+    M07: { steps: [   // v38.3 minimal: roster + one hint
+      { id: 'roster', line: 'tut_m07_roster', speaker: 'Garrow', voiced: true, roster: true, trigger: { k: 'time', t: 1 }, pause: true },   // v36.4 roster briefing,
+      { id: 'shield', line: 'tut_m07_shield', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 3 }, pause: true }
     ] }
   };
   S.heroLabel = k => k === 'cavalier' ? (S.m && (S.m.heroTrial || S.m.id === 'M04')) ? 'Garrow\u2019s Outrider' : (won('M06') || (S.m && S.m.id === 'M06' && S.R && Object.values(S.R.obj).some(st => st.cages && st.cages.every(c => c.freed))) ? 'General Garrow' : 'Garrow\u2019s Outrider') : null;
@@ -1650,6 +1658,10 @@
   const lineFrac = () => { const y = calculateBattlelineY(), b = state.cores.blue.y, r = state.cores.red.y; return (b - y) / (b - r); };   // 0 = at our nexus, 1 = at theirs
   const EV = {   // polled each frame; the first true starts the step
     workerHit: () => S.T.workerHit,
+    redMinerKilled: () => Object.values(S.R.obj).some(st => st.o.k === 'minerKill' && st.n > 0),   // v38.3
+    redPack: () => state.units.filter(u => !u.dead && u.team === 'red' && u.type !== 'worker' && !u.story && u.y > state.cores.red.y + 200).length >= 5,
+    redBrute: () => state.units.some(u => !u.dead && u.team === 'red' && u.type === 'brute'),
+    redRanged: () => state.units.some(u => !u.dead && u.team === 'red' && (u.type === 'archer' || u.type === 'wizard')),
     unitBought: () => (state.blueCadence.archers + state.blueCadence.wizards + state.blueCadence.brutes) > 0,
     batched: () => Math.max(state.blueCadence.archers, state.blueCadence.wizards, state.blueCadence.brutes) >= 2,
     turretBuilt: () => state.turretPads.some(p => p.team === 'blue' && p.turret && !p.turret.dead),
@@ -1680,6 +1692,8 @@
       const u = spawnUnit('pawn', 'red', 'C', 0); u.x = w.x + 18; u.y = w.y - 30; u.tutForced = true; dealDamage(w, w.hp + 1, u, 'physical');
     },
     spawnWorker() { spawnWorker('blue', 'MID'); },
+    redMiner() { if (!state.units.some(u => !u.dead && u.team === 'red' && u.type === 'worker')) spawnWorker('red', 'MID'); },   // v38.3 M01: make sure a reachable miner exists
+    enemyUnit(f) { const u = spawnUnit(f.t || 'pawn', 'red', 'C', 0); u.tutForced = true; },
     freeCage() {   // v36.0.1: point at Garrow's wagon with how-to; if still caged 15s later, stage the rescue (clear the guards, free him)
       const st = Object.values(S.R.obj).find(s => s.cages); if (!st) return; const cg = st.cages.find(c => !c.freed); if (!cg) return;
       const T = S.T; T.box = true; const ps = state.paused; state.paused = true;

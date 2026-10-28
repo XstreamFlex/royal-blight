@@ -17,7 +17,7 @@
     const out = { v: SAVE_V, gold: Math.max(0, Math.floor(+s.gold || 0)), xp: Math.max(0, Math.floor(+s.xp || 0)),
       missions: {}, unlocks: Array.isArray(s.unlocks) ? s.unlocks.filter(x => typeof x === 'string').slice(0, 500) : f.unlocks,
       seen: Array.isArray(s.seen) ? s.seen.filter(x => typeof x === 'string').slice(0, 500) : [], created: +s.created || Date.now(),
-      diff: ['easy', 'normal', 'hard'].includes(s.diff) ? s.diff : 'normal', mapV: 2, replayStory: !!s.replayStory, cineAll: !!s.cineAll, power: typeof s.power === 'string' ? s.power : null, up: cleanUp(s.up), migratedFrom: (s.v | 0) < 2 ? (s.v | 0) || 1 : (s.migratedFrom || 0) };   // v1 -> v2: progress is derived from wins, so nothing is lost
+      diff: ['easy', 'normal', 'hard', 'veryhard'].includes(s.diff) ? s.diff : 'normal', vh: Array.isArray(s.vh) ? s.vh.filter(n => n > 0 && n < 10) : [], mapV: 2, replayStory: !!s.replayStory, cineAll: !!s.cineAll, power: typeof s.power === 'string' ? s.power : null, up: cleanUp(s.up), migratedFrom: (s.v | 0) < 2 ? (s.v | 0) || 1 : (s.migratedFrom || 0) };   // v1 -> v2: progress is derived from wins, so nothing is lost
     f.unlocks.forEach(u => { if (!out.unlocks.includes(u)) out.unlocks.push(u); });
     if (s.missions && typeof s.missions === 'object') for (const [id, m] of Object.entries(s.missions)) {
       if (!/^[A-Z0-9_]{2,8}$/.test(id) || !m) continue;
@@ -36,6 +36,7 @@
       SAVE = migrate(obj); persist(); return true;
     } catch (e) { return e.message || 'invalid save'; }
   }
+  const vhOpen = act => (SAVE.vh || []).includes(act);   // v38 Very Hard: unlocked per act by beating its final mission on Hard
   const level = () => 1 + Math.floor(Math.sqrt(SAVE.xp / 60));          // XP level (shop gating later)
 
   // ------------------------------------------------------------------ WORLD DATA (from STORY_BIBLE.md)
@@ -44,8 +45,9 @@
     paradale:  { name: 'Paradale',  ruler: 'King Rufus', dir: 'center', pos: [50, 47], missions: ['P0'], hub: true, cards: [] },
     eastmarch: { name: 'Eastmarch', ruler: 'King Felix', dir: 'east', pos: [84, 52], missions: ['M01', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07'],
                  cards: [['map:farmland', '\u{1F33E}', 'Burning Farmland map'], ['pawn:shield', '\u{1F6E1}', 'Sword & Shield pawn'], ['army:green', '\u{1F49A}', 'Green Army + King Felix'], ['archer:flame', '\u{1F525}', 'Flame Arrow archer'], ['hero:cavalier', '\u{1F40E}', 'The Cavalier']] },
-    westreach: { name: 'Westreach', ruler: 'King Glade', dir: 'west', pos: [16, 50], missions: [], count: 8, soon: true, cards: [['map:library', '\u{1F4DA}', '?'], ['wizard:base', '\u{1F52E}', '?']] },
-    northcrag: { name: 'Northcrag', ruler: 'Light Keeper Cline', dir: 'north', pos: [50, 15], missions: [], count: 8, soon: true, cards: [['map:pass', '\u26F0', '?']] },
+    westreach: { name: 'Westreach', ruler: 'King Glade', dir: 'west', pos: [16, 50], act: 2, missions: ['M08', 'M09', 'M10', 'M11', 'M12', 'M13', 'M14', 'M15', 'M16'],
+                 cards: [['power:fallback', '\u{1F4EF}', 'Fall Back order'], ['wizard:priest', '\u271A', 'Priest Wizard'], ['pawn:shield', '\u{1F6E1}', 'Sword & Shield pawn'], ['brute:light', '\u{1F4A8}', 'Light Armor brute'], ['archer:long', '\u{1F3F9}', 'Longbow'], ['army:yellow', '\u{1F49B}', 'Yellow Army + King Glade']] },
+    northcrag: { name: 'Northcrag', ruler: 'Light Keeper Cline', dir: 'north', pos: [50, 15], act: 3, missions: ['M17', 'M18', 'M19', 'M20', 'M21', 'M22', 'M23', 'M24'], skeleton: true, cards: [['map:pass', '\u26F0', '?']] },
     southmire: { name: 'Southmire', ruler: 'General Drevlar', dir: 'south', pos: [50, 83], missions: [], count: 8, soon: true, cards: [['map:swamp', '\u{1F480}', '?']] }
   };
   // Mission definitions. Engine keys:
@@ -129,6 +131,62 @@
       after: [['Felix', 'Rufus\u2026 I wrote it. I meant it, while I wrote it. And I burned everything.'], ['Rufus', 'Fields grow back. You\u2019re home now.'], ['Vesper', 'He\u2019s home, Majesty. You brought him home.'], ['Garrow', 'I\u2019ll send word to the Loft. They can pin Eastmarch green.'], ['Felix', 'Send a bird home for me, Chancellor.'], ['Vesper', 'Tonight, Your Majesty. First bird out.']],
       cut: ['ch1_m07_apology', 'ch1_m07_cliffhanger'] }
   };
+
+  // ------------------------------------------------------------------ v38 ACT 2 (Westreach) + ACT 3 skeleton (Northcrag)
+  // Foundation only. Story text is placeholder (TODO_CUT); media is listed in /workspace/shared/act2_media_manifest.md.
+  // teach = variant featured (listed first in the roster); A2 roster = Act 1 basics + teach + every variant already unlocked.
+  const TC = (who, t) => [who, 'TODO_CUT: ' + t];
+  const a2 = (o) => Object.assign({ region: 'westreach', act: 2, map: 'arena', reward: ['G3', 'X2'], enemyArmy: 'yellow',
+    stars: ['Win the mission', 'Nexus above 50%', 'Nexus never below 75%'] }, o);
+  Object.assign(M, {
+    M08: a2({ needs: 'M07', name: 'Ink and Ashes', type: 'STD', gold: 200, reward: ['G2', 'X2'], ai: { level: 'normal', strat: 'balanced', income: 0.8 }, unlock: ['power:fallback'], power: 'fallback',
+      brief: 'TODO_CUT: Westreach burns. The treasury opens and the King\u2019s horn sounds Fall Back for the first time.', objectives: [{ k: 'nexus' }],
+      tips: ['NEW: King Power FALL BACK. When a lone push is about to die, pull the army back to your turrets.', 'Between missions, spend treasury gold in the SHOP.'],
+      before: [TC('Ruphene', 'joins the march (stubborn line)'), TC('Rufus', 'horn intro')], after: [TC('Vesper', 'treasury line: Felix\u2019s grain wagons pay the first income')] }),
+    M09: a2({ name: 'Scholars in the Stacks', type: 'RSC', gold: 220, ai: { level: 'normal', strat: 'balanced', income: 0.85 }, teach: ['wizard:priest'], unlock: ['wizard:priest'],
+      brief: 'TODO_CUT: Rescue the scholars. They fight as Priest Wizards: keep healers behind the line.',
+      objectives: [{ k: 'nexus' }, { k: 'rescue', cages: [{ y: 1150, unit: 'wizard', n: 2, name: 'East stacks' }, { y: 820, unit: 'wizard', n: 2, name: 'Poetry section' }] }],
+      stars: ['Win the mission', 'Rescue both scholar groups', 'Nexus never below 75%'], before: [TC('Garrow', 'poetry section joke')], after: [TC('Scholar', 'thanks')] }),
+    M10: a2({ name: 'The Yellow Wall', type: 'SIEGE', gold: 240, ai: { level: 'normal', strat: 'turtle', income: 0.95 }, teach: ['archer:flame'], unlock: ['kit:barrier'],
+      brief: 'TODO_CUT: Glade stacked the bookshelf gate. Flame Archers burn structures: focus fire.', objectives: [{ k: 'nexus' }], redCore: 1.35,
+      before: [TC('Glade', 'grievance from the gate')], after: [TC('Tobb', 'If Glade can stack shelves, so can Tobb')] }),
+    M11: a2({ name: 'Protect the Libraries', type: 'DEF', gold: 260, ai: { level: 'normal', strat: 'rush', income: 1.0 }, teach: ['pawn:shield'], unlock: ['pawn:shield'],
+      brief: 'TODO_CUT: The last three libraries. Hold until help arrives.',
+      objectives: [{ k: 'survive', secs: 210 }, { k: 'protect', structs: [{ y: 1500, hp: 700, name: 'Archive' }, { y: 1300, x: LANE_X - 70, hp: 600, name: 'Map Room' }, { y: 1100, hp: 600, name: 'Reading Hall' }], lossMax: 1 }],
+      stars: ['Survive', 'Lose no more than 1 library', 'Nexus never below 75%'], before: [TC('Vesper', 'last shelves')], after: [TC('Ruphene', 'Archive survives')] }),
+    M12: a2({ name: 'Ruphene\u2019s Errand', type: 'VIP', gold: 260, ai: { level: 'normal', strat: 'balanced', income: 1.0 }, teach: ['brute:light'], unlock: ['brute:light', 'power:rush'], power: 'rush',
+      brief: 'TODO_CUT: Escort Ruphene to the Archive gate. NEW: King Power RUSH (fast, weaker hits) covers a push.',
+      objectives: [{ k: 'vip', hp: 520, speed: 16, name: 'Ruphene' }], before: [TC('Ruphene', 'the page')], after: [TC('Rufus', 'Ember Shard page')] }),
+    M13: a2({ name: 'Brute Force', type: 'SKILL CHECK', gold: 260, ai: { level: 'hard', strat: 'push', income: 1.0 }, teach: ['archer:long'], unlock: ['archer:long'], enemyLoadout: { brute: 'heavy' },
+      brief: 'TODO_CUT: Skill check. Heavy brutes. Kite them with Longbows and focus fire.', objectives: [{ k: 'nexus' }],
+      stars: ['Win the mission', 'Lose no turret', 'Nexus never below 75%'], tips: ['Archers outrange brutes: keep your front line short and let them shoot.'],
+      before: [TC('Garrow', 'Kite what, sir?')], after: [TC('Garrow', 'payoff')] }),
+    M14: a2({ name: 'The Ink Flood', type: 'SURGE', gold: 900, noWorkers: true, ai: { level: 'normal', strat: 'rush', income: 1.25 },
+      brief: 'TODO_CUT: The dams break. No miners: a fixed war chest. Survive three surges.', objectives: [{ k: 'survive', secs: 180 }],
+      tips: ['Repetition breaker: no gold income. Spend the chest wisely.'], before: [TC('Glade', 'breaks the canal dams')], after: [TC('Vesper', 'ink and fire')] }),
+    M15: a2({ name: 'The Magister\u2019s Ward', type: 'RNF+', gold: 280, ai: { level: 'hard', strat: 'balanced', income: 1.0 },
+      brief: 'TODO_CUT: Ember Quill raises the Great Ward. Hold the ward zone until reinforcements arrive.',
+      objectives: [{ k: 'survive', secs: 200 }, { k: 'defend', zone: { y: 1400, h: 110, name: 'Ward' }, secs: 200, maxEnemy: 30 }],
+      before: [TC('Ember Quill', 'Only I can open it now')], after: [TC('Ember Quill', 'joins (hero TODO)')] }),
+    M16: a2({ name: 'BOSS: The Page-Breaker', type: 'BOSS', gold: 300, reward: ['G4', 'X3'], final: true, ai: { level: 'hard', strat: 'balanced', income: 1.05 },
+      unlock: ['region:westreach', 'army:yellow'], boss: { hp: 1150, atk: 32, range: 170, interval: 1.2, speed: 24, y: 300, name: 'Page-Breaker' },
+      brief: 'TODO_CUT: Three-phase boss. Use every tool. Glade freed; cliffhanger.', objectives: [{ k: 'boss', name: 'The Page-Breaker' }, { k: 'nexus' }],
+      before: [TC('Glade', 'possessed taunt')], after: [TC('Glade', 'apology'), TC('Vesper', 'leaves'), TC('Rufus', 'Ruphene taken (cliffhanger)')] })
+  });
+  const a3 = (o) => Object.assign({ region: 'northcrag', act: 3, map: 'swamp', reward: ['G3', 'X2'], enemyArmy: 'silver', ai: { level: 'hard', strat: 'balanced', income: 1.05 }, gold: 260,
+    stars: ['Win the mission', 'Nexus above 50%', 'Nexus never below 75%'], objectives: [{ k: 'nexus' }], before: [TC('Rufus', 'placeholder')], after: [TC('Cline', 'placeholder')] }, o);
+  Object.assign(M, {   // v38 Act 3 skeleton: objectives + placeholder stages only (mechanics: catapult, elevated nexus = TODO)
+    M17: a3({ needs: 'M16', name: 'The Highwatch Road', type: 'STD', brief: 'TODO_CUT: Act 3 opens on the pass to Highwatch.' }),
+    M18: a3({ name: 'Avalanche Watch', type: 'SURVIVE', brief: 'TODO_CUT: Hold the switchback.', objectives: [{ k: 'survive', secs: 200 }] }),
+    M19: a3({ name: 'Wheels of War', type: 'STD', brief: 'TODO_CUT: Mobile catapult intro (mechanic TODO).' }),
+    M20: a3({ name: 'Signal Fires', type: 'HOLD', brief: 'TODO_CUT: Light the pass beacons.', objectives: [{ k: 'beacons', ys: [1500, 1100, 700], name: 'Signal fires' }, { k: 'nexus' }] }),
+    M21: a3({ name: 'The High Nexus', type: 'ELEVATED', brief: 'TODO_CUT: Elevated nexus map (mechanic TODO).', redCore: 1.3 }),
+    M22: a3({ name: 'Frozen Supply', type: 'ESCORT', brief: 'TODO_CUT: Escort the supply sled.', objectives: [{ k: 'vip', hp: 600, speed: 16, name: 'Supply sled' }] }),
+    M23: a3({ name: 'Cline\u2019s Test', type: 'SKILL CHECK', brief: 'TODO_CUT: Catapult positioning skill check.' }),
+    M24: a3({ name: 'BOSS: The Light Keeper', type: 'BOSS', final: true, reward: ['G5', 'X3'], unlock: ['region:northcrag'], boss: { hp: 1300, atk: 34, range: 170, interval: 1.15, speed: 24, y: 300, name: 'Light Keeper' },
+      brief: 'TODO_CUT: Act 3 boss.', objectives: [{ k: 'boss', name: 'The Light Keeper' }, { k: 'nexus' }] })
+  });
+  Object.values(M).forEach(m => { if (m.act >= 2 && !m.cut) m.cut = []; });
   Object.entries(M).forEach(([id, m]) => { m.id = id; });
 
   // ------------------------------------------------------------------ PROGRESS / COLORS
@@ -159,7 +217,7 @@
     return 'M' + P.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L') + ' Z';
   }
   const COLOR = { red: '#dc2626', orange: '#f97316', yellow: '#facc15', lightgreen: '#86efac', green: '#16a34a', blue: '#3b82f6' };
-  function missionOpen(id) { const m = M[id], ms = REGIONS[m.region].missions, i = ms.indexOf(id); return i <= 0 || won(ms[i - 1]); }
+  function missionOpen(id) { const m = M[id], ms = REGIONS[m.region].missions, i = ms.indexOf(id); if (m.needs && !won(m.needs)) return false; return i <= 0 || won(ms[i - 1]); }
   const unlocked = k => SAVE.unlocks.includes(k);
   function storyLoadout(m) {
     const lo = Object.assign({}, DEFAULT_LOADOUT, (typeof SETTINGS !== 'undefined' && SETTINGS.loadout) || {});
@@ -204,6 +262,16 @@
     if (!canUpgrade(rk) || u[k] >= 3) return false; const c = UP.cost[k][u[k]]; if (SAVE.gold < c) return false;
     SAVE.gold -= c; u[k]++; if (powerOpen(rk) && !SAVE.power) SAVE.power = UP.names[rk].power; persist(); return true;
   };
+  const ARMORY = [   // v38 treasury unlocks (gold persists between missions; spent only here)
+    { k: 'power:fallback', icon: '\u{1F4EF}', name: 'Fall Back order', desc: 'King Power: army retreats to your nexus for 4s', cost: 150, req: 'M07' },
+    { k: 'power:rush', icon: '\u26A1', name: 'Rush order', desc: 'King Power: 2.5x speed and attack rate, 50% damage, 6s', cost: 300, req: 'M11' },
+    { k: 'wizard:priest', icon: '\u271A', name: 'Priest Wizard', desc: 'Healer variant (also earned in M09)', cost: 250, req: 'M08' },
+    { k: 'brute:light', icon: '\u{1F4A8}', name: 'Light Armor brute', desc: 'Fast, lighter brute (also earned in M12)', cost: 250, req: 'M10' },
+    { k: 'archer:long', icon: '\u{1F3F9}', name: 'Longbow archer', desc: 'Long range archer (also earned in M13)', cost: 300, req: 'M12' }
+  ];
+  S.ARMORY = ARMORY;
+  S.buy = function (k) { const it = ARMORY.find(a => a.k === k); if (!it || unlocked(k) || (it.req && !won(it.req)) || SAVE.gold < it.cost) return false;
+    SAVE.gold -= it.cost; SAVE.unlocks.push(k); persist(); return true; };
   function openTreasury() {
     let h = `<p class="text-slate-300 text-xs mb-2 text-center">Gold <b class="text-amber-300">${SAVE.gold}</b> \u00B7 XP ${SAVE.xp} \u00B7 Level ${level()}</p>`;
     for (const rk of Object.keys(UP.names)) {
@@ -216,15 +284,27 @@
       h += `<div class="mt-2 rounded-lg p-1.5 ${po ? 'bg-amber-500/20 border border-amber-400' : 'bg-slate-900/60 border border-slate-700'} flex items-center justify-between"><div class="text-[10px] leading-tight"><b class="${po ? 'text-amber-200' : 'text-slate-400'}">${P.icon} King Power: ${P.name}</b><br><span class="text-slate-400">${po ? esc(P.desc) : 'All 4 tracks at \u2605\u2605\u2605 to unlock'}</span></div>` +
         (po ? `<button data-pw="${N.power}" class="px-2 py-1 rounded-lg text-[10px] font-black ${SAVE.power === N.power ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-100'}">${SAVE.power === N.power ? 'EQUIPPED' : 'EQUIP'}</button>` : '') + `</div></div>`;
     }
+    if (won('M07')) {   // v38 Armory: treasury gold buys unlocks (orders, kits, variant drills). No stat changes to Act 1 units.
+      h += `<div class="mt-2 rounded-xl bg-slate-800/70 border border-amber-700 p-2"><div class="font-black text-amber-200 text-xs">\u2694 Armory (Act 2)</div>`;
+      for (const it of ARMORY) { const have = unlocked(it.k), open = !it.req || won(it.req), eq = it.k.startsWith('power:') && SAVE.power === it.k.slice(6);
+        h += `<div class="flex items-center justify-between mt-1"><div class="text-[10px] leading-tight"><b class="${have ? 'text-emerald-300' : 'text-slate-100'}">${it.icon} ${esc(it.name)}</b><br><span class="text-[9px] text-slate-400">${esc(it.desc)}${open ? '' : ' \u00B7 after ' + it.req}</span></div>` +
+          (have ? (it.k.startsWith('power:') ? `<button data-pw="${it.k.slice(6)}" class="px-2 py-1 rounded-lg text-[10px] font-black ${eq ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-100'}">${eq ? 'EQUIPPED' : 'EQUIP'}</button>` : '<span class="text-[10px] font-black text-emerald-300">OWNED</span>')
+            : `<button data-buy="${it.k}" ${open && SAVE.gold >= it.cost ? '' : 'disabled'} class="px-2 py-1 rounded-lg text-[10px] font-black ${open && SAVE.gold >= it.cost ? 'bg-amber-500 text-slate-950' : 'bg-slate-700 text-slate-400'}">${it.cost}g</button>`) + `</div>`; }
+      h += `</div>`; }
     h += `<p class="text-[10px] text-slate-400">Upgrades boost that region's battles. One King Power per battle; its meter fills from kills and gold mined.</p>`;
     showPanel('\u{1F4B0} Royal Treasury', h).then(() => {});
     const b = $('modal-brief');
     b.querySelectorAll('[data-up]').forEach(x => x.onclick = () => { const [rk, k] = x.dataset.up.split(':'); if (S.buyUpgrade(rk, k)) { openTreasury(); $('st-purse').textContent = `\u{1FA99} ${SAVE.gold}  \u2B50 XP ${SAVE.xp} (Lv ${level()})`; } });
+    b.querySelectorAll('[data-buy]').forEach(x => x.onclick = () => { if (S.buy(x.dataset.buy)) { openTreasury(); $('st-purse').textContent = `\u{1FA99} ${SAVE.gold}  \u2B50 XP ${SAVE.xp} (Lv ${level()})`; } });
     b.querySelectorAll('[data-pw]').forEach(x => x.onclick = () => { SAVE.power = SAVE.power === x.dataset.pw ? null : x.dataset.pw; persist(); openTreasury(); });
   }
   S.start = function (id) {
     const m = M[id]; if (!m || !missionOpen(id)) return false;
-    AI_LEVELS.story = Object.assign({}, AI_LEVELS[m.ai.level || 'normal'], { income: m.ai.income || 1, think: m.ai.think || AI_LEVELS[m.ai.level || 'normal'].think, heroWave: 99, heroArmy: 99 });
+    if (SAVE.diff === 'veryhard' && !vhOpen(m.act)) SAVE.diff = 'hard';
+    if (m.act >= 2) { const own = SAVE.unlocks.filter(u => /^(pawn|archer|brute|wizard):/.test(u));
+      m.allowedUnits = [...new Set([...(m.teach || []), ...A1_BASIC, ...own])].filter(u => !(m.noWorkers && u === 'worker')); }
+    const aiBase = SAVE.diff === 'veryhard' && AI_LEVELS.brutal ? 'brutal' : (m.ai.level || 'normal');
+    AI_LEVELS.story = Object.assign({}, AI_LEVELS[aiBase], { income: m.ai.income || 1, think: m.ai.think || AI_LEVELS[m.ai.level || 'normal'].think, heroWave: 99, heroArmy: 99 });
     const prevArmy = SETTINGS.army; SETTINGS.army = 'blue';
     S.active = true; S.m = m; S.team = 'blue';
     startMatch('cpu', 'story', { mission: id });
@@ -232,12 +312,21 @@
     state.map = m.map || 'arena'; bgCache = null; mapBgKey();
     state.loadout = { blue: storyLoadout(m), red: Object.assign({}, DEFAULT_LOADOUT, m.region === 'eastmarch' ? { archer: 'flame', pawn: 'sword' } : {}) };
     state.leaders = { blue: 'rufus', red: m.region === 'eastmarch' ? 'felix' : m.enemy === 'drill' ? 'drill' : 'necro' };
+    if (m.act >= 2) { AI_LEVELS.story.income *= ({ easy: 0.8, normal: 1, hard: 1.2, veryhard: 1.45 })[SAVE.diff] || 1;   // v38: Act 2+ difficulty curve (Act 1 untouched)
+      if (SAVE.diff === 'hard' || SAVE.diff === 'veryhard') AI_LEVELS.story.think = AI_LEVELS[aiBase].think;
+      state.loadout.red = Object.assign({}, DEFAULT_LOADOUT, m.act === 2 ? { archer: 'long', wizard: 'priest' } : { brute: 'heavy', pawn: 'shield' }, m.enemyLoadout || {});
+      state.leaders.red = m.act === 2 ? 'glade' : 'cline';
+      if (m.redCore) { const c = state.cores.red; c.maxHp = Math.round(c.maxHp * m.redCore); c.hp = c.maxHp; } }
     AIS.red.strat = AIS.red.strat0 = m.ai.strat || 'balanced'; AIS.red.switches = 0;
     state.blueGold = m.gold || 100;
     { const u = upOf(m.region), N = UP.names[m.region];   // v31 region upgrades for this region's battles
       if (u.walls) { const c = state.cores.blue; c.maxHp = Math.round(c.maxHp * (1 + 0.05 * u.walls)); c.hp = c.maxHp; }
       state.costMod = { blue: N && u.barracks ? { [N.sig]: 5 * u.barracks } : {} };
-      if (SAVE.power && KING_POWERS[SAVE.power] && Object.keys(UP.names).some(rk => UP.names[rk].power === SAVE.power && powerOpen(rk))) setKingPowers({ blue: SAVE.power, red: null }); }
+      const pw = m.power && unlocked('power:' + m.power) ? m.power : SAVE.power;   // v38: a mission that teaches an order equips it
+      if (pw && KING_POWERS[pw] && (unlocked('power:' + pw) || Object.keys(UP.names).some(rk => UP.names[rk].power === pw && powerOpen(rk)))) setKingPowers({ blue: pw, red: null });
+      if (m.power === 'fallback' && !unlocked('power:fallback')) setKingPowers({ blue: 'fallback', red: null });
+      if (state.kp.blue && m.act >= 2) state.kp.blue.m = 25; }
+    if (m.noWorkers) state.units.filter(u => u.team === 'blue' && u.type === 'worker').forEach(u => { u.dead = true; });
     if (m.region === 'eastmarch' && unlocked('bonus:worker_east')) spawnWorker('blue', 'MID');     // M04 reward: +1 starting worker
     const R = S.R = { t: 0, obj: {}, lost: 0, minCoreFrac: 1, turretsLost: 0, spent: 0, jousts: 0, lastJoust: -9, hazards: [], done: null, msgs: [] };
     (m.objectives || []).forEach((o, i) => setupObjective(o, i));
@@ -259,13 +348,13 @@
   // v28 guarded barns: enemy pawns stand guard at every farmstead. Felix's pawns muster at HALF rate while the
   // guards hold; each guard killed raises the enemy pawn rate one step, back to full when all are down.
   // Guards per farm by difficulty: Easy 1, Normal 2, Hard 3 (step = 50% / total guards).
-  const GUARDS = { easy: 1, normal: 2, hard: 3 };
+  const GUARDS = { easy: 1, normal: 2, hard: 3, veryhard: 4 };
   function spawnBarnGuards(o) {
     const R = S.R, per = GUARDS[SAVE.diff] || 2; R.guards = []; R.barnRate = 0.5; R.pawnAcc = 0; R.guardsDown = 0;
     o.zones.forEach((z, zi) => { for (let g = 0; g < per; g++) {
       const u = spawnUnit('pawn', 'red', 'C', 0); u.x = LANE_X + (g - (per - 1) / 2) * 34; u.y = z.y - 10 + (g % 2) * 14;
       u.speed = 0; u.guard = zi; u.variant = 'shield'; u.maxHp = u.hp = Math.round(u.hp * 1.8); u.lagHp = u.hp; u.atk *= 1.2; u.resist = Object.assign({}, u.resist, { ranged: Math.max(u.resist.ranged || 0, 0.3) }); R.guards.push(u); } });
-    const inc = { easy: 1.0, normal: 1.3, hard: 1.6 }[SAVE.diff] || 1.3;   // v28: barn missions scale the enemy economy with difficulty
+    const inc = { easy: 1.0, normal: 1.3, hard: 1.6, veryhard: 1.9 }[SAVE.diff] || 1.3;   // v28: barn missions scale the enemy economy with difficulty
     AI_LEVELS.story.income *= inc; if (SAVE.diff === 'hard') AI_LEVELS.story.think = AI_LEVELS.hard.think;
   }
   S.pawnsFor = function (team) {           // pawns per wave (index.html triggerWave hook)
@@ -294,10 +383,10 @@
   // v34 THREE-BAR BOSS: each health bar is one phase. When a bar empties the boss flees to his fortress (his nexus),
   // untargetable, heals to full and returns with stronger powers. Only the 3rd bar kills him; then his nexus
   // drops to turret-level HP. Bar HP scales with the story difficulty.
-  const BOSS_DIFF = { easy: 0.7, normal: 1, hard: 1.3 };
+  const BOSS_DIFF = { easy: 0.7, normal: 1, hard: 1.3, veryhard: 1.6 };
   const BOSS_PH = { 1: { atk: 1, interval: 1, fx: { r: 40, f: 0.18 } }, 2: { atk: 1.1, interval: 0.9, fx: { r: 48, f: 0.22 } }, 3: { atk: 1.2, interval: 0.85, fx: { r: 56, f: 0.26 } } };
   function spawnBoss(b) {
-    const hp = Math.round(b.hp * (BOSS_DIFF[SAVE.diff] || 1));
+    const hp = Math.round(b.hp * (BOSS_DIFF[SAVE.diff] || 1)); S.bossName = (b.name || 'Felix').toUpperCase();
     const u = new Unit({ type: 'archer', team: 'red', lane: 'C', x: LANE_X, y: b.y, hp, atk: b.atk, range: b.range, interval: b.interval, speed: b.speed, radius: 22, resist: { ranged: 0.3, magic: 0.3 } });
     u.boss = true; u.variant = 'flame'; u.burn = [6, 3]; u.baseAtk = b.atk; u.baseInt = b.interval; u.bossFx = Object.assign({ kind: 'flame' }, BOSS_PH[1].fx);
     state.units.push(u); S.R.boss = u; S.R.phase = 1; S.R.rainT = 6;
@@ -311,7 +400,7 @@
     const R = S.R; if (!R || u !== R.boss || R.phase >= 3) return false;
     u.hp = 1; u.lagHp = 1; u.retreat = true; u.untargetable = true; u.burnT = 0; u.stunT = 0; R.bossFlee = R.phase + 1;
     createSparks(u.x, u.y, '#fb923c', 24); state.shake = Math.max(state.shake || 0, 0.4);
-    toast(R.phase === 1 ? 'FELIX FLEES TO HIS FORTRESS!' : 'FELIX FLEES AGAIN! ONE BAR LEFT', '#fde68a'); S.bark('felix_flee');
+    toast(R.phase === 1 ? (S.bossName || 'FELIX') + ' FLEES TO HIS FORTRESS!' : (S.bossName || 'FELIX') + ' FLEES AGAIN! ONE BAR LEFT', '#fde68a'); if (S.m.act === 1) S.bark('felix_flee');
     return true;
   };
 
@@ -407,7 +496,7 @@
       st.done = st.cages.every(c => c.freed);
     } else if (o.k === 'protect') {
       const lost = st.structs.filter(s => s.dead).length; st.lost = lost;
-      if (lost > o.lossMax) st.failed = true;
+      if (lost > o.lossMax) st.failed = true; else st.done = true;   // v38 protect is a constraint: met while not failed
     } else if (o.k === 'vip') {
       if (st.u.dead) st.failed = true; else if (Math.abs(st.u.y - state.cores.red.y) < 120) st.done = true;
     } else if (o.k === 'gold') {
@@ -533,6 +622,7 @@
       gold += newStars * 25; xp += newStars * 10;
       { const u = upOf(m.region); gold = Math.round(gold * (1 + 0.1 * u.mines)); xp = Math.round(xp * (1 + 0.1 * u.hall)); }
       (m.unlock || []).forEach(u => { if (!SAVE.unlocks.includes(u)) SAVE.unlocks.push(u); });
+      if (m.final && (SAVE.diff === 'hard' || SAVE.diff === 'veryhard') && !SAVE.vh.includes(m.act)) { SAVE.vh.push(m.act); S.vhNew = m.act; }   // v38 Very Hard unlock
     } else { xp = 10; }                                                                          // a loss still teaches something
     SAVE.gold += gold; SAVE.xp += xp; persist();
     S.lastResult = { id: m.id, win, stars: st, gold, xp, firstClear, newStars, t: Math.round(R.t) };
@@ -965,6 +1055,10 @@
                { on: 'win', once: true, then: { spawn: { id: 'felix_kneel', sprite: 'npc_felix', anim: 'kneel', at: 'enemy_nexus', dy: 46, scale: 1.2 } } }] }
   };
   for (const k in STAGES) if (M[k]) M[k].stage = STAGES[k];
+  { const PH = { M08: 'bg_m03_road_dusk', M09: 'bg_m06_camp_overcast', M10: 'bg_m07_fortress_rain', M11: 'bg_m05_ridge_night', M12: 'bg_m03_road_dusk', M13: 'bg_m04_farmland_ashmorning',
+      M14: 'bg_m07_fortress_rain', M15: 'bg_m05_ridge_night', M16: 'bg_m07_fortress_rain', M17: 'bg_m05_ridge_night', M18: 'bg_m05_ridge_night', M19: 'bg_m03_road_dusk', M20: 'bg_m05_ridge_night',
+      M21: 'bg_m07_fortress_rain', M22: 'bg_m06_camp_overcast', M23: 'bg_m04_farmland_ashmorning', M24: 'bg_m07_fortress_rain' };   // v38 PLACEHOLDER Act 1 art (TODO media: act2/act3_media_manifest.md)
+    for (const k in PH) if (M[k] && !M[k].stage) M[k].stage = Object.assign({ bg: PH[k], placeholder: true }, /M1[04]|M16|M21|M24/.test(k) ? { lane: 'lane_wet_cobble' } : {}, /M14/.test(k) ? { overlay: 'fx_rain' } : {}); }
   { const draw0 = S.draw; S.draw = function (c) { draw0(c); if (S.R && S.R.stage) stageDrawProps(c); }; }
   function label(c, t, x, y) { c.save(); c.font = 'bold 12px sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(15,23,42,0.85)'; c.strokeText(t, x, y); c.fillStyle = '#f8fafc'; c.fillText(t, x, y); c.restore(); }
 
@@ -1267,6 +1361,8 @@
   S.openRegion = function (rk) {
     S.curRegion = rk; const r = REGIONS[rk], col = regionColor(rk);
     let h = `<div class="bg-slate-900/90 rounded-xl border-2 p-2 text-left" style="border-color:${COLOR[col]}"><div class="flex justify-between items-center"><div class="font-black text-amber-200 text-sm">${r.name} <span class="text-[10px] text-slate-400">\u00B7 ${r.ruler}</span></div><div class="text-[10px] font-black uppercase" style="color:${COLOR[col]}">${col === 'lightgreen' ? 'FINAL BATTLE' : col}</div></div>`;
+    if (r.skeleton) h += `<p class="text-[11px] text-sky-300 mt-1">Act 3 preview: placeholder missions (art, story and new mechanics coming).</p>`;
+    if (r.act && r.missions[0] && !won(M[r.missions[0]].needs)) h += `<p class="text-[11px] text-amber-300 mt-1">\u{1F512} Finish ${M[r.missions[0]].needs} to open Act ${r.act}.</p>`;
     if (r.soon) h += `<p class="text-[11px] text-slate-400 mt-1">Contact lost. This chapter arrives in a later update.</p>`;
     r.missions.forEach(id => {
       const m = M[id], rec = SAVE.missions[id], open = missionOpen(id);
@@ -1295,7 +1391,8 @@
     const replayed = !!(rec && rec.wins);   // v31: replays auto-skip the story unless 'Replay story' is on
     const rs = replayed ? `<button id="st-rs" class="mt-2 w-full py-2 rounded-lg border-2 text-[11px] font-black uppercase ${SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'}">\u{1F4D6} Replay story: ${SAVE.replayStory ? 'ON' : 'OFF'}</button>` : '';
     const bsel = m.boss ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty \u00B7 boss health per phase</div><div class="text-xs text-slate-200">${['easy', 'normal', 'hard'].map(d => d === SAVE.diff ? `<b class="text-amber-300">[${d} ${Math.round(BOSS_DIFF[d] * 100)}%]</b>` : d + ' ' + Math.round(BOSS_DIFF[d] * 100) + '%').join(' \u00B7 ')}</div><p class="text-[10px] text-slate-400">Three health bars. Each time Felix falls he flees to his fortress, heals, and returns stronger.</p>` : '';
-    const kP = showPanel(`${id}: ${esc(m.name)}`, html + dsel + bsel + rs, guarded || m.boss ? [['Back', 'back'], ['Easy', 'd:easy'], ['Normal', 'd:normal'], ['Hard', 'd:hard'], ['\u2694 Start', 'go']] : [['Back', 'back'], ['\u2694 Start', 'go']]);
+    const a2d = m.act >= 2 ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty: <span class="text-slate-100">${({ easy: 'Easy', normal: 'Normal', hard: 'Hard', veryhard: 'Very Hard' })[SAVE.diff]}</span></div><p class="text-[10px] text-slate-400">${vhOpen(m.act) ? 'Very Hard unlocked for this act.' : 'Beat this act\u2019s final mission on Hard to unlock Very Hard.'}</p>` : '';
+    const kP = showPanel(`${id}: ${esc(m.name)}`, html + dsel + bsel + a2d + rs, guarded || m.boss || m.act >= 2 ? [['Back', 'back'], ['Easy', 'd:easy'], ['Normal', 'd:normal'], ['Hard', 'd:hard']].concat(vhOpen(m.act) ? [['Very Hard', 'd:veryhard']] : []).concat([['\u2694 Start', 'go']]) : [['Back', 'back'], ['\u2694 Start', 'go']]);
     const rsb = $('st-rs'); if (rsb) rsb.onclick = () => { SAVE.replayStory = !SAVE.replayStory; persist(); rsb.textContent = '\u{1F4D6} Replay story: ' + (SAVE.replayStory ? 'ON' : 'OFF'); rsb.className = rsb.className.replace(SAVE.replayStory ? 'bg-slate-800 text-slate-300 border-slate-600' : 'bg-amber-500 text-slate-950 border-amber-300', SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'); };
     const k = await kP;
     if (k && k.startsWith('d:')) { SAVE.diff = k.slice(2); persist(); return S.brief(id); }
@@ -1321,17 +1418,17 @@
     return o.k;
   }
   async function showResults(r) {
-    const m = M[r.id];
+    const m = M[r.id]; setTimeout(() => { S.vhNew = 0; }, 0);
     if (r.win && (r.firstClear || SAVE.replayStory)) { const ce = cinesFor(r.id, 'end'); if (ce.length) await S.playCine(ce); else await S.dialogue(m.after, r.id + '_a'); }
     const html = `<div class="text-center text-3xl mb-1">${r.win ? r.stars.map(s => s ? '\u2B50' : '\u2606').join('') : '\u{1F480}'}</div>
       <p class="text-center text-xs text-slate-300 mb-2">${r.win ? 'Victory in ' + Math.floor(r.t / 60) + ':' + String(r.t % 60).padStart(2, '0') : 'Defeat. Regroup and try again: losses still earn XP.'}</p>
       ${r.win ? m.stars.map((s, i) => `<p class="text-xs ${r.stars[i] ? 'text-amber-200' : 'text-slate-500'}">${r.stars[i] ? '\u2B50' : '\u2606'} ${esc(s)}</p>`).join('') : ''}
-      <p class="text-center text-sm font-black mt-2"><span class="text-amber-300">+${r.gold}g</span> \u00B7 <span class="text-sky-300">+${r.xp} XP</span></p>
+      ${S.vhNew ? `<p class="text-center text-[11px] font-black text-rose-300">\u{1F480} VERY HARD unlocked for Act ${S.vhNew}!</p>` : ''}<p class="text-center text-sm font-black mt-2"><span class="text-amber-300">+${r.gold}g</span> \u00B7 <span class="text-sky-300">+${r.xp} XP</span></p>
       ${r.win && m.unlock ? `<p class="text-center text-[11px] text-emerald-300 mt-1">${r.firstClear ? 'Unlocked: ' + m.unlock.map(u => (REGIONS[m.region].cards.find(c => c[0] === u) || [0, 0, u.replace('bonus:worker_east', '+1 starting worker in Eastmarch').replace('region:eastmarch', 'Eastmarch is free!')])[2]).join(', ') : ''}</p>` : ''}
       ${r.win ? `<div class="mt-2 border-t border-slate-700 pt-2">${m.cut && m.cut[m.cut.length - 1] && m.cut.length > 1 ? cutSlot(m.cut[m.cut.length - 1]) : ''}${beats(m.after || [])}</div>` : ''}`;
-    const k = await showPanel(r.win ? 'Victory!' : 'Defeat', html + (window.matchStatsHtml ? '<div class="mt-2 flex justify-center">' + matchStatsHtml() + '</div>' : ''), [['Retry', 'retry'], ['Continue', 'map']]);
+    const k = await showPanel(r.win ? 'Victory!' : 'Defeat', html + (window.matchStatsHtml ? '<div class="mt-2 flex justify-center">' + matchStatsHtml() + '</div>' : ''), [['Retry', 'retry']].concat(won('M07') ? [['\u{1FA99} Shop', 'shop']] : []).concat([['Continue', 'map']]));
     S.quit(); state.started = false; initGame();
-    if (k === 'retry') S.start(r.id); else S.openMap();
+    if (k === 'retry') S.start(r.id); else { S.openMap(); if (k === 'shop') openTreasury(); }
   }
   S.renderHud = function () {
     const R = S.R, m = S.m, el = $('story-hud'); if (!R || !el) return;

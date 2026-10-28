@@ -1,4 +1,4 @@
-// Royal Blight — optional Account / Cloud Save (v27+). The local save (localStorage) stays the source of truth;
+// Evermarch — optional Account / Cloud Save (v27+). The local save (localStorage) stays the source of truth;
 // the cloud is only a backup/sync target while signed in. Everything here is best-effort and works offline.
 (function () {
   'use strict';

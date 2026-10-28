@@ -1,6 +1,6 @@
 {
-  "name": "Royal Blight Beta",
-  "short_name": "RB Beta",
+  "name": "Evermarch Beta",
+  "short_name": "Evermarch",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

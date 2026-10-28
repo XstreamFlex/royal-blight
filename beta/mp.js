@@ -1,4 +1,4 @@
-// Royal Blight - Play vs Friend.
+// Evermarch - Play vs Friend.
 // WebRTC DataChannel, paired by QR code / copy-paste (no signaling server), host-authoritative:
 //   host = King (blue) runs the whole simulation and streams ~12 snapshots/s;
 //   guest = Necromancer (red) renders interpolated snapshots and sends its orders as commands.
@@ -39,7 +39,7 @@ const MP = (() => {
   }
   function unpack(code) {
     code = (code || '').trim().replace(/\s+/g, '');
-    if (!code.startsWith(CODE_PREFIX)) throw new Error('Not a Royal Blight code');
+    if (!code.startsWith(CODE_PREFIX)) throw new Error('Not an Evermarch code');
     const [t, ufrag, pwd, alg, fp, setup, cands] = code.slice(CODE_PREFIX.length).split('|');
     const fpHex = Array.from(unb64u(fp), b => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
     const lines = ['v=0', 'o=- ' + Date.now() + ' 2 IN IP4 127.0.0.1', 's=-', 't=0 0', 'a=group:BUNDLE 0',
@@ -477,7 +477,7 @@ const MP = (() => {
               onDone && onDone();
               return;
             }
-            scanStatus('That QR is not a Royal Blight code. Keep trying…');
+            scanStatus('That QR is not an Evermarch code. Keep trying…');
           }
         }
       } catch (e) { log('scan frame error: ' + errMsg(e)); }
@@ -600,7 +600,7 @@ const MP = (() => {
       setTimeout(() => (b.textContent = 'Copy'), 1500);
     }));
     $('mp-copylog').addEventListener('click', async () => {
-      const txt = 'Royal Blight MP log\n' + navigator.userAgent + '\nstandalone=' + !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) + '\n' + LOG.join('\n');
+      const txt = 'Evermarch MP log\n' + navigator.userAgent + '\nstandalone=' + !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) + '\n' + LOG.join('\n');
       try { await navigator.clipboard.writeText(txt); $('mp-copylog').textContent = 'Log copied ✓'; }
       catch (e) { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (er) {} ta.remove(); $('mp-copylog').textContent = 'Log copied ✓'; }
       setTimeout(() => ($('mp-copylog').textContent = 'Copy debug log'), 1800);

@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-beta-v37.4';   // BETA build (/royal-blight/beta/): own cache namespace
+const CACHE_VERSION = 'royal-blight-beta-v37.5';   // BETA build (/royal-blight/beta/): own cache namespace
 const CORE = [
   './', './index.html', './manifest.json', './mp.js', './story.js', './cloud.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/kingdom_map.jpg', './assets/fonts/fonts.css',
@@ -64,7 +64,7 @@ self.addEventListener('fetch', e => {
       const buf = await hit.arrayBuffer(), n = buf.byteLength, m = /bytes=(\d*)-(\d*)/.exec(req.headers.get('range') || '');
       let a = m && m[1] ? +m[1] : 0, b = m && m[2] ? +m[2] : n - 1; if (m && !m[1] && m[2]) { a = Math.max(0, n - +m[2]); b = n - 1; }
       b = Math.min(b, n - 1); if (a > b || a >= n) return new Response(null, { status: 416, headers: { 'Content-Range': 'bytes */' + n } });
-      return new Response(buf.slice(a, b + 1), { status: 206, headers: { 'Content-Type': hit.headers.get('Content-Type') || 'audio/mp4', 'Content-Range': `bytes ${a}-${b}/${n}`, 'Content-Length': String(b - a + 1), 'Accept-Ranges': 'bytes' } });
+      return new Response(buf.slice(a, b + 1), { status: 206, headers: { 'Content-Type': hit.headers.get('Content-Type') || (/\.mp4$/.test(url.pathname) ? 'video/mp4' : 'audio/mp4'), 'Content-Range': `bytes ${a}-${b}/${n}`, 'Content-Length': String(b - a + 1), 'Accept-Ranges': 'bytes' } });
     }).catch(() => fetch(req)));
     return;
   }

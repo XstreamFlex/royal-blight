@@ -322,6 +322,7 @@
     const au = S.m.allowedUnits;   // v35.9
     if (au) cards = cards.filter(k => au.some(a => a === k || a.split(':')[0] === ({ archers: 'archer', brutes: 'brute', wizards: 'wizard' }[k] || k)));
     if (c.k === 'hero' && S.m && S.m.heroTrial && S.R) S.R.trialHero = true;
+    if (c.k === 'hero' && S.m && S.m.id === 'M05') { if (!c.quiet && team === myTeam()) toast('Not needed this mission', '#fca5a5'); return false; }   // v37.5: no Outrider (M04 hero card) carries into M05
     if (c.k === 'hero') { const ok = (!au || au.some(a => a.startsWith('hero:'))) && (unlocked('hero:cavalier') || !!(S.R && S.R.trialHero)); if (!ok && !c.quiet && team === myTeam()) toast('Not needed this mission', '#fca5a5'); return ok; }
     if (!cards.includes(c.k)) { if (team === myTeam() && !c.quiet) toast('Not needed this mission', '#fca5a5'); return false; }
     if (S.m.cap && CADENCE_INFO[c.k] && (state.blueCadence.archers + state.blueCadence.wizards + state.blueCadence.brutes) >= S.m.cap) { if (!c.quiet) toast('Army limit reached', '#fca5a5'); return false; }
@@ -1155,6 +1156,7 @@
   let barkT = null;
   S.bark = function (key) {
     const b = BARKS[key]; if (!b || !S.R) return;
+    if (S.m && S.m.id === 'M05' && /outrider|cavalier|charg/i.test(key + ' ' + b[0])) return;   // v37.5: Outrider barks never fire in M05
     if (S.R.stage && S.R.stage.chain) { playVo('bark_' + key, 1); return; }   // v37.3: don't overwrite / auto-hide a stage line's bubble
     let el = $('rb-bark');
     if (!el) { el = document.createElement('div'); el.id = 'rb-bark'; el.className = 'fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-none w-[92%] max-w-sm'; el.style.top = 'calc(var(--sat, 0px) + 118px)'; document.body.appendChild(el); }
@@ -1177,7 +1179,7 @@
     ['prologue_contact_lost', 'P0', 'end', 'Contact Lost'],
     ['ch1_m01_briefing', 'M01', 'start', 'Smoke on the Horizon'], ['ch1_m01_red_eyes', 'M01', 'end', 'Red Eyes'],
     ['ch1_m02_farmers', 'M02', 'start', 'Save the Harvest'], ['ch1_m03_wagons', 'M03', 'start', 'Fire-Oil Wagons'],
-    ['ch1_m04_fields_reclaimed', 'M04', 'end', 'Fields Reclaimed'], ['ch1_m05_windmill', 'M05', 'start', 'The Windmill'],
+    ['ch1_m04_fields_reclaimed', 'M04', 'end', 'Fields Reclaimed'], ['ch1_m05_garrow_scout', 'M05', 'start', 'Garrow Scouts Ahead'], ['ch1_m05_windmill', 'M05', 'start', 'The Windmill'],   // v37.5 Cut's scout scene (v3) plays first
     ['ch1_m06_garrow', 'M06', 'end', 'Garrow Rides Again'], ['ch1_m07_apology', 'M07', 'end', "Felix's Apology"], ['ch1_m07_cliffhanger', 'M07', 'end', 'The First Bird']
   ];
   S.CINE = CINE;

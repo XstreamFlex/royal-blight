@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Royal Blight';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Royal Blight BETA v38.0</title>
+  <title>Royal Blight BETA v38.1</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -324,7 +324,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Royal Blight</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v38.0</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v38.1</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -1608,7 +1608,7 @@
       return true;
     }
     function updateCombatMinion(u, dt) {
-      const spd = u.speed * (u.rally ? HERO_RT.rally : 1) * (u.auraT > 0 ? 1 + u.auraSpd : 1) * (state.decreeT && state.decreeT[u.team] > 0 ? 1 + KING_POWERS.decree.spd : 1) * (rushOn(u.team) ? KING_POWERS.rush.spd : 1);
+      const spd = u.speed * (u.rally ? HERO_RT.rally : 1) * (u.auraT > 0 ? 1 + u.auraSpd : 1) * (state.decreeT && state.decreeT[u.team] > 0 ? 1 + KING_POWERS.decree.spd : 1) * (rushOn(u.team) ? KING_POWERS.rush.spd : 1) * (wallOn(u.team) && !u.story ? KING_POWERS.shieldwall.spd : 1);
       if (u.type !== 'worker' && !u.story && !u.boss && state.orderT && state.orderT[u.team] && state.orderT[u.team].k === 'fallback') {   // v38 Fall Back
         const cy = state.cores[u.team].y, d = cy - u.y; if (Math.abs(d) > 140) { u.y += Math.sign(d) * spd * 1.4 * dt; u.x += (LANE_X - u.x) * Math.min(1, dt * 2); return; } }
       // Find nearest enemy unit or turret within aggro threshold
@@ -1759,9 +1759,11 @@
                 desc: 'Flame arrows rain on the third of the lane with the most enemies' },
       // v38 Act 2 tactical orders (roadmap 3): Fall Back M08, Rush M12
       fallback: { name: 'Fall Back', nameR: 'Fall Back', icon: '\u{1F4EF}', secs: 4, desc: 'Your army turns and runs back toward your nexus for 4s, then fights again' },
+      shieldwall: { name: 'Shield Wall', nameR: 'Shield Wall', icon: '\u{1F6E1}', secs: 8, spd: 0.4, dr: 0.6, desc: '8s: your army slows to 40% and takes 60% less damage' },   // v38.1 M14
       rush: { name: 'Rush', nameR: 'Rush', icon: '\u26A1', secs: 6, spd: 2.5, rate: 2.5, dmg: 0.5, desc: '6s: 2.5x move and attack speed, 50% damage per hit' }
     };
     function rushOn(t) { const o = state.orderT && state.orderT[t]; return !!(o && o.k === 'rush'); }
+    function wallOn(t) { const o = state.orderT && state.orderT[t]; return !!(o && o.k === 'shieldwall'); }
     function kpCharge(team, amt) { const k = state.kp && state.kp[team]; if (!k || k.m >= 100) return; k.m = Math.min(100, k.m + amt); }
     window.setKingPowers = function (map) {   // { blue: 'decree' | null, red: ... }
       for (const t of ['blue', 'red']) state.kp[t] = map[t] && KING_POWERS[map[t]] ? { key: map[t], m: 0, uses: 0 } : null;
@@ -1771,7 +1773,7 @@
       const k = state.kp && state.kp[team]; if (!k || k.m < 100 || state.gameOver) return false;
       const P = KING_POWERS[k.key]; k.uses++; k.m = -40 * (k.uses - 1);   // each later use needs a longer refill
       const foe = team === 'blue' ? 'red' : 'blue', label = team === 'red' ? P.nameR : P.name;
-      if (k.key === 'fallback' || k.key === 'rush') { state.orderT[team] = { k: k.key, t: P.secs }; }
+      if (k.key === 'fallback' || k.key === 'rush' || k.key === 'shieldwall') { state.orderT[team] = { k: k.key, t: P.secs }; }
       else if (k.key === 'decree') {
         state.decreeT[team] = P.secs;
         const c = state.cores[team]; c.hp = Math.min(c.maxHp, c.hp + Math.round(c.maxHp * P.heal));
@@ -1916,7 +1918,8 @@
       }
       if (target instanceof Turret) target.hitAt = state.gameTime;
       if (target.auraT > 0 && target.auraDr && dmg > 0) dmg = Math.max(1, Math.round(dmg * (1 - target.auraDr)));   // v22 banner armor
-      if (dmg > 0 && dmgType && dmgType !== 'burn') { const g = heroGuardDr(target); if (g) dmg = Math.max(1, Math.round(dmg * (1 - g))); }   // v31 Bram guard
+      if (dmg > 0 && dmgType && dmgType !== 'burn') { const g = heroGuardDr(target); if (g) dmg = Math.max(1, Math.round(dmg * (1 - g))); }
+      if (dmg > 0 && dmgType !== 'burn' && target instanceof Unit && !target.story && wallOn(target.team)) dmg = Math.max(1, Math.round(dmg * (1 - KING_POWERS.shieldwall.dr)));   // v38.1 Shield Wall   // v31 Bram guard
       if (dmgType && target.resist && target.resist[dmgType]) {
         const r = target.resist[dmgType];
         dmg = Math.max(1, Math.round(dmg * (1 - r)));
@@ -4372,7 +4375,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v38.0';
+    window.APP_VERSION = 'v38.1';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

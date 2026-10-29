@@ -5,7 +5,7 @@
   'use strict';
   // ------------------------------------------------------------------ SAVE (localStorage, versioned)
   const SAVE_KEY = 'royalBlight.story', SAVE_V = 2;   // v27: v2 = illustrated map + new color rules (mapV)
-  const freshSave = () => ({ v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:short', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2, diff: 'normal', up: {}, power: null, replayStory: false });
+  const freshSave = () => ({ rc: cleanRc({}),  v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:short', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2, diff: 'normal', up: {}, power: null, replayStory: false });
   function cleanUp(u) {   // v31 region upgrades { region: { mines, walls, barracks, hall } }, 0..3 each
     const o = {}; if (!u || typeof u !== 'object') return o;
     for (const [r, t] of Object.entries(u)) { if (!/^[a-z]{3,12}$/.test(r) || !t) continue; o[r] = {}; for (const k of ['mines', 'walls', 'barracks', 'hall']) o[r][k] = Math.max(0, Math.min(3, t[k] | 0)); }
@@ -23,7 +23,25 @@
       if (!/^[A-Z0-9_]{2,8}$/.test(id) || !m) continue;
       out.missions[id] = { stars: Math.max(0, Math.min(3, m.stars | 0)), wins: Math.max(0, m.wins | 0), plays: Math.max(0, m.plays | 0), best: +m.best || 0, starSet: Array.isArray(m.starSet) ? m.starSet.slice(0, 3).map(Boolean) : [false, false, false] };
     }
+    out.rc = cleanRc(s.rc, out);
     return out;
+  }
+  // v39 Reclamation: SAVE.rc (backwards-compatible; old saves get grain/wood/metal back-paid from their wins at Normal rates)
+  const RC_RES = ['grain', 'wood', 'metal'], RC_DM = { easy: 1, normal: 2, hard: 3, veryhard: 4 };
+  const rcActRes = id => { const n = +(/^M(\d\d)$/.exec(id) || [])[1]; return !n ? null : n <= 7 ? 'grain' : n <= 16 ? 'wood' : n <= 24 ? 'metal' : null; };
+  function cleanRc(r, sv) {
+    const n = (v, hi) => Math.max(0, Math.min(hi, Math.floor(+v || 0)));
+    const o = { res: { grain: 0, wood: 0, metal: 0 }, br: { ram: 0, siege: 0, arcane: 0, army: 0 }, up: { caps: 0, hp: 0, atk: 0, cd: 0 }, forts: {}, abil: [], perks: [], seen: [] };
+    if (!r || typeof r !== 'object') {   // first load on v39: back-pay story wins (first clear 20 + 10 per star, Normal rates)
+      for (const [id, m] of Object.entries((sv && sv.missions) || {})) { const k = rcActRes(id); if (k && m.wins) o.res[k] += 20 + 10 * (m.stars | 0); }
+      return o;
+    }
+    if (r.res) RC_RES.forEach(k => o.res[k] = n(r.res[k], 1e6));
+    if (r.br) for (const k in o.br) o.br[k] = n(r.br[k], 9);
+    if (r.up) for (const k in o.up) o.up[k] = n(r.up[k], 3);
+    if (r.forts && typeof r.forts === 'object') for (const [k, f] of Object.entries(r.forts)) if (/^[1-9]$/.test(k) && f) o.forts[k] = { clears: n(f.clears, 1e4), best: n(f.best, 999) };
+    ['abil', 'perks', 'seen'].forEach(k => { if (Array.isArray(r[k])) o[k] = r[k].filter(x => typeof x === 'string' && x.length < 24).slice(0, 50); });
+    return o;
   }
   let SAVE = (() => { try { return migrate(JSON.parse(localStorage.getItem(SAVE_KEY))); } catch (e) { return freshSave(); } })();
   function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(SAVE)); } catch (e) {} }
@@ -629,6 +647,8 @@
       const g = G[m.reward[0]], x = X[m.reward[1]];
       gold = firstClear ? g : Math.round(g * 0.5); xp = firstClear ? x : Math.round(x * 0.5);   // replays still pay: grinding never punished
       gold += newStars * 25; xp += newStars * 10;
+      if (SAVE.rc && SAVE.rc.perks.includes('gold5')) gold = Math.round(gold * 1.05);   // v39 Reclamation prosperity perk
+      S.lastRes = null; { const rk = rcActRes(m.id), dm = RC_DM[SAVE.diff] || 2; if (rk && SAVE.rc) { const amt = (firstClear ? 10 * dm : 0) + newStars * 5 * dm; if (amt) { SAVE.rc.res[rk] += amt; S.lastRes = [rk, amt]; } } }
       { const u = upOf(m.region); gold = Math.round(gold * (1 + 0.1 * u.mines)); xp = Math.round(xp * (1 + 0.1 * u.hall)); }
       (m.unlock || []).forEach(u => { if (!SAVE.unlocks.includes(u)) SAVE.unlocks.push(u); });
       if (m.final && (SAVE.diff === 'hard' || SAVE.diff === 'veryhard') && !SAVE.vh.includes(m.act)) { SAVE.vh.push(m.act); S.vhNew = m.act; }   // v38 Very Hard unlock
@@ -1457,7 +1477,7 @@
     const html = `<div class="text-center text-3xl mb-1">${r.win ? r.stars.map(s => s ? '\u2B50' : '\u2606').join('') : '\u{1F480}'}</div>
       <p class="text-center text-xs text-slate-300 mb-2">${r.win ? 'Victory in ' + Math.floor(r.t / 60) + ':' + String(r.t % 60).padStart(2, '0') : 'Defeat. Regroup and try again: losses still earn XP.'}</p>
       ${r.win ? m.stars.map((s, i) => `<p class="text-xs ${r.stars[i] ? 'text-amber-200' : 'text-slate-500'}">${r.stars[i] ? '\u2B50' : '\u2606'} ${esc(s)}</p>`).join('') : ''}
-      ${S.vhNew ? `<p class="text-center text-[11px] font-black text-rose-300">\u{1F480} VERY HARD unlocked for Act ${S.vhNew}!</p>` : ''}<p class="text-center text-sm font-black mt-2"><span class="text-amber-300">+${r.gold}g</span> \u00B7 <span class="text-sky-300">+${r.xp} XP</span></p>
+      ${S.vhNew ? `<p class="text-center text-[11px] font-black text-rose-300">\u{1F480} VERY HARD unlocked for Act ${S.vhNew}!</p>` : ''}<p class="text-center text-sm font-black mt-2"><span class="text-amber-300">+${r.gold}g</span>${S.lastRes ? ` \u00B7 <span class="text-lime-300">+${S.lastRes[1]} ${S.lastRes[0]}</span>` : ''} \u00B7 <span class="text-sky-300">+${r.xp} XP</span></p>
       ${r.win && m.unlock ? `<p class="text-center text-[11px] text-emerald-300 mt-1">${r.firstClear ? 'Unlocked: ' + m.unlock.map(u => (REGIONS[m.region].cards.find(c => c[0] === u) || [0, 0, u.replace('bonus:worker_east', '+1 starting worker in Eastmarch').replace('region:eastmarch', 'Eastmarch is free!')])[2]).join(', ') : ''}</p>` : ''}
       ${r.win ? `<div class="mt-2 border-t border-slate-700 pt-2">${m.cut && m.cut[m.cut.length - 1] && m.cut.length > 1 ? cutSlot(m.cut[m.cut.length - 1]) : ''}${beats(m.after || [])}</div>` : ''}`;
     const k = await showPanel(r.win ? 'Victory!' : 'Defeat', html + (window.matchStatsHtml ? '<div class="mt-2 flex justify-center">' + matchStatsHtml() + '</div>' : ''), [['Retry', 'retry']].concat(won('M07') ? [['\u{1FA99} Shop', 'shop']] : []).concat([['Continue', 'map']]));
@@ -1823,7 +1843,7 @@
     $('set-tut').onclick = () => { S.setTips(!tipsOn()); paint(); }; $('set-guide').onclick = S.openGuide; paint();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(injectTutOptions, 50)); else setTimeout(injectTutOptions, 50);
-  S.save = () => SAVE; S.setDiff = d => { SAVE.diff = d; persist(); }; S.missions = M; S.regions = REGIONS; S.regionColor = regionColor; S.exportSave = exportSave; S.importSave = importSave;
+  S.save = () => SAVE; S.persist = persist; S.setDiff = d => { SAVE.diff = d; persist(); }; S.missions = M; S.regions = REGIONS; S.regionColor = regionColor; S.exportSave = exportSave; S.importSave = importSave;
   S.reset = () => { SAVE = freshSave(); persist(); };
   S.setSave = o => { SAVE = migrate(o); persist(); };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectUI); else injectUI();

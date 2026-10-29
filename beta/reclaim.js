@@ -7,7 +7,8 @@
   try { if (/[?&]rcdev=1/.test(location.search)) localStorage.setItem('evermarch.rcdev', '1'); RC.dev = localStorage.getItem('evermarch.rcdev') === '1'; } catch (e) {}
   const SV = () => window.Story && Story.save(), rc = () => SV().rc, save = () => Story.persist();
   const unlocked = () => RC.dev || !!(SV() && SV().missions.M07 && SV().missions.M07.wins);
-  const RES_ICON = { grain: '\u{1F33E}', wood: '\u{1FAB5}', metal: '\u2699\uFE0F', gold: '\u{1FA99}' };
+  const IC = n => '<img src="assets/reclamation/icons/' + n + '.webp" alt="" style="display:inline-block;width:1.25em;height:1.25em;vertical-align:-0.25em">';   // v39.4 Cut's icons replace the emoji placeholders
+  const RES_ICON = { grain: IC('icon_res_grain'), wood: IC('icon_res_wood'), metal: IC('icon_res_metal'), gold: IC('icon_res_gold') };
   const resTxt = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${RES_ICON[k]}${v}`).join(' ');
 
   // ---------------------------------------------------------------- DATA
@@ -20,11 +21,11 @@
   const CAP_UP = { inf: 10, archer: 7, brute: 2, wiz: 1 };
   const BEATS = { brute: 'inf', archer: 'brute', wiz: 'archer' };   // ×1.5 (blitzing infantry > wizards handled in-sim)
   const ABIL = {
-    rain:    { name: 'Rain',    icon: '\u{1F3F9}', unit: 'archer', cd: 12, desc: 'Archers rain arrows on their front line for 3 s.' },
-    turtle:  { name: 'Turtle',  icon: '\u{1F6E1}\uFE0F', unit: 'brute', cd: 15, desc: 'Brutes lock shields: no damage taken, no attacks, 3 s.' },
-    blitz:   { name: 'Blitz',   icon: '\u26A1', unit: 'inf', cd: 18, desc: 'Infantry charge their back row. They take double damage while charging.' },
-    repel:   { name: 'Repel',   icon: '\u{1F4A5}', unit: 'wiz', cd: 14, desc: 'Wizards blast nearby foes back and burn them.' },
-    barrier: { name: 'Barrier', icon: '\u{1F52E}', unit: 'wiz', cd: 25, desc: 'A bubble on every ally worth 10% of their HP. Lasts until broken.' },
+    rain:    { name: 'Rain',    icon: IC('icon_abil_rain'), unit: 'archer', cd: 12, desc: 'Archers rain arrows on their front line for 3 s.' },
+    turtle:  { name: 'Turtle',  icon: IC('icon_abil_turtle'), unit: 'brute', cd: 15, desc: 'Brutes lock shields: no damage taken, no attacks, 3 s.' },
+    blitz:   { name: 'Blitz',   icon: IC('icon_abil_blitz'), unit: 'inf', cd: 18, desc: 'Infantry charge their back row. They take double damage while charging.' },
+    repel:   { name: 'Repel',   icon: IC('icon_abil_repel'), unit: 'wiz', cd: 14, desc: 'Wizards blast nearby foes back and burn them.' },
+    barrier: { name: 'Barrier', icon: IC('icon_abil_barrier'), unit: 'wiz', cd: 25, desc: 'A bubble on every ally worth 10% of their HP. Lasts until broken.' },
   };
   const FORTS = {
     1: { name: 'Farm Stockade', where: 'Eastmarch farms', bg: 'bg/bg_reclaim_fort1.webp', g: { inf: 8, archer: 4 }, sc: 0.9, hp: 1600, towers: 0, dem: {}, budget: 40,
@@ -36,7 +37,7 @@
     3: { name: 'Ridge Watch', where: 'Eastmarch ridge', bg: 'bg/bg_reclaim_fort3.webp', g: { inf: 14, archer: 9, brute: 4, wiz: 1 }, sc: 1.1, hp: 3000, towers: 2, dem: { ram: 1, siege: 1 }, budget: 60,
          pay: { grain: 100, wood: 70, gold: 120 }, teach: ['turtle'], unlockAb: ['blitz', 'repel', 'barrier'], perk: ['cd10', '-10% ability recharge in Reclamation'], note: 3,
          noteText: "Sketched in the margin of the captain's map, a tall, slender figure with long, pointed ears. Beneath it, two words. Our patron. Not even the scholars have a name for such a people." },
-    4: { name: "Captain's Wharf", where: 'Eastmarch coast', bg: 'bg/bg_reclaim_fort3.webp', tint: 'rgba(30,60,120,0.35)', g: { inf: 20, archer: 12, brute: 5, wiz: 2 }, sc: 1.0, hp: 4500, towers: 2, barrier: true,
+    4: { name: "Captain's Wharf", where: 'Eastmarch coast', bg: 'bg/bg_reclaim_fort4.webp', g: { inf: 20, archer: 12, brute: 5, wiz: 2 }, sc: 1.0, hp: 4500, towers: 2, barrier: true,
          dem: { ram: 2, siege: 1, arcane: 1, army: 45 }, budget: 90, pay: { grain: 180, wood: 120, metal: 60, gold: 250 }, teach: ['blitz', 'repel', 'barrier'], unlockAb: [], perk: ['draft10', '+10 draft points in Reclamation'], note: 4,
          noteText: '[PLACEHOLDER, Cut to write + voice] The captain\u2019s cabin is stripped bare. Only a silver seal remains, pressed into black wax.' },
   };

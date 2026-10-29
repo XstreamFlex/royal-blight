@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Evermarch';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Evermarch BETA v39.0</title>
+  <title>Evermarch BETA v39.1</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -324,7 +324,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.0</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.1</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -1166,7 +1166,7 @@
       archer: {
         short:   { name: 'Short Bow',   icon: '\u{1F3F9}', desc: 'Balanced (current)' },
         long:    { name: 'Longbow',     icon: '\u{1F3AF}', desc: 'Piercing shot: also hits the foes right behind', set: { range: 146 }, mul: { interval: 1.2 }, pierce: [2, 0.35] },
-        flame:   { name: 'Flame Arrow', icon: '\u{1F525}', desc: 'Fire burst: small splash on impact', mul: { atk: 0.7 }, fsplash: [38, 0.4] },
+        flame:   { name: 'Flame Arrow', icon: '\u{1F525}', desc: 'Fire burst + small burn; sets structures alight', mul: { atk: 0.7 }, fsplash: [38, 0.4], burn: [3, 2] },   // v39.1 burn DoT 3/s x2s; +25% vs turrets/nexus
         hunting: { name: 'Hunting Bow', icon: '\u{1FAB6}', desc: 'Rapid fire: 2x shots, half damage', mul: { atk: 0.55, interval: 0.5 } }
       },
       brute: {
@@ -1610,7 +1610,8 @@
     function updateCombatMinion(u, dt) {
       const spd = u.speed * (u.rally ? HERO_RT.rally : 1) * (u.auraT > 0 ? 1 + u.auraSpd : 1) * (state.decreeT && state.decreeT[u.team] > 0 ? 1 + KING_POWERS.decree.spd : 1) * (rushOn(u.team) ? KING_POWERS.rush.spd : 1) * (wallOn(u.team) && !u.story ? KING_POWERS.shieldwall.spd : 1);
       if (u.type !== 'worker' && !u.story && !u.boss && state.orderT && state.orderT[u.team] && state.orderT[u.team].k === 'fallback') {   // v38 Fall Back
-        const cy = state.cores[u.team].y, d = cy - u.y; if (Math.abs(d) > 140) { u.y += Math.sign(d) * spd * 1.4 * dt; u.x += (LANE_X - u.x) * Math.min(1, dt * 2); return; } }
+        const fb = state.orderT[u.team].fb;   // v39.1: only the front group falls back, to just ahead of the next wave behind it
+        if (fb && fb.front.has(u)) { const d = fb.ty - u.y; if (Math.abs(d) > 8 && !u.fbDone) { u.y += Math.sign(d) * spd * 1.4 * dt; u.x += (LANE_X - u.x) * Math.min(1, dt * 2); return; } u.fbDone = true; } }
       // Find nearest enemy unit or turret within aggro threshold
       let target = null;
       if (u.type !== 'worker') state.turretPads.forEach(p => { const t = p.turret;   // v23 taunt: enemy turrets in range pull aggro
@@ -1758,7 +1759,7 @@
       volley: { name: 'Harvest Volley', nameR: 'Bone Volley', icon: '\u{1F525}', region: 'eastmarch', arrows: 14, dmg: 38, r: 42, burn: [8, 3],
                 desc: 'Flame arrows rain on the third of the lane with the most enemies' },
       // v38 Act 2 tactical orders (roadmap 3): Fall Back M08, Rush M12
-      fallback: { name: 'Fall Back', nameR: 'Fall Back', icon: '\u{1F4EF}', secs: 4, desc: 'Your army turns and runs back toward your nexus for 4s, then fights again' },
+      fallback: { name: 'Fall Back', nameR: 'Fall Back', icon: '\u{1F4EF}', secs: 4, desc: 'Your front line falls back to merge with the next wave behind it; units behind keep advancing' },
       shieldwall: { name: 'Shield Wall', nameR: 'Shield Wall', icon: '\u{1F6E1}', secs: 8, spd: 0.4, dr: 0.6, desc: '8s: your army slows to 40% and takes 60% less damage' },   // v39.0 M14
       rush: { name: 'Rush', nameR: 'Rush', icon: '\u26A1', secs: 6, spd: 2.5, rate: 2.5, dmg: 0.5, desc: '6s: 2.5x move and attack speed, 50% damage per hit' }
     };
@@ -1769,11 +1770,23 @@
       for (const t of ['blue', 'red']) state.kp[t] = map[t] && KING_POWERS[map[t]] ? { key: map[t], m: 0, uses: 0 } : null;
       renderPowerBtn();
     };
+    // v39.1 Fall Back plan: the front group = the frontmost fighter plus everyone chained to it (gap <= 70px, depth <= 110px).
+    // Target = 24px ahead of the next fighter behind that group (so the two merge); with nobody behind, the old spot near the nexus.
+    function fallbackPlan(team) {
+      const foe = team === 'blue' ? 'red' : 'blue', dir = Math.sign(state.cores[foe].y - state.cores[team].y) || -1;
+      const us = state.units.filter(u => !u.dead && u.team === team && u.type !== 'worker' && !u.story && !u.boss).sort((a, b) => (b.y - a.y) * dir);
+      if (!us.length) return null; us.forEach(u => { u.fbDone = false; });
+      const front = new Set([us[0]]); let i = 1;
+      for (; i < us.length; i++) { if ((us[i - 1].y - us[i].y) * dir > 70 || (us[0].y - us[i].y) * dir > 110) break; front.add(us[i]); }
+      const ty = i < us.length ? us[i].y + dir * 24 : state.cores[team].y + dir * 140;
+      return { front, ty };
+    }
+    window.fallbackPlan = fallbackPlan;
     function useKingPower(team) {
       const k = state.kp && state.kp[team]; if (!k || k.m < 100 || state.gameOver) return false;
       const P = KING_POWERS[k.key]; k.uses++; k.m = -40 * (k.uses - 1);   // each later use needs a longer refill
       const foe = team === 'blue' ? 'red' : 'blue', label = team === 'red' ? P.nameR : P.name;
-      if (k.key === 'fallback' || k.key === 'rush' || k.key === 'shieldwall') { state.orderT[team] = { k: k.key, t: P.secs }; }
+      if (k.key === 'fallback' || k.key === 'rush' || k.key === 'shieldwall') { state.orderT[team] = { k: k.key, t: P.secs, fb: k.key === 'fallback' ? fallbackPlan(team) : null }; }
       else if (k.key === 'decree') {
         state.decreeT[team] = P.secs;
         const c = state.cores[team]; c.hp = Math.min(c.maxHp, c.hp + Math.round(c.maxHp * P.heal));
@@ -2267,6 +2280,7 @@
               state.particles.push({ type: 'shockwave', color: '249,115,22', x: tgt.x, y: tgt.y, radius: 6, maxRadius: p.fsplash[0], life: 0.35, maxLife: 0.35 });
               createSparks(tgt.x, tgt.y, '#f97316', 9);
               state.units.forEach(e => { if (!e.dead && e !== tgt && e.team !== p.team && e.type !== 'worker' && Math.hypot(e.x - tgt.x, e.y - tgt.y) <= p.fsplash[0]) dealDamage(e, Math.max(1, Math.round(p.damage * p.fsplash[1])), p.src, p.damageType); });
+              if (!(tgt instanceof Unit) && !tgt.dead) dealDamage(tgt, Math.max(1, Math.round(p.damage * 0.25)), p.src, 'burn');   // v39.1 flame sets structures alight
             }
             if (p.burn && tgt instanceof Unit && !tgt.dead) { tgt.burnT = p.burn[1]; tgt.burnDps = p.burn[0]; tgt.burnBy = p.src; }
             if (p.pierce) {                                  // v17 Hunting Bow: continue into the next enemy behind
@@ -4377,7 +4391,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.0';
+    window.APP_VERSION = 'v39.1';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

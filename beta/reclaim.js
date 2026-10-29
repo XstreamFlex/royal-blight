@@ -147,21 +147,24 @@
   const markGuided = (f, part) => { if (!guided(f, part)) { rc().seen.push(`g${f}${part}`); save(); } };
 
   // ---------------------------------------------------------------- MAP (fort select) + CAMP (breach + upgrades)
-  RC.open = function () {
-    if (!unlocked()) return; RC._fort = 0;
-    const pos = [[70, 66], [55, 46], [76, 30], [32, 22]];
-    shell(`${top('Reclamation')}<div class="relative flex-1" style="background:url(assets/kingdom_map.jpg) center/cover">
-      <div class="absolute inset-0 bg-slate-950/40"></div>
-      ${rc().perks.includes('banner') ? '<div class="absolute top-2 left-2 text-[10px] font-black bg-emerald-700/90 rounded px-2 py-1">\u{1F7E9} Eastmarch banner</div>' : ''}
-      ${[1, 2, 3, 4].map((n, i) => { const f = FORTS[n], ok = fortOpen(n), done = cleared(n); return `<button data-fort="${n}" ${ok ? '' : 'disabled'} class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center ${ok ? '' : 'opacity-50 grayscale'}" style="left:${pos[i][0]}%;top:${pos[i][1]}%">
-        <img src="${A}props/${done ? 'prop_fort_breached' : 'prop_fort_fortified'}.webp" class="w-16 h-16 object-contain drop-shadow-lg" loading="lazy">
-        <span class="text-[10px] font-black bg-slate-900/90 border ${done ? 'border-emerald-400' : 'border-amber-400'} rounded px-1.5">${n}. ${f.name}${done ? ' \u2714' : ok ? '' : ' \u{1F512}'}</span></button>`; }).join('')}
-      <p class="absolute bottom-24 left-0 right-0 text-center text-[11px] text-slate-200 px-6">Pirates moved in after the blight. Retake the forts, free the stores.</p>
-      <div class="absolute bottom-3 left-3 right-3 grid grid-cols-2 gap-2"><button id="rc-camp" class="py-3 rounded-xl bg-amber-500 text-slate-950 font-black text-sm uppercase">\u26FA Camp &amp; upgrades</button>
-      ${RC.dev ? '<button id="rc-dev" class="py-3 rounded-xl bg-fuchsia-700 text-white font-black text-xs uppercase">Dev: +500 all</button>' : '<div></div>'}</div></div>`);
-    root.querySelectorAll('[data-fort]').forEach(b => b.onclick = () => scout(+b.dataset.fort));
-    $('rc-camp').onclick = () => camp(RC.open);
-    const dv = $('rc-dev'); if (dv) dv.onclick = () => { give({ grain: 500, wood: 500, metal: 500, gold: 500 }); save(); RC.open(); };
+  // v39.5 Reclamation lives on the story map: forts + camp are map nodes (Story.openMap calls RC.mapNodes / RC.bindMap)
+  RC.open = function () { close(); if (window.Story && Story.openMap) Story.openMap(); };
+  const MAP_POS = { 1: [76, 64], 2: [68, 44], 3: [90, 36], 4: [92, 72] }, CAMP_POS = [72, 80];
+  RC.mapNodes = function () {
+    const on = unlocked(), all = [1, 2, 3, 4].every(cleared);
+    const fort = n => { const f = FORTS[n], ok = on && fortOpen(n), done = cleared(n);
+      const ring = all ? '#fbbf24' : done ? '#3b82f6' : ok ? '#e11d48' : '#64748b';
+      const glow = all ? 'filter:drop-shadow(0 0 4px #fbbf24) drop-shadow(0 0 2px #fde68a)' : done ? 'filter:hue-rotate(190deg) saturate(1.3) drop-shadow(0 2px 3px #000a)' : 'filter:drop-shadow(0 2px 3px #000a)';
+      return `<button data-rcfort="${n}" ${ok ? '' : 'disabled'} class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center ${ok ? '' : 'opacity-50 grayscale'}" style="left:${MAP_POS[n][0]}%;top:${MAP_POS[n][1]}%;z-index:2">
+        <div class="rounded-lg flex items-center justify-center" style="width:34px;height:34px;background:#0f172acc;border:2px solid ${ring};${all ? 'box-shadow:0 0 8px #fbbf24' : ''}"><img src="${A}props/${done ? 'prop_fort_breached' : 'prop_fort_fortified'}.webp" style="width:30px;height:30px;object-fit:contain;${glow}">${done ? '' : `<img src="${A}icon_pirate_flag.webp" style="position:absolute;width:12px;height:12px;right:-4px;top:-4px">`}</div>
+        <div class="mt-0.5 px-1 rounded bg-black/70 text-[8px] font-black leading-tight" style="color:${all ? '#fde68a' : done ? '#93c5fd' : '#fecdd3'}">${f.name}${done ? ' \u2714' : ok ? '' : ' \u{1F512}'}</div></button>`; };
+    return [1, 2, 3, 4].map(fort).join('') + `<button data-rccamp ${on ? '' : 'disabled'} class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center ${on ? '' : 'opacity-50 grayscale'}" style="left:${CAMP_POS[0]}%;top:${CAMP_POS[1]}%;z-index:2">
+      <div class="rounded-lg flex items-center justify-center text-base" style="width:30px;height:30px;background:#0f172acc;border:2px solid ${all ? '#fbbf24' : '#f59e0b'}">\u26FA</div>
+      <div class="mt-0.5 px-1 rounded bg-black/70 text-[8px] font-black text-amber-200 leading-tight">${on ? 'Camp ' + ['grain', 'wood', 'metal', 'gold'].map(k => RES_ICON[k].replace('1.25em', '0.9em').replace('1.25em', '0.9em') + (have(k) || 0)).join('') : 'Reclamation \u{1F512} M07'}</div></button>`;
+  };
+  RC.bindMap = function (map) {
+    map.querySelectorAll('[data-rcfort]').forEach(b => b.onclick = e => { e.stopPropagation(); scout(+b.dataset.rcfort); });
+    const c = map.querySelector('[data-rccamp]'); if (c) c.onclick = e => { e.stopPropagation(); camp(RC.open); };
   };
   function camp(back) {
     const row = (grp, k, def, lvl) => { const c = def.cost[lvl]; return `<div class="flex items-center gap-2 bg-slate-800 rounded-lg p-2 mb-1.5">
@@ -248,7 +251,7 @@
     ab.forEach(k => { B.cds[k] = 0; B.cdMax = B.cdMax || {}; B.cdMax[k] = ABIL[k].cd * cdMul; });
     const mk = (team, k, x, y, sc) => { const P = POOLS[k]; const hp = P.hp * sc.hp; return { team, k, x, y, hp, max: hp, atk: P.atk * sc.atk, rng: P.rng, spd: P.spd, r: P.r, t: Math.random(), shield: 0, inv: 0, blitz: 0 }; };
     const meSc = { hp: 1 + 0.1 * up.hp, atk: 1 + 0.1 * up.atk }, foeSc = { hp: F.sc, atk: F.sc };
-    const place = (team, k, n, row0, dir) => { const per = 12; for (let i = 0; i < n; i++) { const c = i % per, r = Math.floor(i / per); B.units.push(mk(team, k, W * (0.08 + 0.84 * (c + 0.5) / per) + (Math.random() - 0.5) * 6, row0 + dir * r * 20 + (Math.random() - 0.5) * 6, team === 'me' ? meSc : foeSc)); } };
+    const place = (team, k, n, row0, dir) => { const per = 12; for (let i = 0; i < n; i++) { const c = i % per, r = Math.floor(i / per), cnt = Math.min(per, n - r * per); B.units.push(mk(team, k, W / 2 + (c - (cnt - 1) / 2) * (W * 0.84 / per) + (Math.random() - 0.5) * 6, row0 + dir * r * 20 + (Math.random() - 0.5) * 6, team === 'me' ? meSc : foeSc)); } };
     // player: brutes front, infantry, archers, wizards back. Pirates mirror it below the fort.
     let y = H - 150; [['brute', 1], ['inf', 1], ['archer', 1], ['wiz', 1]].forEach(([k]) => { const n = d[k] || 0; if (n) { place('me', k, n, y, 1); y += 20 * Math.ceil(n / 12) + 4; } });
     y = fortY + 150; [['brute'], ['inf'], ['archer'], ['wiz']].forEach(([k]) => { const n = F.g[k] || 0; if (n) { place('foe', k, n, y, -1); y -= 20 * Math.ceil(n / 12) + 2; } });
@@ -309,7 +312,7 @@
       else if (u.t <= 0 && u.inv <= 0) {
         u.t = 0.9 + Math.random() * 0.2; if (Math.random() > 0.88) continue;   // probability-driven: ~12% miss
         if (P.splash) { opp.forEach(e => { if (Math.hypot(e.x - tgt.x, e.y - tgt.y) < P.splash) hurt(u, e, u.atk * (e === tgt ? 1 : 0.6)); }); b.fx.push({ k: 'boom', x: tgt.x, y: tgt.y, t: 0.25 }); }
-        else { hurt(u, tgt, u.atk); if (!P.melee) b.fx.push({ k: 'shot', x: u.x, y: u.y, x2: tgt.x, y2: tgt.y, t: 0.15 }); }
+        else { hurt(u, tgt, u.atk); if (!P.melee) b.fx.push({ k: 'shot', p: u.k === 'wiz' ? 'fireball' : 'arrow', team: u.team, x: u.x, y: u.y, x2: tgt.x, y2: tgt.y, t: 0.3, t0: 0.3 }); }
       }
     }
     // separation
@@ -317,7 +320,7 @@
     for (const u of live) { u.x = Math.max(8, Math.min(b.W - 8, u.x)); u.y = Math.max(b.fortY + 20, Math.min(b.H - 8, u.y)); }
     // towers: Siege met = 40% damage; fortified forts hit much harder
     if (b.F.towers && mine.length) { b.towerT -= dt; if (b.towerT <= 0) { b.towerT = 1.2; const dmg = 26 * (b.miss.siege ? 1 + 1.5 * b.miss.siege : 0.4) * (b.ms ? 1.5 : 1);
-      for (let i = 0; i < b.F.towers; i++) { const tx = b.W * (i ? 0.85 : 0.15), ty = b.fortY + 10; let t = null, bd = 300; for (const m of mine) { const dd = Math.hypot(m.x - tx, m.y - ty); if (dd < bd) { bd = dd; t = m; } } if (t) { hurt({ team: 'foe', k: 'tower' }, t, dmg); b.fx.push({ k: 'shot', x: tx, y: ty, x2: t.x, y2: t.y, t: 0.15, c: '#f97316' }); } } } }
+      for (let i = 0; i < b.F.towers; i++) { const tx = b.W * (i ? 0.85 : 0.15), ty = b.fortY + 10; let t = null, bd = 300; for (const m of mine) { const dd = Math.hypot(m.x - tx, m.y - ty); if (dd < bd) { bd = dd; t = m; } } if (t) { hurt({ team: 'foe', k: 'tower' }, t, dmg); b.fx.push({ k: 'shot', x: tx, y: ty, x2: t.x, y2: t.y, t: 0.3, t0: 0.3 }); } } } }
     if (b.ms && mine.length && Math.floor(b.t) !== Math.floor(b.t - dt)) { const near = mine.filter(m => m.y - b.fortY < 160); near.forEach(m => hurt({ team: 'foe', k: 'fort' }, m, 14 * b.ms)); }   // fortified walls hit back
     const timeUp = b.t >= 90;
     if (b.fortHp <= 0 || !mine.length || timeUp) finish(b.fortHp <= 0);
@@ -338,7 +341,7 @@
     for (let i = 0; i < b.F.towers; i++) dr(A + 'props/prop_breach_tower.webp', W * (i ? 0.85 : 0.15), b.fortY - 10, 46, 70);
     if (b.barrierHp > 0) { c.globalAlpha = 0.55; dr(A + 'props/prop_breach_barrier.webp', W / 2, b.fortY - 6, 180, 120); c.globalAlpha = 1; }
     if (b.ms && b.fortHp > 0) { c.strokeStyle = 'rgba(244,63,94,0.8)'; c.lineWidth = 3; c.setLineDash([6, 4]); c.beginPath(); c.arc(W / 2, b.fortY - 10, 70, 0, Math.PI * 2); c.stroke(); c.setLineDash([]); }
-    if (b.act.rain > 0) { const foes = b.units.filter(u => u.team === 'foe' && u.hp > 0); if (foes.length) { const fy = Math.max(...foes.map(e => e.y)); c.strokeStyle = 'rgba(226,232,240,0.7)'; c.lineWidth = 1; for (let i = 0; i < 40; i++) { const x = Math.random() * W, y = fy - 70 + Math.random() * 80; c.beginPath(); c.moveTo(x, y); c.lineTo(x - 3, y + 10); c.stroke(); } } }
+    if (b.act.rain > 0) { const foes = b.units.filter(u => u.team === 'foe' && u.hp > 0); if (foes.length) { const fy = Math.max(...foes.map(e => e.y)); c.lineWidth = 2; for (let i = 0; i < 26; i++) { const x = Math.random() * W, y = fy - 70 + Math.random() * 80; c.strokeStyle = '#e2e8f0'; c.beginPath(); c.moveTo(x + 2, y - 7); c.lineTo(x - 2, y + 7); c.stroke(); c.fillStyle = '#f59e0b'; c.fillRect(x + 1, y - 8, 3, 3); } /* v39.5 falling arrows, story-style */ } }
     const us = b.units.filter(u => u.hp > 0).sort((p, q) => p.y - q.y);
     for (const u of us) { const P = POOLS[u.k], s = u.k === 'brute' ? 38 : 28;
       if (u.team === 'me') dr('assets/' + P.me, u.x, u.y, s, s); else dr(A + 'units/' + P.foe, u.x, u.y, s, s);
@@ -347,7 +350,11 @@
       if (u.blitz > 0) { c.fillStyle = 'rgba(250,204,21,0.5)'; c.fillRect(u.x - 2, u.y + s / 2 - 2, 4, 6); }
       c.fillStyle = '#111'; c.fillRect(u.x - 9, u.y - s / 2 - 4, 18, 3); c.fillStyle = u.team === 'me' ? '#38bdf8' : '#f43f5e'; c.fillRect(u.x - 9, u.y - s / 2 - 4, 18 * Math.max(0, u.hp / u.max), 3); }
     b.fx = b.fx.filter(f => (f.t -= 1 / 60) > 0);
-    for (const f of b.fx) { if (f.k === 'shot') { c.strokeStyle = f.c || '#fde68a'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(f.x, f.y); c.lineTo(f.x2, f.y2); c.stroke(); } else { c.strokeStyle = f.k === 'ring' ? '#a78bfa' : '#5eead4'; c.lineWidth = 3; c.beginPath(); c.arc(f.x, f.y, f.k === 'ring' ? 110 * (1 - f.t * 2) : 20, 0, 7); c.stroke(); } }
+    for (const f of b.fx) { if (f.k === 'shot') { const q = 1 - f.t / (f.t0 || 0.3), px = f.x + (f.x2 - f.x) * q, py = f.y + (f.y2 - f.y) * q;   // v39.5 travelling projectile drawn like story mode (was a full-length laser line)
+      c.save(); c.translate(px, py);
+      if (f.p === 'fireball') { c.fillStyle = f.team === 'me' ? '#38bdf8' : '#c084fc'; c.beginPath(); c.arc(0, 0, 4.5, 0, 7); c.fill(); }
+      else { c.rotate(Math.atan2(f.y2 - f.y, f.x2 - f.x)); c.strokeStyle = '#e2e8f0'; c.lineWidth = 2; c.beginPath(); c.moveTo(-7, 0); c.lineTo(7, 0); c.stroke(); c.fillStyle = '#f59e0b'; c.fillRect(-7, -2, 3, 4); }
+      c.restore(); } else { c.strokeStyle = f.k === 'ring' ? '#a78bfa' : '#5eead4'; c.lineWidth = 3; c.beginPath(); c.arc(f.x, f.y, f.k === 'ring' ? 110 * (1 - f.t * 2) : 20, 0, 7); c.stroke(); } }
     const fe = $('rc-fort'); if (fe) fe.innerHTML = `<div class="mx-auto w-40 h-2 bg-slate-900 rounded"><div class="h-2 rounded ${b.ms ? 'bg-rose-500' : 'bg-amber-400'}" style="width:${Math.max(0, b.fortHp / b.fortMax * 100)}%"></div></div>${b.ms ? '<span class="text-rose-300">FORTIFIED: breach power too low</span>' : b.barrierHp > 0 ? '<span class="text-violet-300">Barrier up</span>' : ''}`;
     const te = $('rc-time'); if (te) te.textContent = `${Math.floor(b.t)}s / 90s`;
     root.querySelectorAll('[data-ab]').forEach(el => { const k = el.dataset.ab, f = el.querySelector('[data-fill]'); if (f) f.style.height = `${(1 - b.cds[k] / b.cdMax[k]) * 100}%`; el.classList.toggle('ring-2', b.cds[k] <= 0); el.classList.toggle('ring-amber-300', b.cds[k] <= 0); });
@@ -397,12 +404,6 @@
   // ---------------------------------------------------------------- menu entry (after Story), unlocked by beating M07
   const css = document.createElement('style'); css.textContent = '.rc-hl{outline:3px solid #fbbf24!important;outline-offset:2px;animation:rcp 1s infinite}@keyframes rcp{50%{outline-color:#fff}}.rc-wheel::-webkit-scrollbar{display:none}.rc-ann{animation:rca .35s ease-out}@keyframes rca{from{transform:scale(1.6);opacity:0}}';
   document.head.appendChild(css);
-  function ensureBtn() {
-    const st = $('btn-story'); if (!st || !window.Story) return; let b = $('btn-reclaim');
-    if (!b) { b = document.createElement('button'); b.id = 'btn-reclaim'; b.onclick = () => { if (unlocked()) RC.open(); }; st.after(b); }
-    const ok = unlocked(), html = ok ? '\u{1F3F4}\u200D\u2620\uFE0F Reclamation' : '\u{1F512} Reclamation <span class="text-[10px] normal-case font-bold">(beat Act 1)</span>';
-    if (b.innerHTML !== html) { b.innerHTML = html; b.className = `w-full max-w-xs mb-2 py-3 rounded-xl font-black text-sm uppercase tracking-wider shadow-lg active:scale-95 ${ok ? 'bg-gradient-to-r from-rose-700 to-orange-500 text-white' : 'bg-slate-700 text-slate-400'}`; }
-  }
-  setInterval(ensureBtn, 800); setTimeout(ensureBtn, 50);
+  setTimeout(() => { const b = $('btn-reclaim'); if (b) b.remove(); }, 50);   // v39.5 no main-menu button: Reclamation is on the story map
   RC.FORTS = FORTS; RC.unlocked = unlocked; RC.scout = scout; RC.camp = camp; RC.missing = missing;
 })();

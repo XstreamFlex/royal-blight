@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-beta-v39.1';   // BETA build (/royal-blight/beta/): own cache namespace
+const CACHE_VERSION = 'royal-blight-beta-v39.2';   // BETA build (/royal-blight/beta/): own cache namespace
 const CORE = [
   './', './index.html', './manifest.json', './mp.js', './story.js', './reclaim.js', './cloud.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/kingdom_map.jpg', './assets/fonts/fonts.css',
@@ -18,7 +18,7 @@ const CORE = [
 // Optional sprites: cached if present, ignored if missing.
 const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromancer', 'nexus_necromancer_back', 'turret_blue', 'turret_red', 'turret_pad', 'mine_safe', 'mine_mid', 'mine_far', 'cavalier_blue', 'cavalier_blue_back', 'acolyte_red', 'acolyte_red_back',
   'arena_farmland', 'arena_swamp', 'arena_library', 'arena_pass',
-  'nexus_felix', 'nexus_glade', 'nexus_cline', 'nexus_drevlar', 'nexus_doom', 'nexus_vexis'].flatMap(n => n.startsWith('nexus_') && !/king|necromancer/.test(n) ? [n, n + '_back'] : [n]).concat(
+  'nexus_felix', 'nexus_glade', 'nexus_glade_tainted', 'nexus_cline', 'nexus_drevlar', 'nexus_doom', 'nexus_vexis'].flatMap(n => n.startsWith('nexus_') && !/king|necromancer/.test(n) ? [n, n + '_back'] : [n]).concat(
   ['knight_mace_blue', 'knight_hammer_blue', 'knight_shield_blue', 'skeleton_mace_red', 'skeleton_hammer_red', 'skeleton_shield_red',
    'archer_long', 'archer_flame', 'archer_hunting', 'brute_light', 'brute_heavy', 'brute_spiked', 'wizard_priest', 'wizard_banner']
     .flatMap(k => /_(blue|red)$/.test(k) ? [k, k + '_back'] : [k + '_blue', k + '_red', k + '_blue_back', k + '_red_back'])

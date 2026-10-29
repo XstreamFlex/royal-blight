@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Evermarch';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Evermarch BETA v39.2</title>
+  <title>Evermarch BETA v39.3</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -324,7 +324,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.2</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.3</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -866,6 +866,7 @@
     // v24: story Chapter 1 enemy (Felix's Green Army) wears Kingdom art tinted green
     function artTeam(u) { return (u.team === 'red' && window.Story && Story.active && Story.m && Story.m.region === 'eastmarch') ? 'green' : (u.team === 'red' && isDrill()) ? 'blue' : u.team; }
     // v36.2: P0 sparring match -> the red side is Garrow's Training Troops: Kingdom art (knights, archers, workers, turret, nexus) in gray
+    function gladeMen(u) { return u.team === 'red' && !!(window.Story && Story.active && Story.m) && state.leaders && state.leaders.red === 'glade'; }   // v39.3 Act 2 Yellow Army: Kingdom art + Glade tint (knight_yellow* wins once Cut ships it)
     function isDrill() { return !!(window.Story && Story.active && Story.m && Story.m.enemy === 'drill'); }   // v26: real Green Army art
     // v30: card icon = <img> of a unit sprite; falls back to the emoji already in the slot if the file is missing
     function cardIcon(id, key) {
@@ -876,7 +877,7 @@
     }
     function spriteKey(u) {
       if (u.heroKey) return u.heroKey;
-      if (u.type === 'pawn') return artTeam(u) === 'red' ? 'skeleton' : 'knight';
+      if (u.type === 'pawn') return artTeam(u) === 'red' && !gladeMen(u) ? 'skeleton' : 'knight';   // v39.3 Glade's men are men, not skeletons
       return u.type;
     }
     // Facing: the army at the bottom of this screen walks away from the camera, so it is
@@ -932,10 +933,11 @@
       // use the vector art if every file genuinely failed.
       if (u.boss) return loadSprite(away ? 'felix_boss_back' : 'felix_boss') || loadSprite('felix_boss') || SPRITE_PENDING;   // v26 dedicated boss art
       let chain = (away ? [k + '_' + at + '_back', k + '_' + at, base + '_' + at + '_back', base + '_' + at] : [k + '_' + at, base + '_' + at]);
+      if (u.type === 'pawn' && gladeMen(u)) { const y = chain.map(n => n.replace('_red', '_yellow')); chain = y.concat(chain.map(n => n.replace('_red', '_blue'))); }
       if (at === 'green') chain = chain.concat(chain.map(n => n.replace('_green', '_red')));   // red-only heroes (acolyte) keep their art
       chain = chain.concat([base]);
       let pending = false;
-      for (const n of chain) { const img = loadSprite(n); if (img) return img; if (!SPRITE_FAILED.has(n)) pending = true; }
+      for (const n of chain) { const img = loadSprite(n); if (img) { u._yel = n.includes('_yellow'); return img; } if (!SPRITE_FAILED.has(n)) pending = true; }
       return pending ? SPRITE_PENDING : null;
     }
     const SPRITE_PENDING = { pending: true };
@@ -1166,7 +1168,7 @@
       archer: {
         short:   { name: 'Short Bow',   icon: '\u{1F3F9}', desc: 'Balanced (current)' },
         long:    { name: 'Longbow',     icon: '\u{1F3AF}', desc: 'Piercing shot: also hits the foes right behind', set: { range: 146 }, mul: { interval: 1.2 }, pierce: [2, 0.35] },
-        flame:   { name: 'Flame Arrow', icon: '\u{1F525}', desc: 'Fire burst + small burn; sets structures alight', mul: { atk: 0.7 }, fsplash: [38, 0.4], burn: [3, 2] },   // v39.2 burn DoT 3/s x2s; +25% vs turrets/nexus
+        flame:   { name: 'Flame Arrow', icon: '\u{1F525}', desc: 'Fire burst + small burn; sets structures alight', mul: { atk: 0.7 }, fsplash: [38, 0.4], burn: [3, 2] },   // v39.3 burn DoT 3/s x2s; +25% vs turrets/nexus
         hunting: { name: 'Hunting Bow', icon: '\u{1FAB6}', desc: 'Rapid fire: 2x shots, half damage', mul: { atk: 0.55, interval: 0.5 } }
       },
       brute: {
@@ -1610,7 +1612,7 @@
     function updateCombatMinion(u, dt) {
       const spd = u.speed * (u.rally ? HERO_RT.rally : 1) * (u.auraT > 0 ? 1 + u.auraSpd : 1) * (state.decreeT && state.decreeT[u.team] > 0 ? 1 + KING_POWERS.decree.spd : 1) * (rushOn(u.team) ? KING_POWERS.rush.spd : 1) * (wallOn(u.team) && !u.story ? KING_POWERS.shieldwall.spd : 1);
       if (u.type !== 'worker' && !u.story && !u.boss && state.orderT && state.orderT[u.team] && state.orderT[u.team].k === 'fallback') {   // v38 Fall Back
-        const fb = state.orderT[u.team].fb;   // v39.2: only the front group falls back, to just ahead of the next wave behind it
+        const fb = state.orderT[u.team].fb;   // v39.3: only the front group falls back, to just ahead of the next wave behind it
         if (fb && fb.front.has(u)) { const d = fb.ty - u.y; if (Math.abs(d) > 8 && !u.fbDone) { u.y += Math.sign(d) * spd * 1.4 * dt; u.x += (LANE_X - u.x) * Math.min(1, dt * 2); return; } u.fbDone = true; } }
       // Find nearest enemy unit or turret within aggro threshold
       let target = null;
@@ -1770,7 +1772,7 @@
       for (const t of ['blue', 'red']) state.kp[t] = map[t] && KING_POWERS[map[t]] ? { key: map[t], m: 0, uses: 0 } : null;
       renderPowerBtn();
     };
-    // v39.2 Fall Back plan: the front group = the frontmost fighter plus everyone chained to it (gap <= 70px, depth <= 110px).
+    // v39.3 Fall Back plan: the front group = the frontmost fighter plus everyone chained to it (gap <= 70px, depth <= 110px).
     // Target = 24px ahead of the next fighter behind that group (so the two merge); with nobody behind, the old spot near the nexus.
     function fallbackPlan(team) {
       const foe = team === 'blue' ? 'red' : 'blue', dir = Math.sign(state.cores[foe].y - state.cores[team].y) || -1;
@@ -2280,7 +2282,7 @@
               state.particles.push({ type: 'shockwave', color: '249,115,22', x: tgt.x, y: tgt.y, radius: 6, maxRadius: p.fsplash[0], life: 0.35, maxLife: 0.35 });
               createSparks(tgt.x, tgt.y, '#f97316', 9);
               state.units.forEach(e => { if (!e.dead && e !== tgt && e.team !== p.team && e.type !== 'worker' && Math.hypot(e.x - tgt.x, e.y - tgt.y) <= p.fsplash[0]) dealDamage(e, Math.max(1, Math.round(p.damage * p.fsplash[1])), p.src, p.damageType); });
-              if (!(tgt instanceof Unit) && !tgt.dead) dealDamage(tgt, Math.max(1, Math.round(p.damage * 0.25)), p.src, 'burn');   // v39.2 flame sets structures alight
+              if (!(tgt instanceof Unit) && !tgt.dead) dealDamage(tgt, Math.max(1, Math.round(p.damage * 0.25)), p.src, 'burn');   // v39.3 flame sets structures alight
             }
             if (p.burn && tgt instanceof Unit && !tgt.dead) { tgt.burnT = p.burn[1]; tgt.burnDps = p.burn[0]; tgt.burnBy = p.src; }
             if (p.pierce) {                                  // v17 Hunting Bow: continue into the next enemy behind
@@ -3007,7 +3009,7 @@
     function nexusSprite(team) {
       if (window.Story && Story.active && Story.nexusImg) { const o = Story.nexusImg(team); if (o) return o; }   // v37 stage nexus override (sprite only)
       let key = leaderOf(team).key;
-      if (key === 'nexus_glade' && team === 'red' && window.Story && Story.active && Story.gladeTainted && Story.gladeTainted()) key = 'nexus_glade_tainted';   // v39.2 spellbound Glade (Act 2 until M16)
+      if (key === 'nexus_glade' && team === 'red' && window.Story && Story.active && Story.gladeTainted && Story.gladeTainted()) key = 'nexus_glade_tainted';   // v39.3 spellbound Glade (Act 2 until M16)
       if (!SPRITES[key]) { loadSprite(key); loadSprite(key + '_back'); }
       const front = SPRITES[key];
       if (isBottomTeam(team)) return SPRITES[key + '_back'] || front;
@@ -3180,7 +3182,7 @@
             const size = u.radius * (hero ? 3.4 : 2.8);
             // v23: Banner art packs a small bearer next to a tall flag; draw it 1.7x (feet aligned) so the bearer is full wizard size
             const big = u.aura ? 1.7 : 1, bs = size * big;
-            ctx.drawImage(scaledSprite(spr, bs, bs, (artTeam(u) === 'green' || u.boss) ? '' : leaderOf(u.team).tint), -bs / 2, size * 0.4 - bs, bs, bs);   // v26: green art is already green
+            ctx.drawImage(scaledSprite(spr, bs, bs, (artTeam(u) === 'green' || u.boss || u._yel) ? '' : leaderOf(u.team).tint), -bs / 2, size * 0.4 - bs, bs, bs);   // v26: green art is already green
             // v17: variant without its own art -> small weapon badge
             const slot = SLOT_OF[u.type];
             if (u.variant && slot && u.variant !== DEFAULT_LOADOUT[slot] && !VARIANT_ART.has(spriteKey(u) + '_' + u.variant + '_' + u.team)) {
@@ -4392,7 +4394,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.2';
+    window.APP_VERSION = 'v39.3';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

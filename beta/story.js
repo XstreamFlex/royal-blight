@@ -31,7 +31,7 @@
   const rcActRes = id => { const n = +(/^M(\d\d)$/.exec(id) || [])[1]; return !n ? null : n <= 7 ? 'grain' : n <= 16 ? 'wood' : n <= 24 ? 'metal' : null; };
   function cleanRc(r, sv) {
     const n = (v, hi) => Math.max(0, Math.min(hi, Math.floor(+v || 0)));
-    const o = { res: { grain: 0, wood: 0, metal: 0 }, br: { ram: 0, siege: 0, arcane: 0, army: 0 }, up: { caps: 0, hp: 0, atk: 0, cd: 0 }, forts: {}, abil: [], perks: [], seen: [] };
+    const o = { res: { grain: 0, wood: 0, metal: 0 }, br: { ram: 0, siege: 0, arcane: 0, army: 0 }, up: { caps: 0, hp: 0, atk: 0, cd: 0 }, forts: {}, abil: [], perks: [], seen: [], wounded: { inf: 0, archer: 0, brute: 0, wiz: 0 } };
     if (!r || typeof r !== 'object') {   // first load on v39: back-pay story wins (first clear 20 + 10 per star, Normal rates)
       for (const [id, m] of Object.entries((sv && sv.missions) || {})) { const k = rcActRes(id); if (k && m.wins) o.res[k] += 20 + 10 * (m.stars | 0); }
       return o;
@@ -39,7 +39,8 @@
     if (r.res) RC_RES.forEach(k => o.res[k] = n(r.res[k], 1e6));
     if (r.br) for (const k in o.br) o.br[k] = n(r.br[k], 9);
     if (r.up) for (const k in o.up) o.up[k] = n(r.up[k], 3);
-    if (r.forts && typeof r.forts === 'object') for (const [k, f] of Object.entries(r.forts)) if (/^[1-9]$/.test(k) && f) o.forts[k] = { clears: n(f.clears, 1e4), best: n(f.best, 999) };
+    if (r.forts && typeof r.forts === 'object') for (const [k, f] of Object.entries(r.forts)) if (/^[1-9]$/.test(k) && f) o.forts[k] = { clears: n(f.clears, 1e4), best: n(f.best, 999), stars: n(f.stars, 3) };
+    if (r.wounded) for (const k in o.wounded) o.wounded[k] = n(r.wounded[k], 99);   // v39.6 fallen draftees
     ['abil', 'perks', 'seen'].forEach(k => { if (Array.isArray(r[k])) o[k] = r[k].filter(x => typeof x === 'string' && x.length < 24).slice(0, 50); });
     return o;
   }
@@ -504,7 +505,7 @@
     const R = S.R; if (!R || u !== R.boss || R.phase >= 3) return false;
     u.hp = 1; u.lagHp = 1; u.retreat = true; u.untargetable = true; u.burnT = 0; u.stunT = 0; R.bossFlee = R.phase + 1;
     createSparks(u.x, u.y, '#fb923c', 24); state.shake = Math.max(state.shake || 0, 0.4);
-    toast(R.phase === 1 ? (S.bossName || 'FELIX') + ' FLEES TO HIS FORTRESS!' : (S.bossName || 'FELIX') + ' FLEES AGAIN! ONE BAR LEFT', '#fde68a'); if (S.m.act === 1) S.bark('felix_flee');
+    toast(R.phase === 1 ? (S.bossName || 'FELIX') + ' FLEES TO HIS FORTRESS!' : (S.bossName || 'FELIX') + ' FLEES AGAIN! ONE BAR LEFT', '#fde68a'); S.bark('felix_flee');
     return true;
   };
 
@@ -540,8 +541,44 @@
     (m.hazards || []).forEach((h, i) => tickHazard(h, i, dt));
     if (R.boss) tickBoss(dt);
     tickGuards();
+    tickSurge(dt, B, Rd);
     if (S.tutTick) S.tutTick(dt);
     if ((R.hudT = (R.hudT || 0) - dt) <= 0) { R.hudT = 0.25; S.renderHud(); }
+  };
+  // v39.6 Tide Surge: Normal 1x, Hard/Very Hard 2x per battle. When the fight is clearly lopsided for ~4s the
+  // computer turns the tide: the losing side gets +15% dmg / +10% speed for 6s (enemy also gets a 2-pawn burst).
+  const SURGE = { normal: 1, hard: 2, veryhard: 2 }, SURGE_NO = { P0: 1, M01: 1, M02: 1 };
+  const armyPow = a => a.reduce((s, u) => s + Math.max(0, u.hp) + 8 * (u.atk || 0), 0);
+  S.surgeInfo = () => S.R && S.R.surge;
+  function tickSurge(dt, B, Rd) {
+    const R = S.R, m = S.m, max = SURGE[SAVE.diff] || 0;
+    if (!max || SURGE_NO[m.id] || m.tutorial || !state.surgeT) return;
+    const G = R.surge = R.surge || { n: 0, cd: 0, hold: 0, log: [] };
+    G.cd -= dt; if (G.n >= max || G.cd > 0 || R.t < 25) return;
+    const T = S.T; if (T && T.on && (T.box || T.i < T.steps.length)) { G.hold = 0; return; }   // tutorial / briefing beats
+    if (R.stage && R.stage.chain) { G.hold = 0; return; }                                            // staged dialogue
+    if (R.boss && (R.bossFlee || R.boss.retreat || R.boss.rally)) { G.hold = 0; return; }           // boss intros / phase swaps
+    const pb = armyPow(B), pr = armyPow(Rd), cb = state.cores.blue, cr = state.cores.red;
+    const gap = cr.hp / cr.maxHp - cb.hp / cb.maxHp;   // + = player ahead on nexus HP
+    let side = 0;
+    if (pb > 450 && pb >= 2.5 * Math.max(pr, 60)) side = 1; else if (pr > 450 && pr >= 2.5 * Math.max(pb, 60)) side = -1;
+    else if (gap > 0.4 && pb >= 1.6 * pr) side = 1; else if (gap < -0.4 && pr >= 1.6 * pb) side = -1;
+    if (!side || (G.side && G.side !== side)) { G.hold = side ? 0 : Math.max(0, G.hold - dt * 2); G.side = side; return; }
+    if (side > 0 && m.type === 'DEF') { G.hold = 0; return; }   // defend missions: never rally the attacker against a winning hold
+    G.side = side; G.hold += dt; if (G.hold < 4) return;
+    G.n++; G.cd = 45; G.hold = 0; G.log.push({ t: Math.round(R.t), side });
+    const team = side > 0 ? 'red' : 'blue'; state.surgeT[team] = 6;
+    if (team === 'red') { for (let i = 0; i < (SAVE.diff === 'normal' ? 0 : 2); i++) { const u = spawnUnit('pawn', 'red', 'C', 0); u.y += i * 14; } toast('THE ENEMY RALLIES!', '#f87171'); }
+    else { B.forEach(u => { u.hp = Math.min(u.effectiveMaxHp || u.maxHp || u.hp, u.hp + 0.15 * (u.effectiveMaxHp || u.maxHp || u.hp)); }); toast('YOUR TROOPS RALLY!', '#60a5fa'); }
+    S.surgeBanner(team);
+    try { sound.playHorn(); } catch (e) {}
+  }
+  S.surgeBanner = function (team) {
+    let el = document.getElementById('st-surge'); if (el) el.remove();
+    el = document.createElement('div'); el.id = 'st-surge';
+    el.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 120px);transform:translateX(-50%);z-index:60;pointer-events:none;padding:8px 16px;border-radius:12px;font:900 15px system-ui;letter-spacing:.06em;color:#fff;text-shadow:0 2px 4px #000;white-space:nowrap;box-shadow:0 0 24px ' + (team === 'red' ? '#ef4444' : '#3b82f6') + ';background:' + (team === 'red' ? 'linear-gradient(90deg,#7f1d1d,#dc2626,#7f1d1d)' : 'linear-gradient(90deg,#1e3a8a,#2563eb,#1e3a8a)');
+    el.innerHTML = team === 'red' ? '\u2694\uFE0F THE ENEMY RALLIES! <span style="font-size:11px;opacity:.85">6s</span>' : '\u{1F6E1}\uFE0F YOUR TROOPS RALLY! <span style="font-size:11px;opacity:.85">6s</span>';
+    document.body.appendChild(el); setTimeout(() => el.remove(), 3200);
   };
   function tickObjective(st, dt, B, Rd) {
     const o = st.o, R = S.R;
@@ -668,15 +705,16 @@
       return l.burn > 0;
     });
   }
+  const bossWho = () => ({ M16: 'GLADE', M24: 'CLINE' })[S.m && S.m.id] || 'FELIX';
   function tickBoss(dt) {
     const R = S.R, b = R.boss, cr = state.cores.red;
     if (b.dead) { if (!R.bossDown) { R.bossDown = true; cr.hp = Math.min(cr.hp, 1500); state.shake = 0.6; createSparks(cr.x, cr.y, '#4ade80', 30);   // nexus drops to turret-level HP
-      toast('FELIX FALLS! HIS NEXUS IS EXPOSED', '#4ade80'); S.bark('felix_down'); } return; }
+      toast(bossWho() + ' FALLS! THE NEXUS IS EXPOSED', '#4ade80'); S.bark('felix_down'); } return; }
     R.shieldHp = R.shieldHp || cr.hp; cr.hp = Math.max(cr.hp, R.shieldHp);          // nexus shielded while Felix stands
     if (R.bossFlee && !b.retreat) {                                               // healed at the fortress: back for the next phase
       const ph = R.bossFlee; R.bossFlee = 0; b.rally = true; b.rallyT = 12; bossPhase(b, ph);
-      if (ph === 2) { toast('PHASE 2: FELIX RETURNS \u2014 FIRE-LINES SPLIT THE LANE', '#fb923c'); S.bark('phase2'); }
-      else { toast('PHASE 3: FELIX RETURNS \u2014 RAIN OF ARROWS!', '#f87171'); S.bark('phase3'); }
+      if (ph === 2) { toast('PHASE 2: ' + bossWho() + ' RETURNS \u2014 FIRE-LINES SPLIT THE LANE', '#fb923c'); S.bark('phase2'); }
+      else { toast('PHASE 3: ' + bossWho() + ' RETURNS \u2014 RAIN OF ARROWS!', '#f87171'); S.bark('phase3'); }
     }
     if (b.retreat) return;
     if (R.phase >= 2 && !S.m.hazards) S.m._hz = S.m._hz || { k: 'fireline', every: 9, warn: 2, dur: 3.5, dps: 16, h: 44 };
@@ -1320,6 +1358,11 @@
     phase3: ['Felix', 'Archers! Rain on everything Paradale ever touched!'],
     felix_down: ['Felix', 'The fire\u2026 it\u2019s going out\u2026 why is it so cold\u2026'],
     felix_flee: ['Felix', 'Not yet! Back to the walls!'],
+    // v39.6 M16 boss: Glade's own lines (spellbound mentor, bad orders). Text-only until Cut records them.
+    m16_felix_flee: ['Glade', 'Back to the stacks! Seal the doors behind me. Leave the wounded, they\u2019ll only slow us.'],
+    m16_phase2: ['Glade', 'You always skipped to the last page, Rufus. Let me read you the middle.'],
+    m16_phase3: ['Glade', 'Archers, fire into the stacks! Burn what\u2019s left. It was only ever paper.'],
+    m16_felix_down: ['Glade', 'The whispering\u2026 it\u2019s stopped. Rufus? Ruphene? What did I just order them to do?'],
   };
   S.BARKS = BARKS;
   const PORTRAIT = { Rufus: 'rufus', Ruphene: 'ruphene', Vesper: 'vesper', Garrow: 'garrow', Felix: 'felix', Pip: 'pip', Farmer: 'farmer', Tam: 'tam', Glade: 'glade', Tobb: 'tobb', Storyteller: 'storyteller', Outrider: 'outrider', 'Garrow\u2019s Outrider': 'outrider', '???': 'mystery', Cline: 'cline', Emberquill: 'emberquill', 'Ember Quill': 'emberquill', Scholar: 'scholar', Messenger: 'outrider', Doom: 'mystery' };
@@ -1409,6 +1452,7 @@
   // small non-blocking mid-mission bubble (top of screen)
   let barkT = null;
   S.bark = function (key) {
+    if (S.m && S.m.act > 1 && /^(phase[23]|felix_(down|flee))$/.test(key)) { if (!BARKS[S.m.id.toLowerCase() + '_' + key]) return; key = S.m.id.toLowerCase() + '_' + key; }   // v39.6: no Felix lines outside Act 1
     const b = BARKS[key]; if (!b || !S.R) return;
     if (S.m && S.m.id === 'M05' && /outrider|cavalier|charg/i.test(key + ' ' + b[0])) return;   // v37.5: Outrider barks never fire in M05
     if (S.R.stage && S.R.stage.chain) { playVo('bark_' + key, 1); return; }   // v37.3: don't overwrite / auto-hide a stage line's bubble

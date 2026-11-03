@@ -193,7 +193,7 @@
       brief: 'TODO_CUT: Three-phase boss. Use every tool. Glade freed; cliffhanger.', objectives: [{ k: 'boss', name: 'The Page-Breaker' }, { k: 'nexus' }],
       before: [TC('Glade', 'possessed taunt')], after: [TC('Glade', 'apology'), TC('Vesper', 'leaves'), TC('Rufus', 'Ruphene taken (cliffhanger)')] })
   });
-  const a3 = (o) => Object.assign({ region: 'northcrag', act: 3, map: 'swamp', reward: ['G3', 'X2'], enemyArmy: 'silver', ai: { level: 'hard', strat: 'balanced', income: 1.05 }, gold: 260,
+  const a3 = (o) => Object.assign({ region: 'northcrag', act: 3, map: 'pass', reward: ['G3', 'X2'], enemyArmy: 'silver', ai: { level: 'hard', strat: 'balanced', income: 1.05 }, gold: 260,
     stars: ['Win the mission', 'Nexus above 50%', 'Nexus never below 75%'], objectives: [{ k: 'nexus' }], before: [TC('Rufus', 'placeholder')], after: [TC('Cline', 'placeholder')] }, o);
   Object.assign(M, {   // v38 Act 3 skeleton: objectives + placeholder stages only (mechanics: catapult, elevated nexus = TODO)
     M17: a3({ needs: 'M16', name: 'The Highwatch Road', type: 'STD', brief: 'TODO_CUT: Act 3 opens on the pass to Highwatch.' }),
@@ -491,9 +491,9 @@
   const BOSS_DIFF = { easy: 0.7, normal: 1, hard: 1.3, veryhard: 1.6 };
   const BOSS_PH = { 1: { atk: 1, interval: 1, fx: { r: 40, f: 0.18 } }, 2: { atk: 1.1, interval: 0.9, fx: { r: 48, f: 0.22 } }, 3: { atk: 1.2, interval: 0.85, fx: { r: 56, f: 0.26 } } };
   function spawnBoss(b) {
-    const hp = Math.round(b.hp * (BOSS_DIFF[SAVE.diff] || 1)); S.bossName = (b.name || 'Felix').toUpperCase();
+    const hp = Math.round(b.hp * (BOSS_DIFF[SAVE.diff] || 1)); S.bossName = bossOf(S.m).short;
     const u = new Unit({ type: 'archer', team: 'red', lane: 'C', x: LANE_X, y: b.y, hp, atk: b.atk, range: b.range, interval: b.interval, speed: b.speed, radius: 22, resist: { ranged: 0.3, magic: 0.3 } });
-    u.boss = true; u.bossArt = (S.m && S.m.id === 'M16') ? 'glade_boss' : 'felix_boss';   // v39.4 Glade's own boss art u.variant = 'flame'; u.burn = [6, 3]; u.baseAtk = b.atk; u.baseInt = b.interval; u.bossFx = Object.assign({ kind: 'flame' }, BOSS_PH[1].fx);
+    u.boss = true; u.bossArt = bossOf(S.m).art;   // v39.7 per-mission boss art (M16 Glade, M24 Cline) u.variant = 'flame'; u.burn = [6, 3]; u.baseAtk = b.atk; u.baseInt = b.interval; u.bossFx = Object.assign({ kind: 'flame' }, BOSS_PH[1].fx);
     state.units.push(u); S.R.boss = u; S.R.phase = 1; S.R.rainT = 6;
   }
   function bossPhase(u, ph) {
@@ -505,7 +505,7 @@
     const R = S.R; if (!R || u !== R.boss || R.phase >= 3) return false;
     u.hp = 1; u.lagHp = 1; u.retreat = true; u.untargetable = true; u.burnT = 0; u.stunT = 0; R.bossFlee = R.phase + 1;
     createSparks(u.x, u.y, '#fb923c', 24); state.shake = Math.max(state.shake || 0, 0.4);
-    toast(R.phase === 1 ? (S.bossName || 'FELIX') + ' FLEES TO HIS FORTRESS!' : (S.bossName || 'FELIX') + ' FLEES AGAIN! ONE BAR LEFT', '#fde68a'); S.bark('felix_flee');
+    toast(R.phase === 1 ? (S.bossName || 'FELIX') + ' FLEES TO ' + bossOf(S.m).fort.toUpperCase() + '!' : (S.bossName || 'FELIX') + ' FLEES AGAIN! ONE BAR LEFT', '#fde68a'); S.bark('felix_flee');
     return true;
   };
 
@@ -705,7 +705,15 @@
       return l.burn > 0;
     });
   }
-  const bossWho = () => ({ M16: 'GLADE', M24: 'CLINE' })[S.m && S.m.id] || 'FELIX';
+  // v39.7 A3: per-mission boss table (name, labels, sprite, portrait). Act default: 1 Felix, 2 Glade, 3+ Cline.
+  // Cline has no dedicated boss art yet: cline_boss.png is npc/npc_cline.webp upscaled (stand-in until Cut's half-lich art).
+  const BOSSES = {
+    M07: { name: 'King Felix', short: 'FELIX', art: 'felix_boss', portrait: 'felix_tainted', fort: 'his fortress' },
+    M16: { name: 'Glade', short: 'GLADE', art: 'glade_boss', portrait: 'glade_tainted', fort: 'the stacks' },
+    M24: { name: 'Cline', short: 'CLINE', art: 'cline_boss', portrait: 'cline', fort: 'the Light Keeper\u2019s tower' } };
+  const bossOf = m => (m && BOSSES[m.id]) || (m && m.act === 2 ? BOSSES.M16 : m && m.act >= 3 ? BOSSES.M24 : BOSSES.M07);
+  S.bossOf = bossOf;
+  const bossWho = () => bossOf(S.m).short;
   function tickBoss(dt) {
     const R = S.R, b = R.boss, cr = state.cores.red;
     if (b.dead) { if (!R.bossDown) { R.bossDown = true; cr.hp = Math.min(cr.hp, 1500); state.shake = 0.6; createSparks(cr.x, cr.y, '#4ade80', 30);   // nexus drops to turret-level HP
@@ -920,8 +928,8 @@
     (m.hazards || []).forEach((h, i) => drawLines(h, R.hazards[i]));
     if (m._hz) drawLines(m._hz, R.hazards[9]);
     if (R.rain) { c.strokeStyle = '#f87171'; c.lineWidth = 3; c.beginPath(); c.arc(R.rain.x, R.rain.y, R.rain.r * (1 - R.rain.warn / 1.6 * 0.3), 0, Math.PI * 2); c.stroke(); c.fillStyle = 'rgba(248,113,113,0.18)'; c.fill(); }
-    if (R.boss && !R.boss.dead && R.boss.retreat) { const cr = state.cores.red; label(c, '\u{1F3F0} Felix regroups at his fortress\u2026 ' + Math.round(100 * R.boss.hp / R.boss.maxHp) + '%', cr.x, cr.y + 110); }
-    if (R.boss && !R.boss.dead) { const b = R.boss; c.strokeStyle = '#facc15'; c.lineWidth = 3; c.beginPath(); c.ellipse(b.x, b.y + 18, 30, 12, 0, 0, Math.PI * 2); c.stroke(); label(c, '\u{1F451} KING FELIX \u00B7 phase ' + R.phase, b.x, b.y - 52); }
+    if (R.boss && !R.boss.dead && R.boss.retreat) { const cr = state.cores.red; label(c, '\u{1F3F0} ' + bossOf(S.m).name + ' regroups at ' + bossOf(S.m).fort + '\u2026 ' + Math.round(100 * R.boss.hp / R.boss.maxHp) + '%', cr.x, cr.y + 110); }
+    if (R.boss && !R.boss.dead) { const b = R.boss; c.strokeStyle = '#facc15'; c.lineWidth = 3; c.beginPath(); c.ellipse(b.x, b.y + 18, 30, 12, 0, 0, Math.PI * 2); c.stroke(); label(c, '\u{1F451} ' + bossOf(S.m).name.toUpperCase() + ' \u00B7 phase ' + R.phase, b.x, b.y - 52); }
     if (R.boss && !R.boss.dead) { const cr = state.cores.red; c.strokeStyle = `rgba(74,222,128,${0.5 + 0.3 * Math.sin(now * 3)})`; c.lineWidth = 4; c.beginPath(); c.arc(cr.x, cr.y, 70, 0, Math.PI * 2); c.stroke(); }
     (R.wrecks || []).forEach(w => { const a = 1 - (state.gameTime - w.t) / 8, img = loadSprite('oilwagon_burnt'); if (a > 0 && img) { c.globalAlpha = a; c.drawImage(img, w.x - 34, w.y - 44, 68, 68); c.globalAlpha = 1; } });   // v34 wrecks smoulder, then fade
     if (R.wrecks && R.wrecks.length > 12) R.wrecks.splice(0, R.wrecks.length - 12);
@@ -1584,8 +1592,7 @@
     const m = M[id], rec = SAVE.missions[id]; briefM = m; gladeAfter = false;
     const obj = (m.objectives || []).map(o => `<li>${esc(objText(o, m))}</li>`).join('');
     const html = `<div class="text-[10px] font-black text-slate-400 uppercase text-center mb-1">${m.type} \u00B7 ${MAPS[m.map].name}</div>
-      ${m.cut && m.cut[0] ? cutSlot(m.cut[0]) : ''}${beats(m.before || [])}
-      <p class="text-xs text-slate-300 my-2">${esc(m.brief)}</p>
+            <p class="text-xs text-slate-300 my-2">${esc(m.brief)}</p>
       <div class="text-[10px] font-black text-amber-300 uppercase">Objectives</div><ul class="list-disc ml-4 text-xs text-slate-200 mb-2">${obj}</ul>
       <div class="text-[10px] font-black text-amber-300 uppercase">Stars</div><ul class="text-xs text-slate-200 mb-2">${m.stars.map((s, i) => `<li>${rec && rec.starSet[i] ? '\u2B50' : '\u2606'} ${esc(s)}</li>`).join('')}</ul>
       ${m.tips ? `<div class="text-[10px] font-black text-sky-300 uppercase">Drill notes</div><ul class="list-disc ml-4 text-[11px] text-slate-300 mb-2">${m.tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
@@ -1594,7 +1601,7 @@
     const dsel = guarded ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty \u00B7 barn guards per farm</div><div class="text-xs text-slate-200">${['easy', 'normal', 'hard'].map(d => d === SAVE.diff ? `<b class="text-amber-300">[${d} ${GUARDS[d]}]</b>` : d + ' ' + GUARDS[d]).join(' \u00B7 ')}</div><p class="text-[10px] text-slate-400">Felix musters pawns at half rate while his barn guards stand; each guard you kill raises it.</p>` : '';
     const replayed = !!(rec && rec.wins);   // v31: replays auto-skip the story unless 'Replay story' is on
     const rs = replayed ? `<button id="st-rs" class="mt-2 w-full py-2 rounded-lg border-2 text-[11px] font-black uppercase ${SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'}">\u{1F4D6} Replay story: ${SAVE.replayStory ? 'ON' : 'OFF'}</button>` : '';
-    const bsel = m.boss ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty \u00B7 boss health per phase</div><div class="text-xs text-slate-200">${['easy', 'normal', 'hard'].map(d => d === SAVE.diff ? `<b class="text-amber-300">[${d} ${Math.round(BOSS_DIFF[d] * 100)}%]</b>` : d + ' ' + Math.round(BOSS_DIFF[d] * 100) + '%').join(' \u00B7 ')}</div><p class="text-[10px] text-slate-400">Three health bars. Each time Felix falls he flees to his fortress, heals, and returns stronger.</p>` : '';
+    const bsel = m.boss ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty \u00B7 boss health per phase</div><div class="text-xs text-slate-200">${['easy', 'normal', 'hard'].map(d => d === SAVE.diff ? `<b class="text-amber-300">[${d} ${Math.round(BOSS_DIFF[d] * 100)}%]</b>` : d + ' ' + Math.round(BOSS_DIFF[d] * 100) + '%').join(' \u00B7 ')}</div><div class="flex items-center gap-2 mt-1">${portraitHtml(bossOf(m).name.replace('King ', ''), 44).replace(/assets\/portraits\/[a-z_]+\.webp/, 'assets/portraits/' + bossOf(m).portrait + '.webp')}<p class="text-[10px] text-slate-400">Boss: <b class="text-amber-200">${esc(bossOf(m).name)}</b>. Three health bars. Each time ${esc(bossOf(m).name)} falls, the boss flees to ${bossOf(m).fort}, heals, and returns stronger.</p></div>` : '';
     const a2d = m.act >= 2 ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty: <span class="text-slate-100">${({ easy: 'Easy', normal: 'Normal', hard: 'Hard', veryhard: 'Very Hard' })[SAVE.diff]}</span></div><p class="text-[10px] text-slate-400">${vhOpen(m.act) ? 'Very Hard unlocked for this act.' : 'Beat this act\u2019s final mission on Hard to unlock Very Hard.'}</p>` : '';
     const lout = m.act >= 2 ? loadoutHtml(m) : '';
     const kP = showPanel(`${id}: ${esc(m.name)}`, html + lout + dsel + bsel + a2d + rs, guarded || m.boss || m.act >= 2 ? [['Back', 'back'], ['Easy', 'd:easy'], ['Normal', 'd:normal'], ['Hard', 'd:hard']].concat(vhOpen(m.act) ? [['Very Hard', 'd:veryhard']] : []).concat([['\u2694 Start', 'go']]) : [['Back', 'back'], ['\u2694 Start', 'go']]);
@@ -1606,7 +1613,7 @@
   };
   function objText(o, m) {
     switch (o.k) {
-      case 'nexus': return m.objectives.some(x => x.k === 'boss') ? 'Then destroy Felix\u2019s nexus' : 'Destroy the enemy nexus';
+      case 'nexus': return m.objectives.some(x => x.k === 'boss') ? 'Then destroy ' + bossOf(m).name + '\u2019s nexus' : 'Destroy the enemy nexus';
       case 'beacons': return 'Bonus: light 3 lanterns by marching past them';
       case 'evac': return `Escort ${o.count} farmers to your nexus (lose at most ${o.lossMax})`;
       case 'intercept': return `Destroy ${o.need} of ${o.count} fire-oil wagons (${o.count - o.need + 1} arrivals = defeat)`;
@@ -1614,7 +1621,7 @@
       case 'hold': return `Hold ${o.zones.length} farmsteads in turn (${o.secs}s each); enemies retake a farm they sit in`;
       case 'defend': return `Hold the ${o.zone.name} zone for ${Math.round(o.secs / 60)}:00 (enemy may hold it ${o.maxEnemy}s total)`;
       case 'rescue': return 'Free ' + o.cages.map(c => c.name).join(', ') + ': get troops to the cage with no enemies nearby';
-      case 'boss': return 'Defeat King Felix (his nexus is shielded while he stands)';
+      case 'boss': return 'Defeat ' + bossOf(m).name + ' (the nexus is shielded while the boss stands)';
       case 'minerKill': return `Take out ${o.count} enemy miner${o.count > 1 ? 's' : ''}: push archers up to where they dig`;
       case 'gold': return o.solo ? `Bank ${o.target} gold from your mines` : `Bank ${o.target} gold before the enemy`;
       case 'survive': return `Survive ${o.secs}s until reinforcements arrive`;
@@ -1624,6 +1631,35 @@
     }
     return o.k;
   }
+  // v39.7 B2: light debrief recap of each mission's closing dialogue (full dialogue still plays in mission).
+  // summary draft, Cut to review
+  const RECAP = {
+    P0: 'The festival ends in cheers and King Felix saves Rufus a seat at the feast, but Garrow thinks something is off with Felix\u2019s birds.',
+    M01: 'Felix admits he wrote the letter. Rufus forgave his tithe in front of every king, like a beggar, and Felix says never again.',
+    M02: 'A farmer named Tam pledges his shield to Rufus after the fire took everything else.',
+    M03: 'The fire-oil wagons are stopped: no more fire for Felix\u2019s arrows tonight.',
+    M04: 'The farms are coming back, one field at a time.',
+    M05: 'The mill is saved and the beacon burns toward Paradale. Now to find Garrow.',
+    M06: 'Garrow is free. He went alone because one of Felix\u2019s riders swore he wanted to talk, and says Felix cries in his tent, holding his amulet.',
+    M07: 'Felix confesses and is forgiven. He\u2019s home, and Eastmarch is pinned green.',
+    M08: 'Felix pledges his grain wagons to the treasury, and Rufus sees the same red glow in Glade\u2019s eyes: it\u2019s the amulets.',
+    M09: 'The rescued scholars say Glade wept as he sealed them in, until his amulet glowed. He\u2019s still in there.',
+    M10: 'The library burned in the fight. Tobb sends barricade timber, and Rufus asks him where the amulet stones came from.',
+    M11: 'The Archive survives, and the scholars find Glade\u2019s notes: the amulet whispered to him at night.',
+    M12: 'Ruphene finds the Ember Shard\u2019s secret: its wearers forget who they love. The amulets were Tobb\u2019s coronation gifts, and Rufus suspects someone got to them afterward.',
+    M13: 'Garrow learns to kite, and Glade is out of brutes and walls. No gem-cutter in Westreach cut those stones.',
+    M14: 'The ink flood is beaten. Glade\u2019s last stand will be the Magister\u2019s Hall.',
+    M15: 'Emberquill doesn\u2019t know the stone from any mine, and wants a look at Glade\u2019s amulet when this is over.',
+    M16: 'Glade is freed and the Yellow Army joins Rufus, but Ruphene is gone, and smoke leads north toward Lord Cline.',
+    M17: 'Cline meets Rufus on the Highwatch Road, cold and mocking, and remembers their old races.',
+    M18: 'Cline\u2019s snowballs have become boulders, but Garrow believes he\u2019s still in there.',
+    M19: 'Cline kept their old catapult all these years. The amulet twists what you love; it doesn\u2019t erase it.',
+    M20: 'Twenty of Cline\u2019s soldiers cross over to Rufus\u2019s fire, and Ruphene\u2019s lantern is running low.',
+    M21: 'Cline summons Rufus to the Light Keeper\u2019s tower, and tells him to bring the dead lantern.',
+    M22: 'Ruphene is free, and her lantern is lit again. The taint must be lit out, so she needs to get close to Cline.',
+    M23: 'Rufus passes Cline\u2019s test, and for a moment Cline\u2019s eyes turn blue.',
+    M24: 'Cline is freed and apologizes. He warns of the Emperor of Doom, a woman\u2019s whisper, and General Drevlar gathering the Southmire.',
+  };
   async function showResults(r) {
     const m = M[r.id]; setTimeout(() => { S.vhNew = 0; }, 0);
     if (r.win && (r.firstClear || SAVE.replayStory)) { const ce = cinesFor(r.id, 'end'); if (ce.length) await S.playCine(ce); else await S.dialogue(m.after, r.id + '_a'); }
@@ -1633,7 +1669,7 @@
       ${r.win ? m.stars.map((s, i) => `<p class="text-xs ${r.stars[i] ? 'text-amber-200' : 'text-slate-500'}">${r.stars[i] ? '\u2B50' : '\u2606'} ${esc(s)}</p>`).join('') : ''}
       ${S.vhNew ? `<p class="text-center text-[11px] font-black text-rose-300">\u{1F480} VERY HARD unlocked for Act ${S.vhNew}!</p>` : ''}<p class="text-center text-sm font-black mt-2"><span class="text-amber-300">+${r.gold}g</span>${S.lastRes ? ` \u00B7 <span class="text-lime-300">+${S.lastRes[1]} ${S.lastRes[0]}</span>` : ''} \u00B7 <span class="text-sky-300">+${r.xp} XP</span></p>
       ${r.win && m.unlock ? `<p class="text-center text-[11px] text-emerald-300 mt-1">${r.firstClear ? 'Unlocked: ' + m.unlock.map(u => (REGIONS[m.region].cards.find(c => c[0] === u) || [0, 0, u.replace('bonus:worker_east', '+1 starting worker in Eastmarch').replace('region:eastmarch', 'Eastmarch is free!')])[2]).join(', ') : ''}</p>` : ''}
-      ${r.win ? `<div class="mt-2 border-t border-slate-700 pt-2">${m.cut && m.cut[m.cut.length - 1] && m.cut.length > 1 ? cutSlot(m.cut[m.cut.length - 1]) : ''}${beats(m.after || [])}</div>` : ''}`;
+      ${r.win && RECAP[r.id] ? `<div class="mt-2 border-t border-slate-700 pt-2"><div class="text-[10px] font-black text-amber-300 uppercase">Story so far</div><p class="text-xs text-slate-200 italic">${esc(RECAP[r.id])}</p></div>` : ''}`;
     const k = await showPanel(r.win ? 'Victory!' : 'Defeat', html + (window.matchStatsHtml ? '<div class="mt-2 flex justify-center">' + matchStatsHtml() + '</div>' : ''), [['Retry', 'retry']].concat(won('M07') ? [['\u{1FA99} Shop', 'shop']] : []).concat([['Continue', 'map']]));
     S.quit(); state.started = false; initGame();
     if (k === 'retry') S.start(r.id); else { S.openMap(); if (k === 'shop') openTreasury(); }

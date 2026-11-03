@@ -323,7 +323,7 @@
     if (src.fblitz > 0) dmg *= 1.5;
     if (v.blitz > 0) dmg *= 2;
     if (v.shield > 0) { const a = Math.min(v.shield, dmg); v.shield -= a; dmg -= a; }
-    v.hp -= dmg;
+    v.hp -= dmg; if (dmg > 0) v.hitT = 0.14;   // v39.7 hit flash
     if (v.hp <= 0) { const S = B.stats, side = v.team === 'me' ? 'me' : 'foe'; S.lost[side][v.k] = (S.lost[side][v.k] || 0) + 1; const key = `${src.team}:${src.k}>${v.k}`; S.kills[key] = (S.kills[key] || 0) + 1; }
   }
   // fort counter-abilities: telegraphed 2 s, then fire. Answer with Turtle / Barrier / Repel / Rain.
@@ -358,6 +358,10 @@
     const b = B; let dmg = u.atk * (u.k === 'brute' ? 1.5 : 1) * b.fortMult * (b.X.mod[u.k] || 1);
     if (b.barrierHp > 0) { const a = Math.min(b.barrierHp, dmg * 3); b.barrierHp -= a; return; }
     b.fortHp -= dmg;
+    // v39.7 wall impact: dust/sparks where the blow lands + a small throttled camera shake
+    u.lunge = 0.18; u.lx = 0; u.ly = -1;
+    if (!b.sim && b.fx.length < 80) b.fx.push({ k: 'dust', x: u.x + (Math.random() - 0.5) * 10, y: b.fortY + 14, t: 0.35, t0: 0.35, br: u.k === 'brute' });
+    if (u.k === 'brute' || Math.random() < 0.3) b.shake = Math.max(b.shake || 0, u.k === 'brute' ? 0.18 : 0.1);
   }
   RC._ff = secs => { for (let i = 0; i < secs * 30 && B && !B.done; i++) { if (!RC.paused) step(1 / 30); } };
   function step(dt) {
@@ -372,8 +376,13 @@
     if (b.ph === 1 && b.waves < (b.X.wave.max || 4) && (b.waveT -= dt) <= 0) { b.waveT = b.X.wave.every; b.waves++; spawnGroup(b.X.wave.g, b.fortY + 40); say('REINFORCEMENTS FROM THE FORT', '#fca5a5'); }
     if (b.contactT >= 0) b.fa.forEach(a => fortAbil(b, a, dt, mine, foes));
     live = b.units.filter(u => u.hp > 0); foes = live.filter(u => u.team === 'foe');
-    if (b.act.rain > 0 && foes.length) { const front = Math.max(...foes.map(e => e.y)); const src = { team: 'me', k: 'archer' }; const nA = mine.filter(u => u.k === 'archer').length; foes.forEach(e => { if (e.y > front - 70) { if (e.shield > 0) e.shield = Math.max(0, e.shield - 40 * dt); hurt(src, e, (4 + nA * 0.9) * dt / RC.TEMPO * 1.6 * (1 + 0.1 * rc().up.atk)); } }); }
+    // v39.7 RAIN: real-time damage (no TEMPO division; it used to do ~2 HP total). Scales with archers alive:
+    // (4 + 2 per archer up to 8, +0.5 each after) dps for the 3 s -> 8 archers ~60 HP = ~43% of a 140 HP infantry. The zone is computed once
+    // per frame (b.rainZ) and the draw uses the same band, so arrows fall exactly where the damage lands.
+    b.rainZ = null;
+    if (b.act.rain > 0 && foes.length) { const front = Math.max(...foes.map(e => e.y)); b.rainZ = [front - 150, front + 20]; const src = { team: 'me', k: 'archer' }; const nA = mine.filter(u => u.k === 'archer').length; const dps = (4 + 2 * Math.min(nA, 8) + 0.5 * Math.max(0, nA - 8)) *   /* diminishing past 8 archers */ (1 + 0.1 * (rc().up.atk || 0)); foes.forEach(e => { if (e.y >= b.rainZ[0] && e.y <= b.rainZ[1]) { if (e.shield > 0) e.shield = Math.max(0, e.shield - 40 * dt); hurt(src, e, dps * dt); } }); }
     for (const u of live) {
+      u.hitT = Math.max(0, (u.hitT || 0) - dt); u.lunge = Math.max(0, (u.lunge || 0) - dt); u.mv = 0;   // v39.7 anim state
       u.inv = Math.max(0, u.inv - dt); u.blitz = Math.max(0, u.blitz - dt); u.fblitz = Math.max(0, (u.fblitz || 0) - dt); u.t -= dt;
       const P = POOLS[u.k], opp = u.team === 'me' ? foes : mine;
       let tgt = null, best = 1e9;
@@ -381,14 +390,16 @@
       else for (const e of opp) { const dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < best) { best = dd; tgt = e; } }
       const holding = u.team === 'foe' && !u.fblitz && (!tgt || best > (u.cap ? 140 : 230));
       if (u.team === 'me' && b.ph === 1 && (!tgt || (best > 260 && u.y - b.fortY < 150))) {
-        const dy = u.y - (b.fortY + 30); if (dy > P.rng) u.y -= P.spd * dt; else if (u.t <= 0 && u.inv <= 0) { u.t = RC.TEMPO; hitFort(u); }
+        const dy = u.y - (b.fortY + 30); if (dy > P.rng) { u.y -= P.spd * dt; u.mv = 1; } else if (u.t <= 0 && u.inv <= 0) { u.t = RC.TEMPO; hitFort(u); }
         continue;
       }
       if (!tgt || holding) continue;
       const rng = u.cap ? P.rng + 10 : P.rng;
-      if (best > rng + (P.melee ? tgt.r : 0)) { const sp = P.spd * (u.blitz > 0 ? 2.2 : 1) * (u.fblitz > 0 ? 1.8 : 1); u.x += (tgt.x - u.x) / best * sp * dt; u.y += (tgt.y - u.y) / best * sp * dt; }
+      if (best > rng + (P.melee ? tgt.r : 0)) { const sp = P.spd * (u.blitz > 0 ? 2.2 : 1) * (u.fblitz > 0 ? 1.8 : 1); u.x += (tgt.x - u.x) / best * sp * dt; u.y += (tgt.y - u.y) / best * sp * dt; u.mv = 1; }
       else if (u.t <= 0 && u.inv <= 0) {
-        u.t = (0.9 + Math.random() * 0.2) * RC.TEMPO; if (Math.random() > 0.88) continue;
+        u.t = (0.9 + Math.random() * 0.2) * RC.TEMPO; u.lunge = 0.18; u.lx = (tgt.x - u.x) / (best || 1); u.ly = (tgt.y - u.y) / (best || 1);   // v39.7 attack lunge (also on misses)
+        if (P.melee && !b.sim && b.fx.length < 80) b.fx.push({ k: 'spark', x: (u.x + tgt.x) / 2, y: (u.y + tgt.y) / 2, t: 0.2, t0: 0.2 });
+        if (Math.random() > 0.88) continue;
         if (P.splash || u.cap) { const sp = P.splash || 40; opp.forEach(e => { if (Math.hypot(e.x - tgt.x, e.y - tgt.y) < sp) hurt(u, e, u.atk * (e === tgt ? 1 : 0.6)); }); b.fx.push({ k: 'boom', x: tgt.x, y: tgt.y, t: 0.25 }); }
         else { hurt(u, tgt, u.atk); if (!P.melee) b.fx.push({ k: 'shot', p: u.k === 'wiz' ? 'fireball' : 'arrow', team: u.team, x: u.x, y: u.y, x2: tgt.x, y2: tgt.y, t: 0.3, t0: 0.3 }); }
       }
@@ -421,6 +432,11 @@
   };
   function draw(c) {
     const b = B; if (!b) return; const { W, H } = b;
+    c.save(); if (b.shake > 0) { b.shake = Math.max(0, b.shake - 1 / 60); const m = b.shake * 30; c.translate((Math.random() - 0.5) * m, (Math.random() - 0.5) * m); }
+    try { drawInner(c, b, W, H); } finally { c.restore(); }
+    drawHud(b);
+  }
+  function drawInner(c, b, W, H) {
     const bg = img[A + b.F.bg]; if (bg && bg.complete && bg.naturalWidth) { const s = Math.max(W / bg.naturalWidth, H / bg.naturalHeight); c.drawImage(bg, (W - bg.naturalWidth * s) / 2, 0, bg.naturalWidth * s, bg.naturalHeight * s); } else { c.fillStyle = '#3b3a32'; c.fillRect(0, 0, W, H); }
     if (b.F.tint) { c.fillStyle = b.F.tint; c.fillRect(0, 0, W, H); }
     const dr = (src, x, y, w, h) => { const im = img[src]; if (im && im.complete && im.naturalWidth) c.drawImage(im, x - w / 2, y - h / 2, w, h); };
@@ -429,14 +445,20 @@
     for (let i = 0; i < b.F.towers; i++) dr(A + 'props/prop_breach_tower.webp', W * (i ? 0.85 : 0.15), b.fortY - 10, 46, 70);
     if (b.barrierHp > 0) { c.globalAlpha = 0.55; dr(A + 'props/prop_breach_barrier.webp', W / 2, b.fortY - 6, 180, 120); c.globalAlpha = 1; }
     if (b.ms && b.fortHp > 0) { c.strokeStyle = 'rgba(244,63,94,0.8)'; c.lineWidth = 3; c.setLineDash([6, 4]); c.beginPath(); c.arc(W / 2, b.fortY - 10, 70, 0, Math.PI * 2); c.stroke(); c.setLineDash([]); }
-    if (b.act.rain > 0) { const foes = b.units.filter(u => u.team === 'foe' && u.hp > 0); if (foes.length) { const fy = Math.max(...foes.map(e => e.y)); c.lineWidth = 2; for (let i = 0; i < 26; i++) { const x = Math.random() * W, y = fy - 70 + Math.random() * 80; c.strokeStyle = '#e2e8f0'; c.beginPath(); c.moveTo(x + 2, y - 7); c.lineTo(x - 2, y + 7); c.stroke(); c.fillStyle = '#f59e0b'; c.fillRect(x + 1, y - 8, 3, 3); } /* v39.5 falling arrows, story-style */ } }
+    if (b.act.rain > 0 && b.rainZ) { { const [z0, z1] = b.rainZ; c.fillStyle = 'rgba(251,191,36,0.10)'; c.fillRect(0, z0, W, z1 - z0); c.lineWidth = 2; for (let i = 0; i < 34; i++) { const x = Math.random() * W, y = z0 + Math.random() * (z1 - z0); c.strokeStyle = '#e2e8f0'; c.beginPath(); c.moveTo(x + 2, y - 7); c.lineTo(x - 2, y + 7); c.stroke(); c.fillStyle = '#f59e0b'; c.fillRect(x + 1, y - 8, 3, 3); } /* v39.5 falling arrows, story-style */ } }
     b.fa.forEach(a => { if (a.k === 'volley' && (a.warn > 0 || a.on > 0)) { const mine = b.units.filter(u => u.team === 'me' && u.hp > 0); if (mine.length) { const fy = Math.min(...mine.map(m => m.y)); c.fillStyle = a.on > 0 ? 'rgba(244,63,94,0.28)' : `rgba(244,63,94,${0.1 + 0.12 * Math.abs(Math.sin(b.t * 8))})`; c.fillRect(0, fy - 14, W, 104);
         if (a.on > 0) { c.lineWidth = 2; for (let i = 0; i < 22; i++) { const x = Math.random() * W, y = fy - 10 + Math.random() * 96; c.strokeStyle = '#fecaca'; c.beginPath(); c.moveTo(x - 2, y - 7); c.lineTo(x + 2, y + 7); c.stroke(); } } } } });
     const us = b.units.filter(u => u.hp > 0).sort((p, q) => p.y - q.y);
     for (const u of us) { const P = POOLS[u.k], s = u.k === 'brute' ? 38 : 28;
       if (u.cap) { const cs = 50; c.fillStyle = 'rgba(251,191,36,0.25)'; c.beginPath(); c.arc(u.x, u.y, cs / 2 + 4, 0, 7); c.fill(); dr(A + 'units/' + (u.k === 'wiz' ? 'rogue_seawitch_front' : 'rogue_brute_front') + '.webp', u.x, u.y, cs, cs); c.fillStyle = '#fbbf24'; c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.fillText('\u265B CAPTAIN', u.x, u.y - cs / 2 - 8); c.fillStyle = '#111'; c.fillRect(u.x - 22, u.y - cs / 2 - 5, 44, 4); c.fillStyle = '#f59e0b'; c.fillRect(u.x - 22, u.y - cs / 2 - 5, 44 * Math.max(0, u.hp / u.max), 4); if (u.shield > 0) { c.fillStyle = 'rgba(167,139,250,0.3)'; c.beginPath(); c.arc(u.x, u.y, cs / 2 + 2, 0, 7); c.fill(); } continue; }
       if (u.fblitz > 0) { c.fillStyle = 'rgba(248,113,113,0.35)'; c.beginPath(); c.arc(u.x, u.y, s / 2 + 3, 0, 7); c.fill(); }
-      if (u.team === 'me') dr('assets/' + P.me, u.x, u.y, s, s); else dr(A + 'units/' + P.foe, u.x, u.y, s, s);
+      // v39.7 animation: walk bob while moving, slow idle breathing otherwise (defenders + units at the wall), attack lunge
+      const sd = (u.x * 7 + u.max) % 6.28, L = u.lunge > 0 ? Math.sin((u.lunge / 0.18) * Math.PI) * 6 : 0;
+      const ox = L * (u.lx || 0), oy = (u.mv ? -Math.abs(Math.sin(b.t * 11 + sd)) * 3 : Math.sin(b.t * 3 + sd) * 1.2) + L * (u.ly || 0);
+      c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(u.x, u.y + s * 0.42, s * 0.32, s * 0.12, 0, 0, 7); c.fill();
+      c.strokeStyle = u.team === 'me' ? 'rgba(56,189,248,0.8)' : 'rgba(244,63,94,0.8)'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(u.x, u.y + s * 0.42, s * 0.34, s * 0.14, 0, 0, 7); c.stroke();
+      if (u.team === 'me') dr('assets/' + P.me, u.x + ox, u.y + oy, s, s); else dr(A + 'units/' + P.foe, u.x + ox, u.y + oy, s, s);
+      if (u.hitT > 0) { c.globalAlpha = Math.min(0.6, u.hitT * 4.5); c.fillStyle = '#fff'; c.beginPath(); c.arc(u.x + ox, u.y + oy, s * 0.38, 0, 7); c.fill(); c.globalAlpha = 1; }
       if (u.inv > 0) { c.strokeStyle = '#fbbf24'; c.lineWidth = 2; c.beginPath(); c.arc(u.x, u.y, s / 2, 0, 7); c.stroke(); }
       if (u.shield > 0) { c.fillStyle = 'rgba(167,139,250,0.3)'; c.beginPath(); c.arc(u.x, u.y, s / 2 + 2, 0, 7); c.fill(); }
       if (u.blitz > 0) { c.fillStyle = 'rgba(250,204,21,0.5)'; c.fillRect(u.x - 2, u.y + s / 2 - 2, 4, 6); }
@@ -446,7 +468,11 @@
       c.save(); c.translate(px, py);
       if (f.p === 'fireball') { c.fillStyle = f.team === 'me' ? '#38bdf8' : '#c084fc'; c.beginPath(); c.arc(0, 0, 4.5, 0, 7); c.fill(); }
       else { c.rotate(Math.atan2(f.y2 - f.y, f.x2 - f.x)); c.strokeStyle = '#e2e8f0'; c.lineWidth = 2; c.beginPath(); c.moveTo(-7, 0); c.lineTo(7, 0); c.stroke(); c.fillStyle = '#f59e0b'; c.fillRect(-7, -2, 3, 4); }
-      c.restore(); } else { c.strokeStyle = f.k === 'ring' ? '#a78bfa' : '#5eead4'; c.lineWidth = 3; c.beginPath(); c.arc(f.x, f.y, f.k === 'ring' ? 110 * (1 - f.t * 2) : 20, 0, 7); c.stroke(); } }
+      c.restore(); } else if (f.k === 'dust') { const q = 1 - f.t / f.t0; c.globalAlpha = 1 - q; c.fillStyle = '#d6c7a1'; for (let i = 0; i < 4; i++) { c.beginPath(); c.arc(f.x + (i - 1.5) * 7 * (1 + q), f.y - q * 10 - (i % 2) * 4, 4 + q * 6, 0, 7); c.fill(); } c.fillStyle = f.br ? '#fbbf24' : '#fde68a'; for (let i = 0; i < 3; i++) c.fillRect(f.x + (i - 1) * 9 * q * 2, f.y - 6 - q * 14 * (i + 1) / 2, 2, 2); c.globalAlpha = 1; }
+      else if (f.k === 'spark') { const q = 1 - f.t / f.t0; c.strokeStyle = `rgba(253,230,138,${1 - q})`; c.lineWidth = 1.5; for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.6; c.beginPath(); c.moveTo(f.x + Math.cos(a) * 2, f.y + Math.sin(a) * 2); c.lineTo(f.x + Math.cos(a) * (4 + q * 6), f.y + Math.sin(a) * (4 + q * 6)); c.stroke(); } }
+      else { c.strokeStyle = f.k === 'ring' ? '#a78bfa' : '#5eead4'; c.lineWidth = 3; c.beginPath(); c.arc(f.x, f.y, f.k === 'ring' ? 110 * (1 - f.t * 2) : 20, 0, 7); c.stroke(); } }
+  }
+  function drawHud(b) {
     const fe = $('rc-fort'); if (fe && b.ph > 1) fe.innerHTML = `<span class="text-amber-200">${b.ph === 2 ? 'Courtyard: ' + b.units.filter(u => u.team === 'foe' && u.hp > 0).length + ' defenders' : 'Keep: defeat the captain'}</span>`; else if (fe) fe.innerHTML = `<div class="mx-auto w-40 h-2 bg-slate-900 rounded"><div class="h-2 rounded ${b.ms ? 'bg-rose-500' : 'bg-amber-400'}" style="width:${Math.max(0, b.fortHp / b.fortMax * 100)}%"></div></div>${b.ms ? '<span class="text-rose-300">FORTIFIED: breach power too low</span>' : b.barrierHp > 0 ? '<span class="text-violet-300">Barrier up</span>' : ''}`;
     const me = $('rc-msg'); if (me) me.innerHTML = b.msg ? `<span class="inline-block px-3 py-1.5 rounded-xl bg-black/70 text-[13px] font-black" style="color:${b.msg.col};border:1px solid ${b.msg.col}">${b.msg.txt}</span>` : '';
     root.querySelectorAll('[data-chg]').forEach(el => { const k = el.closest('[data-ab]').dataset.ab; el.textContent = '\u00D7' + b.chg[k]; el.closest('[data-ab]').style.opacity = b.chg[k] > 0 ? 1 : 0.4; });

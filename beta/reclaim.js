@@ -187,7 +187,8 @@
     const row = (grp, k, def, lvl) => { const c = def.cost[lvl]; return `<div class="flex items-center gap-2 bg-slate-800 rounded-lg p-2 mb-1.5">
       <div class="flex-1"><div class="text-xs font-black">${def.icon || ''} ${def.name} <span class="text-amber-300">${lvl}/3</span></div><div class="text-[10px] text-slate-400">${def.what}</div></div>
       ${c ? `<button data-buy="${grp}:${k}" ${canPay(c) ? '' : 'disabled'} class="px-2 py-1.5 rounded-lg text-[11px] font-black ${canPay(c) ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-500'}">${resTxt(c)}</button>` : '<span class="text-[10px] font-black text-emerald-300">MAX</span>'}</div>`; };
-    shell(`${top('Camp', true)}<div class="flex-1 overflow-y-auto p-3">
+    shell(`${top(armyOf(RC._fort || 1).cmd + '\u2019s Camp', true)}<div class="flex-1 overflow-y-auto p-3">
+      <div data-cmd class="flex items-center gap-2 mb-2"><img src="assets/${armyOf(RC._fort || 1).portrait}" class="w-9 h-9 rounded-full object-cover border-2" style="border-color:${armyOf(RC._fort || 1).col}"><div class="text-xs font-black">Commander ${armyOf(RC._fort || 1).cmd}<div class="text-[10px] font-normal" style="color:${armyOf(RC._fort || 1).col}">${armyOf(RC._fort || 1).army}</div></div></div>
       <div class="text-[11px] font-black text-amber-300 uppercase mb-1">Breach power</div>${Object.entries(BR).map(([k, d]) => row('br', k, d, rc().br[k])).join('')}
       ${(() => { const W = rc().wounded || {}, n = Object.values(W).reduce((x, v) => x + v, 0), c = { grain: 3 * n }; return n ? `<div class="flex items-center gap-2 bg-rose-950/60 rounded-lg p-2 mt-2"><div class="flex-1 text-xs font-black">\u{1FA79} Wounded: ${Object.entries(W).filter(([, v]) => v).map(([k, v]) => v + ' ' + POOLS[k].name).join(', ')}<div class="text-[10px] text-slate-400 font-normal">Out of your draft pools until tended.</div></div><button data-heal ${canPay(c) ? '' : 'disabled'} class="px-2 py-1.5 rounded-lg text-[11px] font-black ${canPay(c) ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-500'}">Tend ${resTxt(c)}</button></div>` : ''; })()}
       <div class="text-[11px] font-black text-amber-300 uppercase mt-3 mb-1">Reclamation upgrades</div>${Object.entries(UPS).map(([k, d]) => row('up', k, d, rc().up[k])).join('')}
@@ -219,9 +220,10 @@
         <div data-tip="fa" class="text-[11px] mt-0.5 text-rose-300">\u26A0\uFE0F Counters: ${RCX[f].fa.map(([k]) => FA[k].name.toLowerCase() + ' (' + FA[k].hint.replace('!', '').toLowerCase() + ')').join(', ')}</div>
         <div data-tip="mod" class="text-[11px] mt-0.5"><span class="text-emerald-300">\u2B06 Weak to ${RCX[f].weak}</span><br><span class="text-rose-300">\u2B07 Resists ${RCX[f].strong}</span></div>
         <div class="text-[10px] text-slate-400 mt-1">March supplies: ${resTxt(RCX[f].supply)} (lost on defeat, half back on retreat)<br>First clear: ${resTxt(F.pay)} \u00B7 \u2605\u2605 +25% \u00B7 \u2605\u2605\u2605 +60%${cleared(f) ? ` \u00B7 best ${'\u2605'.repeat(rc().forts[f].stars || 1)} (replays pay 25%)` : ''}</div></div>
+      <div data-cmd class="flex items-center gap-2 mb-1"><img src="assets/${armyOf(f).portrait}" class="w-7 h-7 rounded-full object-cover border-2" style="border-color:${armyOf(f).col}"><span class="text-[11px] font-black">Commander ${armyOf(f).cmd} \u00B7 <span style="color:${armyOf(f).col}">${armyOf(f).army}</span></span></div>
       <div class="flex justify-between items-center mb-1"><span class="text-[11px] font-black uppercase text-amber-300">Draft</span><span id="rc-pts" class="text-sm font-black"></span></div>
       <div class="grid grid-cols-2 gap-2">${['inf', 'archer', 'brute', 'wiz'].map(k => { const P = POOLS[k], cap = poolCap(k); return `<div data-pool="${k}" class="bg-slate-800 rounded-xl p-2 ${cap ? '' : 'opacity-40'}">
-        <div class="flex items-center gap-1"><img src="assets/${P.me.replace('_back', '')}" class="w-8 h-8 object-contain"><div><div class="text-[11px] font-black">${P.name}</div><div class="text-[9px] text-slate-400">${P.cost} pt \u00B7 cap ${cap}</div></div></div>
+        <div class="flex items-center gap-1"><img src="assets/${unitSrc(f, k, false)}" onerror="this.onerror=null;this.src='assets/${P.me.replace('_back', '')}';this.style.filter='${armyOf(f).tint}'" class="w-8 h-8 object-contain"><div><div class="text-[11px] font-black">${P.name}</div><div class="text-[9px] text-slate-400">${P.cost} pt \u00B7 cap ${cap}</div></div></div>
         <div class="flex items-center gap-1 mt-1"><button data-m="${k}" class="w-8 h-8 rounded-lg bg-slate-700 font-black">\u2212</button>
         <div class="rc-wheel flex-1 h-[84px] overflow-y-scroll rounded-lg bg-slate-950 border border-slate-600 text-center" data-w="${k}" style="scroll-snap-type:y mandatory;scrollbar-width:none">
           <div style="height:28px"></div>${Array.from({ length: cap + 1 }, (_, i) => `<div style="height:28px;line-height:28px;scroll-snap-align:center" class="text-lg font-black">${i}</div>`).join('')}<div style="height:28px"></div></div>
@@ -284,7 +286,7 @@
     if (!payMarch(f)) return;
     const ab = [...new Set([...rc().abil, ...F.teach])].filter(k => ABIL[k]);
     shell(`<div class="flex items-center justify-between px-3 py-1.5 bg-slate-900 text-[11px] font-black"><button id="rc-retreat" class="px-2 py-1 rounded bg-slate-700">\u{1F3F3}\uFE0F Retreat</button>
-      <span class="text-amber-300 uppercase">Fort ${f}: ${F.name}</span><span id="rc-time">0s</span></div>
+      <span class="text-amber-300 uppercase">Fort ${f}: ${F.name} <span data-cmd style="color:${armyOf(f).col}">\u00B7 ${armyOf(f).cmd}</span></span><span id="rc-time">0s</span></div>
       <div class="relative flex-1"><canvas id="rc-cv" class="absolute inset-0 w-full h-full"></canvas><div id="rc-fort" class="absolute left-0 right-0 top-1 text-center text-[10px] font-black"></div><div id="rc-msg" class="absolute left-0 right-0 text-center pointer-events-none" style="top:38%"></div></div>
       <div class="flex gap-1.5 p-2 bg-slate-900 justify-center" id="rc-abs" style="padding-bottom:calc(8px + env(safe-area-inset-bottom))">${ab.length ? ab.map(k => `<button data-ab="${k}" class="relative w-16 h-14 rounded-xl bg-slate-700 overflow-hidden"><div class="absolute inset-x-0 bottom-0 bg-amber-500/60" data-fill></div><div class="relative text-xl leading-none">${ABIL[k].icon}</div><div class="relative text-[9px] font-black uppercase">${ABIL[k].name} <span data-chg></span></div></button>`).join('') : '<span class="text-[11px] text-slate-400 py-4">No abilities yet: they unlock as you free forts.</span>'}</div>`);
     const cv = $('rc-cv'), dpr = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr;
@@ -292,8 +294,8 @@
     makeB(f, d, W, H, false); say(PH_NAME[1] + ': BREAK IT');
     $('rc-retreat').onclick = () => { if (B && !B.done && !RC.paused) finish(false, true); };
     root.querySelectorAll('[data-ab]').forEach(b => b.onclick = () => useAb(b.dataset.ab));
-    I(A + F.bg); ['prop_fort_fortified', 'prop_fort_breached', 'prop_breach_gate', 'prop_breach_tower', 'prop_breach_barrier'].forEach(n => I(A + 'props/' + n + '.webp')); I(A + 'units/rogue_brute_front.webp'); I(A + 'units/rogue_seawitch_front.webp');
-    Object.values(POOLS).forEach(P => { I('assets/' + P.me); I(A + 'units/' + P.foe); });
+    I(A + F.bg); ['prop_fort_fortified', 'prop_fort_breached', 'prop_breach_gate', 'prop_breach_tower', 'prop_breach_barrier'].forEach(n => I(A + 'props/' + n + '.webp')); I(A + 'units/outlaw_brute_front.webp'); I(A + 'units/outlaw_seawitch_front.webp');
+    Object.values(POOLS).forEach(P => { I('assets/' + P.me); I(A + 'units/' + P.foe); }); ['inf', 'archer', 'brute', 'wiz'].forEach(k => { const src = 'assets/' + unitSrc(f, k, true); const im = I(src); if (im) im.onerror = () => MISS.add(src); }); I('assets/' + armyOf(f).hero);
     let last = performance.now();
     const loop = now => { if (!B) return; const dt = Math.min(0.05, (now - last) / 1000); last = now; if (!RC.paused) step(dt); if (B) draw(ctx); if (B && !B.done) raf = requestAnimationFrame(loop); };
     raf = requestAnimationFrame(loop);
@@ -380,7 +382,7 @@
     // (4 + 2 per archer up to 8, +0.5 each after) dps for the 3 s -> 8 archers ~60 HP = ~43% of a 140 HP infantry. The zone is computed once
     // per frame (b.rainZ) and the draw uses the same band, so arrows fall exactly where the damage lands.
     b.rainZ = null;
-    if (b.act.rain > 0 && foes.length) { const front = Math.max(...foes.map(e => e.y)); b.rainZ = [front - 150, front + 20]; const src = { team: 'me', k: 'archer' }; const nA = mine.filter(u => u.k === 'archer').length; const dps = (4 + 2 * Math.min(nA, 8) + 0.5 * Math.max(0, nA - 8)) *   /* diminishing past 8 archers */ (1 + 0.1 * (rc().up.atk || 0)); foes.forEach(e => { if (e.y >= b.rainZ[0] && e.y <= b.rainZ[1]) { if (e.shield > 0) e.shield = Math.max(0, e.shield - 40 * dt); hurt(src, e, dps * dt); } }); }
+    if (b.act.rain > 0 && foes.length) { const front = Math.max(...foes.map(e => e.y)); b.rainZ = [front - 150, front + 20]; const src = { team: 'me', k: 'archer' }; const nA = mine.filter(u => u.k === 'archer').length; const dps = 1.9 * Math.min(nA, 8) *   /* v39.8: 8 archers x 3 s = ~45 dmg (~32% of an infantry's 140 HP); no scaling past 8 */ (1 + 0.1 * (rc().up.atk || 0)); foes.forEach(e => { if (e.y >= b.rainZ[0] && e.y <= b.rainZ[1]) { if (e.shield > 0) e.shield = Math.max(0, e.shield - 40 * dt); hurt(src, e, dps * dt); } }); }
     for (const u of live) {
       u.hitT = Math.max(0, (u.hitT || 0) - dt); u.lunge = Math.max(0, (u.lunge || 0) - dt); u.mv = 0;   // v39.7 anim state
       u.inv = Math.max(0, u.inv - dt); u.blitz = Math.max(0, u.blitz - dt); u.fblitz = Math.max(0, (u.fblitz || 0) - dt); u.t -= dt;
@@ -448,16 +450,18 @@
     if (b.act.rain > 0 && b.rainZ) { { const [z0, z1] = b.rainZ; c.fillStyle = 'rgba(251,191,36,0.10)'; c.fillRect(0, z0, W, z1 - z0); c.lineWidth = 2; for (let i = 0; i < 34; i++) { const x = Math.random() * W, y = z0 + Math.random() * (z1 - z0); c.strokeStyle = '#e2e8f0'; c.beginPath(); c.moveTo(x + 2, y - 7); c.lineTo(x - 2, y + 7); c.stroke(); c.fillStyle = '#f59e0b'; c.fillRect(x + 1, y - 8, 3, 3); } /* v39.5 falling arrows, story-style */ } }
     b.fa.forEach(a => { if (a.k === 'volley' && (a.warn > 0 || a.on > 0)) { const mine = b.units.filter(u => u.team === 'me' && u.hp > 0); if (mine.length) { const fy = Math.min(...mine.map(m => m.y)); c.fillStyle = a.on > 0 ? 'rgba(244,63,94,0.28)' : `rgba(244,63,94,${0.1 + 0.12 * Math.abs(Math.sin(b.t * 8))})`; c.fillRect(0, fy - 14, W, 104);
         if (a.on > 0) { c.lineWidth = 2; for (let i = 0; i < 22; i++) { const x = Math.random() * W, y = fy - 10 + Math.random() * 96; c.strokeStyle = '#fecaca'; c.beginPath(); c.moveTo(x - 2, y - 7); c.lineTo(x + 2, y + 7); c.stroke(); } } } } });
+    { const a = armyOf(b.f), hx = W / 2, hy = H - 34; c.fillStyle = a.col; c.globalAlpha = 0.25; c.beginPath(); c.arc(hx, hy, 26, 0, 7); c.fill(); c.globalAlpha = 1; dr('assets/' + a.hero, hx, hy, 46, 46);   // v39.8 commander (visual only, no combat stats)
+      c.fillStyle = a.col; c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.fillText('\u2691 ' + a.cmd.toUpperCase(), hx, hy - 27); }
     const us = b.units.filter(u => u.hp > 0).sort((p, q) => p.y - q.y);
     for (const u of us) { const P = POOLS[u.k], s = u.k === 'brute' ? 38 : 28;
-      if (u.cap) { const cs = 50; c.fillStyle = 'rgba(251,191,36,0.25)'; c.beginPath(); c.arc(u.x, u.y, cs / 2 + 4, 0, 7); c.fill(); dr(A + 'units/' + (u.k === 'wiz' ? 'rogue_seawitch_front' : 'rogue_brute_front') + '.webp', u.x, u.y, cs, cs); c.fillStyle = '#fbbf24'; c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.fillText('\u265B CAPTAIN', u.x, u.y - cs / 2 - 8); c.fillStyle = '#111'; c.fillRect(u.x - 22, u.y - cs / 2 - 5, 44, 4); c.fillStyle = '#f59e0b'; c.fillRect(u.x - 22, u.y - cs / 2 - 5, 44 * Math.max(0, u.hp / u.max), 4); if (u.shield > 0) { c.fillStyle = 'rgba(167,139,250,0.3)'; c.beginPath(); c.arc(u.x, u.y, cs / 2 + 2, 0, 7); c.fill(); } continue; }
+      if (u.cap) { const cs = 50; c.fillStyle = 'rgba(251,191,36,0.25)'; c.beginPath(); c.arc(u.x, u.y, cs / 2 + 4, 0, 7); c.fill(); dr(A + 'units/' + (u.k === 'wiz' ? 'outlaw_seawitch_front' : 'outlaw_brute_front') + '.webp', u.x, u.y, cs, cs); c.fillStyle = '#fbbf24'; c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.fillText('\u265B CAPTAIN', u.x, u.y - cs / 2 - 8); c.fillStyle = '#111'; c.fillRect(u.x - 22, u.y - cs / 2 - 5, 44, 4); c.fillStyle = '#f59e0b'; c.fillRect(u.x - 22, u.y - cs / 2 - 5, 44 * Math.max(0, u.hp / u.max), 4); if (u.shield > 0) { c.fillStyle = 'rgba(167,139,250,0.3)'; c.beginPath(); c.arc(u.x, u.y, cs / 2 + 2, 0, 7); c.fill(); } continue; }
       if (u.fblitz > 0) { c.fillStyle = 'rgba(248,113,113,0.35)'; c.beginPath(); c.arc(u.x, u.y, s / 2 + 3, 0, 7); c.fill(); }
       // v39.7 animation: walk bob while moving, slow idle breathing otherwise (defenders + units at the wall), attack lunge
       const sd = (u.x * 7 + u.max) % 6.28, L = u.lunge > 0 ? Math.sin((u.lunge / 0.18) * Math.PI) * 6 : 0;
       const ox = L * (u.lx || 0), oy = (u.mv ? -Math.abs(Math.sin(b.t * 11 + sd)) * 3 : Math.sin(b.t * 3 + sd) * 1.2) + L * (u.ly || 0);
       c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(u.x, u.y + s * 0.42, s * 0.32, s * 0.12, 0, 0, 7); c.fill();
       c.strokeStyle = u.team === 'me' ? 'rgba(56,189,248,0.8)' : 'rgba(244,63,94,0.8)'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(u.x, u.y + s * 0.42, s * 0.34, s * 0.14, 0, 0, 7); c.stroke();
-      if (u.team === 'me') dr('assets/' + P.me, u.x + ox, u.y + oy, s, s); else dr(A + 'units/' + P.foe, u.x + ox, u.y + oy, s, s);
+      if (u.team === 'me') { const src = 'assets/' + unitSrc(b.f, u.k, true); if (MISS.has(src) || !(img[src] && img[src].naturalWidth)) { c.filter = armyOf(b.f).tint; dr('assets/' + P.me, u.x + ox, u.y + oy, s, s); c.filter = 'none'; } else dr(src, u.x + ox, u.y + oy, s, s); } else dr(A + 'units/' + P.foe, u.x + ox, u.y + oy, s, s);
       if (u.hitT > 0) { c.globalAlpha = Math.min(0.6, u.hitT * 4.5); c.fillStyle = '#fff'; c.beginPath(); c.arc(u.x + ox, u.y + oy, s * 0.38, 0, 7); c.fill(); c.globalAlpha = 1; }
       if (u.inv > 0) { c.strokeStyle = '#fbbf24'; c.lineWidth = 2; c.beginPath(); c.arc(u.x, u.y, s / 2, 0, 7); c.stroke(); }
       if (u.shield > 0) { c.fillStyle = 'rgba(167,139,250,0.3)'; c.beginPath(); c.arc(u.x, u.y, s / 2 + 2, 0, 7); c.fill(); }
@@ -537,9 +541,24 @@
   const css = document.createElement('style'); css.textContent = '.rc-hl{outline:3px solid #fbbf24!important;outline-offset:2px;animation:rcp 1s infinite}@keyframes rcp{50%{outline-color:#fff}}.rc-wheel::-webkit-scrollbar{display:none}.rc-ann{animation:rca .35s ease-out}@keyframes rca{from{transform:scale(1.6);opacity:0}}';
   document.head.appendChild(css);
   setTimeout(() => { const b = $('btn-reclaim'); if (b) b.remove(); }, 50);   // v39.5 no main-menu button: Reclamation is on the story map
-  // v39.6 tuned balance (sim: tune.js)
-  const TUNE = {"1":{"F":{"hp":10000},"X":{"wave":{"every":20,"max":6,"g":{"inf":3,"archer":1}},"court":{"inf":8,"archer":4},"keep":{"cap":{"k":"brute","hp":2800,"atk":22},"g":{"inf":4}},"vol":5,"time":220,"par":150,"fa":[["volley",35]],"bomb":25}},"2":{"F":{"hp":12000},"X":{"wave":{"every":20,"max":6,"g":{"inf":3,"archer":2}},"court":{"inf":7,"archer":4,"brute":1},"keep":{"cap":{"k":"brute","hp":3800,"atk":34},"g":{"inf":4,"brute":1}},"vol":5,"time":240,"par":160,"fa":[["volley",32],["charge",45]],"bomb":25}},"3":{"F":{"hp":8000,"sc":0.9,"g":{"inf":10,"archer":6,"brute":2,"wiz":1}},"X":{"wave":{"every":22,"max":6,"g":{"inf":3,"archer":2}},"court":{"inf":5,"archer":3,"brute":1},"keep":{"cap":{"k":"wiz","hp":1700,"atk":16},"g":{"archer":1,"brute":1}},"vol":5,"bomb":25,"time":260,"par":85,"fa":[["volley",30],["bombard",40]]}},"4":{"F":{"hp":9000,"sc":0.7,"g":{"inf":15,"archer":9,"brute":4,"wiz":1}},"X":{"wave":{"every":22,"max":7,"g":{"inf":3,"archer":1,"brute":1}},"court":{"inf":6,"archer":6,"brute":2},"keep":{"cap":{"k":"brute","hp":3000,"atk":28},"g":{"inf":4,"brute":2}},"vol":5,"time":290,"par":75,"fa":[["volley",30],["charge",42],["ward",50]],"bomb":25}}};
+  // v39.8 tuned balance (sim: rc_tune.js; Rain ~32% inf HP @8 archers; F3/F4 longer walls, later counters, tougher keep)
+  // v39.8 D6: Reclamation player army per act (data-driven; Reclamation only, story missions untouched).
+  // Each act's commander leads his own army. Sprite = dir + base[k] + suffix + ('_back' for the marching view) + ext.
+  // A missing file falls back to the plain blue unit with a CSS/canvas tint (ARMY.tint).
+  const ARMY = {
+    1: { cmd: 'Felix', army: 'Green Army', col: '#22c55e', tint: 'hue-rotate(-95deg) saturate(1.3)', dir: '', suffix: '_green', ext: '.png',
+         base: { inf: 'knight', archer: 'archer', brute: 'brute', wiz: 'wizard' }, hero: 'felix_boss_back.png', portrait: 'portraits/felix.webp', nexus: 'nexus/nexus_felix_fortress.webp' },
+    2: { cmd: 'Glade', army: 'Yellow Army', col: '#eab308', tint: 'hue-rotate(160deg) saturate(1.4)', dir: '', suffix: '_yellow', ext: '.png',
+         base: { inf: 'knight', archer: 'archer', brute: 'brute', wiz: 'wizard' }, hero: 'glade_boss_back.png', portrait: 'portraits/glade.webp', nexus: 'nexus/nexus_glade_library.webp' },
+    3: { cmd: 'Cline', army: 'Silver Army', col: '#e5e7eb', tint: 'grayscale(0.85) brightness(1.15)', dir: 'npc/army_cline_', suffix: '', ext: '.webp',
+         base: { inf: 'knight', archer: 'archer', brute: 'brute', wiz: 'wizard' }, hero: 'cline_boss.png', portrait: 'portraits/cline.webp', nexus: 'nexus/nexus_highwatch.webp' },
+  };
+  const actOf = f => (FORTS[f] && FORTS[f].act) || 1;
+  const armyOf = f => ARMY[actOf(f)] || ARMY[1];
+  const unitSrc = (f, k, back) => { const a = armyOf(f); return a.dir + a.base[k] + a.suffix + (back ? '_back' : '') + a.ext; };
+  const MISS = new Set();   // sprite paths that failed to load -> tinted blue fallback
+  const TUNE = {"1":{"F":{"hp":10000},"X":{"wave":{"every":20,"max":6,"g":{"inf":3,"archer":1}},"court":{"inf":8,"archer":4},"keep":{"cap":{"k":"brute","hp":2800,"atk":22},"g":{"inf":4}},"vol":5,"time":220,"par":150,"fa":[["volley",35]],"bomb":25}},"2":{"F":{"hp":12000},"X":{"wave":{"every":20,"max":6,"g":{"inf":3,"archer":2}},"court":{"inf":7,"archer":4,"brute":1},"keep":{"cap":{"k":"brute","hp":3800,"atk":34},"g":{"inf":4,"brute":1}},"vol":5,"time":240,"par":160,"fa":[["volley",32],["charge",45]],"bomb":25}},"3":{"F":{"hp":26000,"sc":0.55,"g":{"inf":8,"archer":4,"brute":1,"wiz":1}},"X":{"wave":{"every":22,"max":6,"g":{"inf":3,"archer":2}},"court":{"inf":5,"archer":3,"brute":1},"keep":{"cap":{"k":"wiz","hp":2700,"atk":16},"g":{"archer":1,"brute":1}},"vol":5,"bomb":25,"time":330,"par":85,"fa":[["volley",60],["bombard",80]]}},"4":{"F":{"hp":34000,"sc":0.55,"g":{"inf":15,"archer":9,"brute":4,"wiz":1}},"X":{"wave":{"every":22,"max":7,"g":{"inf":3,"archer":1,"brute":1}},"court":{"inf":6,"archer":6,"brute":2},"keep":{"cap":{"k":"brute","hp":5200,"atk":28},"g":{"inf":4,"brute":2}},"vol":5,"time":360,"par":75,"fa":[["volley",45],["charge",60],["ward",70]],"bomb":25}}};
   for (const f in TUNE) { if (TUNE[f].F) Object.assign(FORTS[f], TUNE[f].F); if (TUNE[f].X) Object.assign(RCX[f], TUNE[f].X); }
   RC.B = () => B;   // test hook
-  RC.FORTS = FORTS; RC.RCX = RCX; RC.unlocked = unlocked; RC.scout = scout; RC.camp = camp; RC.missing = missing;
+  RC.ARMY = ARMY; RC.armyOf = armyOf; RC.unitSrc = unitSrc; RC.MISS = MISS; RC.FORTS = FORTS; RC.RCX = RCX; RC.unlocked = unlocked; RC.scout = scout; RC.camp = camp; RC.missing = missing;
 })();

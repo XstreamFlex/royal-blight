@@ -17,7 +17,7 @@
     window.RB_TITLE = 'Evermarch';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Evermarch BETA v39.7</title>
+  <title>Evermarch BETA v39.8</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -324,7 +324,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.7</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.8</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -2658,7 +2658,7 @@
     // v39.7 Hard openers. Picked per match (window.AI_OPENER forces one in tests); ~70% of Hard games get one.
     const hardOn = cfg => !!cfg.smart && state.mode === 'cpu' && (window.Story && Story.active ? ['hard', 'veryhard'].includes((Story.save() || {}).diff) : state.difficulty === 'hard' || !!state.aiTeams);
     const HARD_OPENERS = {
-      priest:   { hint: 'Scouts report priests and light brutes at the enemy gate.', seq: ['wizards', 'brutes', 'worker', 'worker'] },
+      priest:   { hint: 'Scouts report priests and light brutes at the enemy gate.', seq: ['brutes', 'wizards', 'worker', 'worker'] },   // v39.8: light brute first so it reaches the field early
       archers3: { hint: 'Scouts report three archer companies forming up.', seq: ['archers', 'archers', 'archers'] },
       turret:   { hint: 'Scouts report the enemy is saving for fortifications.', seq: null }
     };
@@ -2675,7 +2675,7 @@
       if (O.seq) {
         if (A.opI >= O.seq.length || A.thinks > 60) { A.opDone = true; return false; }
         if (aiBuy(O.seq[A.opI])) { A.opI++; A.opW = 0; }
-        else if (++A.opW > 8) { A.opI++; A.opW = 0; }   // card unavailable (limit/cap): skip it rather than stall
+        else if (aiGold() >= costOf(T, O.seq[A.opI]) && ++A.opW > 8) { A.opI++; A.opW = 0; }   // card unavailable (limit/cap): skip it rather than stall; v39.8: never skip just for lack of gold
         return true;   // bank for the next scripted card
       }
       // turret bank: grow the economy, keep gold for a turret, drop it on the first push, then counter-push
@@ -2710,8 +2710,13 @@
       // and the scripted openers (priest + light brute / three archers / bank a turret then counter-push)
       if (hardOn(cfg)) {
         const A = AIS[T]; A.thinks = (A.thinks || 0) + 1;
-        if (!A.pushSeen && inHalf.length >= 3) { A.pushSeen = A.thinks; }
-        if (A.pushSeen && AIS[T].turrets < 1 && A.thinks - A.pushSeen < 16) { if (aiBuy('turret')) return; if (g < costOf(T, 'turret') && inHalf.length <= mine.length + 3) return; }
+        // v39.8: fire on the player's FIRST wave crossing midfield (any army unit in our half), and keep banking for the
+        // turret (ahead of the opener) until it lands or the push is gone; previously needed 3 units and gave up after 16 thinks.
+        if (!A.pushSeen && inHalf.length >= 1) { A.pushSeen = A.thinks; }
+        if (A.pushSeen && AIS[T].turrets < 1 && !A.pushTurretDone) {
+          if (aiBuy('turret')) { A.pushTurretDone = A.thinks; return; }
+          if (A.thinks - A.pushSeen < 60 && !(deep && inHalf.length > mine.length + 3)) return;   // bank (even if the push recedes) until the turret is affordable
+        }
         const op = aiOpenerStep(T, cfg, { inHalf, mine, workers, g });
         if (op === true) return;
         if (op === 'eco') { if (workers < Math.min(3, cfg.maxWorkers) && aiBuy('worker')) A.wBought = (A.wBought || 0) + 1; return; }
@@ -4449,7 +4454,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.7';
+    window.APP_VERSION = 'v39.8';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

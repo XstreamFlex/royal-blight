@@ -317,7 +317,7 @@ const MP = (() => {
       k: 's', gt: r1(state.gameTime), w: state.waveCount, wt: r1(state.waveTimer),
       g: [Math.floor(state.blueGold), Math.floor(state.redGold)],
       c: [state.blueCadence, state.redCadence], n: [state.playerNode, state.aiNode], ms: state.mineSel, mq: [mineQueue('blue'), mineQueue('red')],
-      nx: [spawnsAt('blue', state.waveCount + 1), spawnsAt('red', state.waveCount + 1)],
+      nx: [spawnsAt('blue', waveOf('blue') + 1), spawnsAt('red', waveOf('red') + 1)],
       u: state.units.filter(u => !u.dead).map(u => [u.id, UT.indexOf(u.type), u.team === 'blue' ? 0 : 1,
         Math.round(u.x), Math.round(u.y), Math.ceil(u.hp), u.effectiveMaxHp, u.flash > 0 ? 1 : 0, u.radius,
         u.type === 'worker' ? (u.workerState === 'FLEEING' ? 1 : 0) : u.type === 'cavalier' ? (u.chargeDir < 0 ? 1 : 0) : 0, u.carriedGold || 0, u.heroKey || u.variant || 0, u.stunT > 0 ? 1 : 0, u.retreat ? 1 : u.rally ? 2 : 0]),

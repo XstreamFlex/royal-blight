@@ -17,7 +17,8 @@
     window.RB_TITLE = 'Evermarch';
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
-  <title>Evermarch BETA v39.8</title>
+  <script>if (window.Capacitor) document.write('<script src="capacitor-shim.js"><\/script>');</script><!-- Android app only; no-op on web -->
+  <title>Evermarch BETA v39.9</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -324,7 +325,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.8</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.9</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -1061,6 +1062,7 @@
       state.score = { blue: 0, red: 0 };
       state.waveTimer = WAVE_INTERVAL;
       state.waveCount = 1;
+      resetTeamWaves();
       state.blueUpgradeLevel = 0;
       state.redUpgradeLevel = 0;
       state.gameOver = false;
@@ -1200,6 +1202,39 @@
     const DEFAULT_LOADOUT = { pawn: 'sword', archer: 'short', brute: 'base', wizard: 'battle', hero: 'default' };
     function loadoutOf(team) { return Object.assign({}, DEFAULT_LOADOUT, (state.loadout && state.loadout[team]) || {}); }
     function variantOf(team, type) { const slot = SLOT_OF[type]; if (!slot) return null; const k = loadoutOf(team)[slot]; return (VARIANTS[slot][k] && k) || DEFAULT_LOADOUT[slot]; }
+    // ================= v39.9 ARMY_TUNE: per-army balance layer (docs/ARMY_TUNING.md) =================
+    // One line per army. Applied on top of UNIT_STATS (+ loadout variants) in every mode: story, skirmish,
+    // multiplayer, AI and player, and Reclamation (reclaim.js). Unlisted armies = 1.0 everywhere.
+    //   all / melee / ranged / types{unitType}: { spawnTime, moveSpeed, attackSpeed, hp, damage, radius }
+    //   spawnTime  = wave interval multiplier (0.8 = waves 20% sooner);  attackSpeed = attacks per second (1.2 = 20% faster)
+    //   unitsPerPurchase = bodies per bought archer/brute/wizard;  pawnCount = free pawns per wave (base 4)
+    //   Composition: all x role(melee|ranged) x types[type].  spawnTime is army-wide (all) only.
+    const ARMY_TUNE = {
+      rufus: {},
+      felix: { all: { spawnTime: 0.86, moveSpeed: 1.22, attackSpeed: 1.2, hp: 0.8, damage: 0.8 } },
+      glade: { all: { spawnTime: 1.1, moveSpeed: 0.82, attackSpeed: 0.82, hp: 1.3, damage: 1.3 } },
+      cline: { melee: { moveSpeed: 0.82, attackSpeed: 0.82, hp: 1.3, damage: 1.3 }, ranged: { moveSpeed: 1.22, attackSpeed: 1.2, hp: 0.8, damage: 0.8 } },
+      necro: { pawnCount: 6, unitsPerPurchase: 2, types: { pawn: { hp: 0.7, damage: 0.7 }, archer: { hp: 0.52, damage: 0.52, radius: 0.85 }, brute: { hp: 0.52, damage: 0.52, radius: 0.85 }, wizard: { hp: 0.52, damage: 0.52, radius: 0.85 } } },
+    };
+    const TUNE_KEYS = ['spawnTime', 'moveSpeed', 'attackSpeed', 'hp', 'damage', 'radius'];
+    function armyTune(key, type, ranged) {   // multipliers for one unit type of one army (pure; reclaim.js uses it too)
+      const A = ARMY_TUNE[key] || {}, out = {};
+      const parts = [A.all, ranged ? A.ranged : A.melee, A.types && A.types[type]];
+      TUNE_KEYS.forEach(k => { out[k] = 1; parts.forEach(p => { if (p && p[k] !== undefined) out[k] *= p[k]; }); });
+      return out;
+    }
+    window.armyTune = armyTune; window.ARMY_TUNE = ARMY_TUNE;
+    const armyKey = team => (state.leaders && state.leaders[team]) || DEFAULT_LEADER[team];
+    const armyOpt = (team, k, d) => { const A = ARMY_TUNE[armyKey(team)]; return A && A[k] !== undefined ? A[k] : d; };
+    function applyArmy(st, team, type) {
+      if (type === 'worker') return st;
+      const T = armyTune(armyKey(team), type, isRangedType(type)), o = Object.assign({}, st);
+      o.hp = Math.round(st.hp * T.hp); o.atk = st.atk * T.damage; o.speed = st.speed * T.moveSpeed;
+      o.interval = st.interval / T.attackSpeed; o.radius = (st.radius || 15) * T.radius;
+      if (Array.isArray(st.holy)) o.holy = [st.holy[0], st.holy[1] * T.damage];
+      return o;
+    }
+    // =================================================================================================
     function statsFor(type, team) {
       const base = UNIT_STATS[type], vk = variantOf(team, type);
       if (!vk) return base;
@@ -1219,14 +1254,14 @@
 
     function spawnUnit(type, team, lane, back) {
       if (HEROX[type]) {   // v31 roster hero: base unit body + hero stats + ability fields
-        const H = HEROX[type], st = Object.assign({}, UNIT_STATS[H.base], H, { type: H.base, variant: null });
+        const H = HEROX[type], st = applyArmy(Object.assign({}, UNIT_STATS[H.base], H, { type: H.base, variant: null }), team, type);
         const dir = (team === 'blue') ? -1 : 1, y = state.cores[team].y + dir * (70 - back);
         const u = new Unit(Object.assign({ team, lane, x: laneCentreX(lane), y }, st));
         u.heroKey = type; u.hx = H; u.abilT = (H.sweepEvery || H.fearEvery || 0) * 0.5; u.shots = 0;
         if (H.burn) u.burn = H.burn; if (H.splash) u.splash = H.splash;
         state.units.push(u); statsMade(u); return u;
       }
-      const st = statsFor(type, team);
+      const st = applyArmy(statsFor(type, team), team, type);
       const base = state.cores[team];
       const dir = (team === 'blue') ? -1 : 1;           // march direction
       const y = base.y + dir * (70 - back);             // ranged units spawn further back (backline)
@@ -1245,8 +1280,21 @@
     // big brute cadence materialised hundreds of px up the lane at once, and wizards spawned behind the nexus.)
     const CADENCE_EVERY = { archers: 2, wizards: 3, brutes: 3 };
     const ORDER_UNIT = { archers: 'archer', wizards: 'wizard', brutes: 'brute' };
+    // v39.9 per-team wave clocks: each army spawns on its own interval (WAVE_INTERVAL x ARMY_TUNE spawnTime).
+    // The global waveTimer/waveCount stays as the match clock (horn, story, stats); orders use the team's own count.
+    const teamWaveLen = team => WAVE_INTERVAL * armyTune(armyKey(team), null, false).spawnTime;
+    function resetTeamWaves() { state.tw = { blue: { n: 1, t: teamWaveLen('blue') }, red: { n: 1, t: teamWaveLen('red') } }; }
+    // Leaders are chosen after initGame's grace wave: re-time the clocks and fix the grace wave's pawn count.
+    function armyStartFix() {
+      resetTeamWaves();
+      ['blue', 'red'].forEach(team => { const q = state.spawnQ[team], b = (state.pc0 || {})[team], now = armyOpt(team, 'pawnCount', 4); if (!b || b === now) return;
+        const n = q.filter(x => x === 'pawn').length, want = Math.round(n * now / b); state.pc0[team] = now;
+        if (want > n) for (let i = n; i < want; i++) q.unshift('pawn'); else for (let i = n; i > want; i--) q.splice(q.indexOf('pawn'), 1); });
+    }
+    window.armyStartFix = armyStartFix;
+    const waveOf = team => (state.tw ? state.tw[team].n : state.waveCount);
     function addOrder(team, k) {
-      state.orders[team].push({ k, next: state.waveCount + 1, every: CADENCE_EVERY[k] });
+      state.orders[team].push({ k, next: waveOf(team) + 1, every: CADENCE_EVERY[k] });
     }
     // Units of each card joining at wave w (for the HUD and the AI). Guest reads the host's numbers.
     function spawnsAt(team, w) {
@@ -1257,21 +1305,21 @@
       if (cad.hero && !heroAlive(team)) r.hero = 1;
       return r;
     }
-    function triggerWave() {
-      sound.playHorn();
-      ['blue', 'red'].forEach(team => {
-        const q = state.spawnQ[team];
-        { const np = (window.Story && Story.active && Story.pawnsFor) ? Story.pawnsFor(team) : 4; for (let i = 0; i < np; i++) q.push('pawn'); }   // v28: story can throttle pawns (guarded barns)
+    function triggerWave(teams) {
+      if (!teams) sound.playHorn();
+      (teams || ['blue', 'red']).forEach(team => {
+        const q = state.spawnQ[team], tw = state.tw ? state.tw[team].n : state.waveCount, upp = armyOpt(team, 'unitsPerPurchase', 1);
+        { const np0 = (window.Story && Story.active && Story.pawnsFor) ? Story.pawnsFor(team) : 4, np = Math.round(np0 * armyOpt(team, 'pawnCount', 4) / 4); if (!teams) (state.pc0 = state.pc0 || {})[team] = armyOpt(team, 'pawnCount', 4); for (let i = 0; i < np; i++) q.push('pawn'); }   // v28: story can throttle pawns (guarded barns)
         const due = { archers: 0, wizards: 0, brutes: 0 };
-        state.orders[team].forEach(o => { if (o.next === state.waveCount) { due[o.k]++; o.next += o.every; } });
-        for (let i = 0; i < due.brutes; i++) q.push('brute');
+        state.orders[team].forEach(o => { if (o.next === tw) { due[o.k]++; o.next += o.every; } });
+        for (let i = 0; i < due.brutes * upp; i++) q.push('brute');
         const cad = team === 'blue' ? state.blueCadence : state.redCadence;
         if (cad.hero && !heroAlive(team) && !q.includes(heroOf(team))) q.push(heroOf(team));   // hero respawns every wave while dead
-        for (let i = 0; i < due.archers; i++) q.push('archer');
-        for (let i = 0; i < due.wizards; i++) q.push('wizard');
+        for (let i = 0; i < due.archers * upp; i++) q.push('archer');
+        for (let i = 0; i < due.wizards * upp; i++) q.push('wizard');
         if (window.waveHook) window.waveHook(team, due);
       });
-      notify(null, `WAVE ${state.waveCount}!`, '#f59e0b', 24);
+      if (!teams) notify(null, `WAVE ${state.waveCount}!`, '#f59e0b', 24);
     }
     // Release queued units from the gate: 2 per 0.3s (one per flank), centre for brutes/heroes.
     const SPAWN_GAP = 0.3;
@@ -1318,8 +1366,9 @@
       if (state.waveTimer <= 0) {
         state.waveCount++;
         state.waveTimer = WAVE_INTERVAL;
-        triggerWave();
+        if (!state.tw) triggerWave(); else { sound.playHorn(); notify(null, `WAVE ${state.waveCount}!`, '#f59e0b', 24); }
       }
+      if (state.tw) ['blue', 'red'].forEach(team => { const T = state.tw[team]; T.t -= dt; if (T.t <= 0) { T.n++; T.t += teamWaveLen(team); triggerWave([team]); } });
 
       // 3. Smooth Camera Lerp
       state.cameraY += (state.targetCameraY - state.cameraY) * (1 - Math.pow(0.85, (dt / state.timeSpeed) * 60)); // spec lerp 0.15/frame
@@ -1616,6 +1665,21 @@
       createSparks(best.x, best.y, '#86efac', 5); addFloatingText(best.x, best.y - 16, '+' + Math.round(h), '#4ade80', 12);
       return true;
     }
+    // v39.9 global rule: ranged units never walk past the frontmost friendly melee unit in their lane; they hold
+    // RANGED_HOLD px behind it (never pushed back). No friendly melee in the lane = free to advance.
+    const RANGED_HOLD = 30;
+    let _fmT = -1, _fm = {};
+    function frontMelee(team, lane) {
+      if (_fmT !== state.gameTime) { _fmT = state.gameTime; _fm = {}; state.units.forEach(a => {
+        if (a.dead || a.type === 'worker' || a.type === 'cavalier' || isRangedType(a.heroKey || a.type)) return;
+        const k = a.team + a.lane, d = a.team === 'blue' ? -1 : 1, f = _fm[k]; if (!f || (a.y - f.y) * d > 0) _fm[k] = a; }); }
+      return _fm[team + lane];
+    }
+    function rangedHeld(u) {
+      if (u.story || u.boss || !isRangedType(u.heroKey || u.type)) return false;
+      const f = frontMelee(u.team, u.lane); if (!f) return false;
+      return (f.y - u.y) * (u.team === 'blue' ? -1 : 1) < RANGED_HOLD;
+    }
     function updateCombatMinion(u, dt) {
       const spd = u.speed * (u.rally ? HERO_RT.rally : 1) * (u.auraT > 0 ? 1 + u.auraSpd : 1) * (state.decreeT && state.decreeT[u.team] > 0 ? 1 + KING_POWERS.decree.spd : 1) * (rushOn(u.team) ? KING_POWERS.rush.spd : 1) * (wallOn(u.team) && !u.story ? KING_POWERS.shieldwall.spd : 1) * (state.surgeT && state.surgeT[u.team] > 0 ? 1.1 : 1);
       if (u.type !== 'worker' && !u.story && !u.boss && state.orderT && state.orderT[u.team] && state.orderT[u.team].k === 'fallback') {   // v38 Fall Back
@@ -1649,9 +1713,9 @@
             u.attackAnimTimer = 0.22;
           }
         } else {
-          // Close in to attack range
+          // Close in to attack range (v39.9: ranged never step forward past their front melee)
           u.x += (dx / dist) * spd * dt;
-          u.y += (dy / dist) * spd * dt;
+          if (!(dy * (u.team === 'blue' ? -1 : 1) > 0 && rangedHeld(u))) u.y += (dy / dist) * spd * dt;
         }
       } else {
         // March down lane towards enemy citadel
@@ -1668,7 +1732,7 @@
           if (cd > u.range) { u.x += (cdx / cd) * spd * dt; u.y += (cdy / cd) * spd * dt; }
           return;
         }
-        u.y += marchDir * spd * dt;
+        if (!rangedHeld(u)) u.y += marchDir * spd * dt;   // v39.9 ranged hold behind front melee
 
         // Softly anchor back towards assigned track to prevent drifting
         u.x += (laneCentreX(u.lane) + u.laneOffset - u.x) * 2.5 * dt;
@@ -3738,10 +3802,11 @@
 
       // Wave Counter
       document.getElementById('wave-num').textContent = state.waveCount;
-      document.getElementById('wave-progress').style.width = `${(state.waveTimer / WAVE_INTERVAL) * 100}%`;
-      document.getElementById('wave-seconds').textContent = `${Math.ceil(state.waveTimer)}s`;
+      { const tw = state.mode !== 'guest' && state.tw && state.tw[myTeam()], wt = tw ? tw.t : state.waveTimer, wl = tw ? teamWaveLen(myTeam()) : WAVE_INTERVAL;   // v39.9: your army's own spawn clock
+        document.getElementById('wave-progress').style.width = `${Math.max(0, wt / wl) * 100}%`;
+        document.getElementById('wave-seconds').textContent = `${Math.ceil(wt)}s`; }
       {
-        const nx = spawnsAt(myTeam(), state.waveCount + 1);
+        const nx = spawnsAt(myTeam(), waveOf(myTeam()) + 1);
         const ic = { archers: '🏹', wizards: '🔮', brutes: '🛡️', hero: myTeam() === 'blue' ? '🐎' : '💀' };
         const parts = Object.keys(ic).filter(k => nx[k]).map(k => ic[k] + (nx[k] > 1 ? nx[k] : ''));
         document.getElementById('wave-next').textContent = parts.length ? '+' + parts.join('') : 'pawns';
@@ -3790,7 +3855,7 @@
       
       // Badges
       // card badges: count, plus an arrow when that card's units join the very next wave
-      const nxw = spawnsAt(myTeam(), state.waveCount + 1);
+      const nxw = spawnsAt(myTeam(), waveOf(myTeam()) + 1);
       syncBadge('badge-archer', myCadence().archers, nxw.archers);
       syncBadge('badge-wizard', myCadence().wizards, nxw.wizards);
       syncBadge('badge-brute', myCadence().brutes, nxw.brutes);
@@ -3958,7 +4023,7 @@
       } else if (CADENCE_INFO[c.k]) {
         (team === 'blue' ? state.blueCadence : state.redCadence)[c.k]++;
         addOrder(team, c.k);
-        notify(team, CADENCE_INFO[c.k][0] + ' (WAVE ' + (state.waveCount + 1) + ')', CADENCE_INFO[c.k][1]);
+        notify(team, CADENCE_INFO[c.k][0] + ' (WAVE ' + (waveOf(team) + 1) + ')', CADENCE_INFO[c.k][1]);
       } else return false;
       state[gk] -= cost;
       if (team === myTeam()) purchaseSound(c.k);
@@ -4238,6 +4303,7 @@
         if (mode === 'cpu') { state.loadout[foe] = aiPickLoadout(state.difficulty, myLo); state.leaders[foe] = aiPickLeader(foe); }
         if (opts.setup) { const S = opts.setup; if (S.loadout) state.loadout = S.loadout; if (S.leaders) state.leaders = S.leaders; if (S.map) state.map = S.map; }
         if (mode === 'host' && state.peerSetup) { state.loadout[foe] = Object.assign({}, DEFAULT_LOADOUT, state.peerSetup.loadout || {}); state.leaders[foe] = (state.peerSetup.leader || {})[foe] || DEFAULT_LEADER[foe]; }
+        armyStartFix();   // v39.9
         bgCache = null; mapBgKey();
       }
       if (mode === 'cpu' && !opts.mission && SETTINGS.kingPowers && KING_POWERS[SETTINGS.kpPick || 'decree']) setKingPowers({ blue: SETTINGS.kpPick || 'decree', red: SETTINGS.kpPick || 'decree' });   // v31 mirror
@@ -4454,7 +4520,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.8';
+    window.APP_VERSION = 'v39.9';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

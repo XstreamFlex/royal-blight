@@ -275,7 +275,14 @@
     b.units.filter(u => u.team === 'me').forEach(u => u.y = Math.min(u.y, H - 14));
     return b;
   }
-  const mkU = (team, k, x, y, sc) => { const P = POOLS[k]; const hp = P.hp * sc.hp; return { team, k, x, y, hp, max: hp, atk: P.atk * sc.atk, rng: P.rng, spd: P.spd, r: P.r, t: Math.random(), shield: 0, inv: 0, blitz: 0 }; };
+  // v39.9 global rule: ranged units never step past their frontmost friendly melee unit (they hold just behind it)
+  const holdBehind = (u, tgt) => { const dir = u.team === 'me' ? -1 : 1, fwd = (tgt.y - u.y) * dir; if (fwd <= 0) return false;
+    let front = null; for (const m of B.units) if (m.team === u.team && m.hp > 0 && POOLS[m.k].melee && (front === null || (m.y - front) * dir > 0)) front = m.y;
+    return front !== null && (front - u.y) * dir < 14; };
+  const RC_TYPE = { inf: 'pawn', archer: 'archer', brute: 'brute', wiz: 'wizard' };
+  // v39.9 ARMY_TUNE (index.html): the player's commander army (Felix/Glade/Cline) gets its per-army multipliers here too
+  const tuneRC = (team, k) => (team === 'me' && B && window.armyTune) ? window.armyTune(armyOf(B.f).cmd.toLowerCase(), RC_TYPE[k], !POOLS[k].melee) : { hp: 1, damage: 1, moveSpeed: 1, attackSpeed: 1 };
+  const mkU = (team, k, x, y, sc) => { const P = POOLS[k], T = tuneRC(team, k); const hp = P.hp * sc.hp * T.hp; return { team, k, x, y, hp, max: hp, atk: P.atk * sc.atk * T.damage, rng: P.rng, spd: P.spd * T.moveSpeed, as: T.attackSpeed, r: P.r, t: Math.random(), shield: 0, inv: 0, blitz: 0 }; };
   function place(team, k, n, row0, dir) { const b = B, per = 12; for (let i = 0; i < n; i++) { const c = i % per, r = Math.floor(i / per), cnt = Math.min(per, n - r * per);
     b.units.push(mkU(team, k, b.W / 2 + (c - (cnt - 1) / 2) * (b.W * 0.84 / per) + (Math.random() - 0.5) * 6, row0 + dir * r * 20 + (Math.random() - 0.5) * 6, team === 'me' ? b.meSc : b.foeSc)); } }
   function spawnGroup(g, y0) { let y = y0; ['brute', 'inf', 'archer', 'wiz'].forEach(k => { const n = g[k] || 0; if (n) { place('foe', k, n, y, -1); y -= 20 * Math.ceil(n / 12) + 2; } });
@@ -392,14 +399,14 @@
       else for (const e of opp) { const dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < best) { best = dd; tgt = e; } }
       const holding = u.team === 'foe' && !u.fblitz && (!tgt || best > (u.cap ? 140 : 230));
       if (u.team === 'me' && b.ph === 1 && (!tgt || (best > 260 && u.y - b.fortY < 150))) {
-        const dy = u.y - (b.fortY + 30); if (dy > P.rng) { u.y -= P.spd * dt; u.mv = 1; } else if (u.t <= 0 && u.inv <= 0) { u.t = RC.TEMPO; hitFort(u); }
+        const dy = u.y - (b.fortY + 30); if (dy > P.rng) { u.y -= u.spd * dt; u.mv = 1; } else if (u.t <= 0 && u.inv <= 0) { u.t = RC.TEMPO / (u.as || 1); hitFort(u); }
         continue;
       }
       if (!tgt || holding) continue;
       const rng = u.cap ? P.rng + 10 : P.rng;
-      if (best > rng + (P.melee ? tgt.r : 0)) { const sp = P.spd * (u.blitz > 0 ? 2.2 : 1) * (u.fblitz > 0 ? 1.8 : 1); u.x += (tgt.x - u.x) / best * sp * dt; u.y += (tgt.y - u.y) / best * sp * dt; u.mv = 1; }
+      if (best > rng + (P.melee ? tgt.r : 0)) { const sp = (P.melee || !holdBehind(u, tgt) ? 1 : 0) * u.spd * (u.blitz > 0 ? 2.2 : 1) * (u.fblitz > 0 ? 1.8 : 1); u.x += (tgt.x - u.x) / best * sp * dt; u.y += (tgt.y - u.y) / best * sp * dt; u.mv = 1; }
       else if (u.t <= 0 && u.inv <= 0) {
-        u.t = (0.9 + Math.random() * 0.2) * RC.TEMPO; u.lunge = 0.18; u.lx = (tgt.x - u.x) / (best || 1); u.ly = (tgt.y - u.y) / (best || 1);   // v39.7 attack lunge (also on misses)
+        u.t = (0.9 + Math.random() * 0.2) * RC.TEMPO / (u.as || 1); u.lunge = 0.18; u.lx = (tgt.x - u.x) / (best || 1); u.ly = (tgt.y - u.y) / (best || 1);   // v39.7 attack lunge (also on misses)
         if (P.melee && !b.sim && b.fx.length < 80) b.fx.push({ k: 'spark', x: (u.x + tgt.x) / 2, y: (u.y + tgt.y) / 2, t: 0.2, t0: 0.2 });
         if (Math.random() > 0.88) continue;
         if (P.splash || u.cap) { const sp = P.splash || 40; opp.forEach(e => { if (Math.hypot(e.x - tgt.x, e.y - tgt.y) < sp) hurt(u, e, u.atk * (e === tgt ? 1 : 0.6)); }); b.fx.push({ k: 'boom', x: tgt.x, y: tgt.y, t: 0.25 }); }

@@ -421,6 +421,7 @@
       state.loadout.red = Object.assign({}, DEFAULT_LOADOUT, m.act === 2 ? { archer: 'long', wizard: 'priest' } : { brute: 'heavy', pawn: 'shield' }, m.enemyLoadout || {});
       state.leaders.red = m.act === 2 ? 'glade' : 'cline';
       if (m.redCore) { const c = state.cores.red; c.maxHp = Math.round(c.maxHp * m.redCore); c.hp = c.maxHp; } }
+    if (window.armyStartFix) armyStartFix();   // v39.9 ARMY_TUNE: re-time wave clocks for the story leaders
     AIS.red.strat = AIS.red.strat0 = m.ai.strat || 'balanced'; AIS.red.switches = 0;
     state.blueGold = m.gold || 100;
     { const u = upOf(m.region), N = UP.names[m.region];   // v31 region upgrades for this region's battles

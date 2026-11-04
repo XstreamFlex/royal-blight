@@ -18,7 +18,7 @@
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
   <script>if (window.Capacitor) document.write('<script src="capacitor-shim.js"><\/script>');</script><!-- Android app only; no-op on web -->
-  <title>Evermarch BETA v39.9</title>
+  <title>Evermarch BETA </title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -325,7 +325,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.9</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA </span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -929,6 +929,12 @@
       if (u.variant && (VARIANT_ART.has(k + '_' + u.variant + '_' + at) || gm && (VARIANT_ART.has(k + '_' + u.variant + '_blue') || VARIANT_ART.has(k + '_' + u.variant + '_yellow')))) k = k + '_' + u.variant;
       let away = isBottomTeam(u.team);
       if (u.type === 'cavalier' && u.chargeDir < 0) away = !away;   // riding back toward its own side
+      if (u.type === 'worker') {   // v39.10 miners face their screen direction: walking down (toward the player/camera) = front, walking up (away) = back
+        if (u._fy === undefined) u._fy = u.y;
+        const dy = u.y - u._fy;
+        if (Math.abs(dy) > 0.5) { u._face = dy > 0 ? 0 : 1; u._fy = u.y; }
+        if (u._face !== undefined) away = u._face === 1;   // standing still (mining / depositing / queued) keeps the last facing
+      }
       // v25 BUG FIX (old shape graphics on spawn): sprites load lazily, so the first frames of a newly seen
       // variant/back view used to return null and fall through to the old vector drawing. Now walk a fallback
       // chain of real sprites; while any is still loading return PENDING (draw nothing that frame) and only
@@ -4520,7 +4526,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.9';
+    window.APP_VERSION = '';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

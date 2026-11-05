@@ -1690,8 +1690,10 @@
     M.M25.events = null;
     BOSSES.M25 = { name: 'Doom', short: 'DOOM', art: 'nexus_doom', portrait: 'mystery', fort: 'the fallen festival' };   // PLACEHOLDER: Doom sprite with ruby crystal bird crown (Cut)
     REGIONS.southmire.missions = ['M22', 'M23', 'M24', 'M25']; REGIONS.southmire.count = 4;
-    const FB = { A: { tint: { color: '#14532d', alpha: 0.28, blend: 'multiply' }, name: 'EASTMARCH' }, B: { tint: { color: '#713f12', alpha: 0.3, blend: 'multiply' }, name: 'WESTREACH' }, C: { tint: { color: '#1e1b4b', alpha: 0.38, blend: 'multiply' }, name: 'PARADALE' } };
-    const say = (who, txt) => { const ST = S.R && S.R.stage; if (ST) stFire(ST, { lines: [[who, null, txt]], gap: 0.4, priority: 1 }); };
+    const FB = { A: { bg: 'bg_m04_farmland_ashmorning', tint: { color: '#14532d', alpha: 0.22, blend: 'multiply' }, name: 'EASTMARCH' }, B: { bg: 'bg_m14_canals', tint: { color: '#713f12', alpha: 0.22, blend: 'multiply' }, name: 'WESTREACH' }, C: { bg: 'bg_p0_festival', tint: { color: '#1e1b4b', alpha: 0.32, blend: 'multiply' }, name: 'PARADALE' } };
+    M.M25.stage.bg = FB.A.bg;
+    const say = (who, txt) => { const ST = S.R && S.R.stage; if (!ST) return;   // v39.18: at most one taunt waits; a newer one replaces a stale one
+      if (ST.queue) ST.queue = ST.queue.filter(e => !e.fin); stFire(ST, { lines: [[who, null, txt]], gap: 0.4, priority: 1, fin: true }); };
     const tintTo = t => { const ST = S.R && S.R.stage; if (!ST || !ST.tint) return; ST.tintFrom = Object.assign({}, ST.tint); ST.tintTo = t; ST.tintK = 0; };
     const totems = (n, hp) => { const h = Math.round(hp * (BOSS_DIFF[SAVE.diff] || 1)), cr = state.cores.red; const out = [];
       for (let i = 0; i < n; i++) out.push(storyUnit({ type: 'totem', team: 'red', x: LANE_X + (i - (n - 1) / 2) * 80, y: cr.y + 140 + (i % 2) * 30, hp: h, speed: 0, radius: 20, label: 'Necro Totem ' + (i + 1) }));
@@ -1699,8 +1701,15 @@
     const midDialogue = (lines) => { const F = S.R.fin; F.talk = true; state.paused = true; Promise.resolve(S.dialogue(lines, 'M25_m')).then(() => { state.paused = false; F.talk = false; }); };
     const ally = (id, hero, x) => { const R = S.R, cb = state.cores.blue; R.kings = R.kings || {}; const st = Object.assign({}, UNIT_STATS.brute, { type: 'brute', team: 'blue', lane: 'C', x: LANE_X + x, y: cb.y - 100 });
       const u = new Unit(st); u.maxHp = u.hp = Math.round(u.maxHp * 2.8); u.atk = Math.round(u.atk * 1.4); u.hero3 = hero; u.kingAlly = true; state.units.push(u); R.kings[id] = u; toast(hero + ' ARRIVES!', '#4ade80'); };
+    const enterStage = (stg, resumed) => { const R = S.R; S.ckpt = { id: 'M25', stage: stg };   // v39.18 checkpoint: a loss retries this stage
+      S.m.stage.bg = FB[stg].bg; if (resumed) { const ST = R.stage; if (ST && ST.tint) Object.assign(ST.tint, FB[stg].tint); } else tintTo(FB[stg].tint);
+      toast((resumed ? 'CHECKPOINT · ' : '') + 'STAGE ' + stg + ': ' + FB[stg].name, '#fde68a');
+      if (stg !== 'A' && !(R.kings || {}).glade) ally('glade', 'GLADE', -40);
+      if (resumed && !(R.kings || {}).felix) ally('felix', 'FELIX', 30);
+      if (stg === 'C') spawnBoss({ hp: 1500, atk: 38, range: 170, interval: 1.1, speed: 22, y: 300, name: 'Doom' }); };
     S.finaleTick = function (dt) {
       const R = S.R, m = S.m; if (!R || !m.finale) return; const F = R.fin = R.fin || { stage: 'A', t: 0, th: [] }; F.t += dt;
+      if (!F.init) { F.init = 1; const ck = S.ckpt && S.ckpt.id === 'M25' ? S.ckpt.stage : 'A'; if (ck !== 'A') { F.stage = ck; enterStage(ck, true); } else { S.ckpt = { id: 'M25', stage: 'A' }; S.m.stage.bg = FB.A.bg; } }
       if (F.talk) return;
       if (!F.tot && F.stage !== 'C') { F.tot = totems(F.stage === 'A' ? 2 : 3, F.stage === 'A' ? 450 : 520); }
       if (F.clineT && (F.clineT -= dt) <= 0) { F.clineT = 0; say('Rufus', 'Cline… I knew it.'); ally('cline', 'CLINE', 60); ['pawn', 'pawn', 'brute', 'archer'].forEach(t => state.spawnQ.blue.push(t)); setTimeout(() => say('Cline', 'Northcrag answers, Rufus! Silver Army, CHARGE!'), 3500); }
@@ -1710,11 +1719,9 @@
         if (!F.half && left.length <= Math.floor(F.tot.length / 2)) { F.half = 1; say('Doom', F.stage === 'A' ? 'The light realm. One whisper and you turn on each other.' : 'Kings who burn their own fields and their own books. So easy.'); }
         if (!left.length) { createSparks(LANE_X, state.cores.red.y + 150, '#a3e635', 30); state.shake = 0.5;
           say('Rufus', F.stage === 'A' ? 'Totem\'s down! Forward, keep moving!' : 'One more! Paradale\'s next!');
-          F.stage = F.stage === 'A' ? 'B' : 'C'; F.tot = null; F.half = 0; F.t = 0; tintTo(FB[F.stage].tint);
-          state.cores.red.hp = state.cores.red.maxHp;   // a fresh enemy line holds each stage
-          toast('STAGE ' + F.stage + ': ' + FB[F.stage].name, '#fde68a');
-          if (F.stage === 'B' && !(R.kings || {}).glade) ally('glade', 'GLADE', -40);
-          if (F.stage === 'C') { spawnBoss({ hp: 1500, atk: 38, range: 170, interval: 1.1, speed: 22, y: 300, name: 'Doom' }); } }
+          F.stage = F.stage === 'A' ? 'B' : 'C'; F.tot = null; F.half = 0; F.t = 0; enterStage(F.stage, false);
+          const cr0 = state.cores.red; cr0.hp = Math.max(cr0.hp, cr0.maxHp * 0.6);   // v39.18: enemy nexus tops up to 60%, never a full refill
+                  }
         return;
       }
       if (F.stage === 'C') {   // Doom, 3 bars
@@ -1894,6 +1901,7 @@
   const cutSlot0 = key => `<div class="my-2 mx-auto rounded-lg border border-dashed border-amber-500/60 bg-black/60 flex flex-col items-center justify-center text-amber-200/80" style="width:120px;aspect-ratio:9/16" data-cutscene="${key}"><div class="text-2xl">\u{1F3AC}</div><div class="text-[9px] font-bold px-1">Cutscene<br>${esc(key)}<br>(9:16, coming)</div></div>`;
   const beats = lines => lines.map(([who, t]) => `<p class="text-xs text-slate-200 mb-1">${who ? `<b class="text-amber-300">${esc(who)}:</b> ` : ''}<i>${esc(t)}</i></p>`).join('');
   S.openMap = function () {
+    S.ckpt = null;   // v39.18
     $('modal-menu').classList.add('hidden'); $('modal-gameover').classList.add('hidden'); $('modal-story').classList.remove('hidden');
     $('st-purse').textContent = `\u{1FA99} ${SAVE.gold}  \u2B50 XP ${SAVE.xp} (Lv ${level()})`;
     const map = $('st-map');
@@ -2018,6 +2026,7 @@
       ${r.win && RECAP[r.id] ? `<div class="mt-2 border-t border-slate-700 pt-2"><div class="text-[10px] font-black text-amber-300 uppercase">Story so far</div><p class="text-xs text-slate-200 italic">${esc(RECAP[r.id])}</p></div>` : ''}`;
     const k = await showPanel(r.win ? 'Victory!' : 'Defeat', html + (window.matchStatsHtml ? '<div class="mt-2 flex justify-center">' + matchStatsHtml() + '</div>' : ''), [['Retry', 'retry']].concat(won('M07') ? [['\u{1FA99} Shop', 'shop']] : []).concat([['Continue', 'map']]));
     S.quit(); state.started = false; initGame();
+    if (r.win || k !== 'retry') S.ckpt = null;   // v39.18 M25 checkpoint only survives a Retry after a loss
     if (k === 'retry') S.start(r.id); else { S.openMap(); if (k === 'shop') openTreasury(); }
   }
   S.renderHud = function () {
@@ -2215,7 +2224,7 @@
       { id: 'shield', line: 'tut_m07_shield', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 3 }, pause: true }
     ] }
   };
-  S.heroLabel = k => k === 'cavalier' ? (S.m && (S.m.heroTrial || S.m.id === 'M04')) ? 'Garrow\u2019s Outrider' : (won('M06') || (S.m && S.m.id === 'M06' && S.R && Object.values(S.R.obj).some(st => st.cages && st.cages.every(c => c.freed))) ? 'General Garrow' : 'Garrow\u2019s Outrider') : null;
+  S.heroLabel = k => (S.m && S.m.playerNecro) ? 'Death Rider' : k === 'cavalier' ? (S.m && (S.m.heroTrial || S.m.id === 'M04')) ? 'Garrow\u2019s Outrider' : (won('M06') || (S.m && S.m.id === 'M06' && S.R && Object.values(S.R.obj).some(st => st.cages && st.cages.every(c => c.freed))) ? 'General Garrow' : 'Garrow\u2019s Outrider') : null;
   S.TUT = TUT; const TUT_VO = S.TUT_VO = { tut_m05_roster: true, tut_m05_limits: true };
   for (const k in CH23) { const r = CH23[k].roster; if (!r || TUT[k]) continue; TUT_LINES[r[1]] = r[2]; if (r[3]) TUT_VO[r[1]] = true;   // v38.1 roster briefings
     TUT[k] = { steps: [{ id: 'roster', line: r[1], speaker: r[0] === 'Emberquill' ? 'Ember Quill' : r[0], voiced: r[3], roster: true, trigger: { k: 'time', t: 1 }, pause: true }] }; }   // v36.6 Cut's Vesper VO -> assets/vo/<lineId>.m4a

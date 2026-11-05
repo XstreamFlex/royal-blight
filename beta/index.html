@@ -18,7 +18,7 @@
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
   <script>if (window.Capacitor) document.write('<script src="capacitor-shim.js"><\/script>');</script><!-- Android app only; no-op on web -->
-  <title>Evermarch BETA v39.17</title>
+  <title>Evermarch BETA v39.18</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -205,12 +205,10 @@
       <div id="hud-strip" class="w-full rounded-xl bg-slate-950/80 border border-slate-700/80 px-2 py-1 mb-1.5 flex items-center justify-between shadow-inner">
         <!-- Blue King Core Indicator -->
         <div class="flex items-center space-x-1.5">
-          <div class="w-7 h-7 rounded-full bg-gradient-to-b from-blue-500 to-blue-700 border-2 border-yellow-300 flex items-center justify-center shadow-md text-sm">
-            👑
-          </div>
+          <div class="w-7 h-7 rounded-full bg-gradient-to-b from-blue-500 to-blue-700 border-2 border-yellow-300 flex items-center justify-center shadow-md text-sm" id="hud-blue-ico">👑</div>
           <div class="flex flex-col">
-            <div class="flex items-center justify-between text-[10px] font-black text-blue-300 uppercase leading-none">
-              <span>King</span>
+            <div class="flex items-center justify-between gap-1 text-[10px] font-black text-blue-300 uppercase leading-none">
+              <span id="hud-blue-name">King</span>
               <span id="king-hp-num">2500</span>
             </div>
             <div class="w-16 h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-700 mt-0.5">
@@ -325,7 +323,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.17</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.18</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-3 gap-2">
@@ -3826,11 +3824,14 @@
       // Card Dock Availability
       updateCard('btn-buy-worker', myGold() >= 80);
       {   // v30: card icons are the unit's real sprite (army + variant)
-        const me = myTeam(), lo = loadoutOf(me);
+        const me0 = myTeam(), lo = loadoutOf(me0), pn = !!(window.Story && Story.active && Story.m && Story.m.playerNecro && me0 === 'blue');
+        const me = pn ? 'red' : me0;   // v39.18 Act 5: Drevlar's army shows necro cards
+        { const n = document.getElementById('hud-blue-name'), ic = document.getElementById('hud-blue-ico'), want = pn ? 'Drevlar' : 'King';
+          if (n && n.textContent !== want) { n.textContent = want; ic.textContent = pn ? '\u{1F480}' : '\u{1F451}'; } }
         const art = (k, v) => VARIANT_ART.has(k + '_' + v + '_' + me) ? k + '_' + v + '_' + me : k + '_' + me;
         cardIcon('btn-buy-worker', 'worker_' + me); cardIcon('btn-buy-turret', 'turret_' + me);
         cardIcon('icon-archer', art('archer', lo.archer)); cardIcon('icon-brute', art('brute', lo.brute)); cardIcon('icon-wizard', art('wizard', lo.wizard));
-        cardIcon('hero-icon', heroOf(me) + '_' + me);
+        cardIcon('hero-icon', (pn ? 'acolyte' : heroOf(me)) + '_' + me);
       }
       {
         const me = myTeam(), lo = loadoutOf(me);
@@ -4535,7 +4536,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.17';
+    window.APP_VERSION = 'v39.18';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

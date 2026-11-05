@@ -1634,7 +1634,7 @@
     for (const [k, o] of Object.entries(defs)) { o.id = k; M[k] = o; }
     REGIONS.southmire.missions = ['M22', 'M23', 'M24']; REGIONS.southmire.soon = false; REGIONS.southmire.count = 3;
     REGIONS.southmire.cards = [['map:swamp', '\u{1F480}', 'Southmire swamp']];
-    BOSSES.M24 = { name: 'Drevlar', short: 'DREVLAR', art: 'nexus_drevlar', portrait: 'mystery', fort: 'the swamp heart' };   // PLACEHOLDER: Drevlar boss art (no amulet) — reuse nexus_drevlar until Cut delivers
+    BOSSES.M24 = { name: 'Drevlar', short: 'DREVLAR', art: 'drevlar_boss', portrait: 'mystery', fort: 'the swamp heart' };   // PLACEHOLDER: Drevlar boss art (no amulet) — reuse nexus_drevlar until Cut delivers
     Object.assign(PORTRAIT, { Drevlar: 'mystery', Pirate: 'mystery', Outlaw: 'mystery', Brannock: 'cline', Narrator: 'storyteller', Messenger: 'mystery', 'Silver Knight': 'mystery' });
     // Roster briefings (text-only) for Act 4
     for (const k of ['M22', 'M23', 'M24']) {
@@ -1685,10 +1685,9 @@
       ],
       lose: [L('Rufus', 'Hold the line! We go again!')],
       stage: { bg: null, lane: null, overlay: 'fx_ash', tint: { color: '#14532d', alpha: 0.28, blend: 'multiply' }, events: [
-        bark('t>=2', 'Felix', 'Those are my farmers. Their eyes… Don\'t kill them, break the totem!')
       ] } };
     M.M25.events = null;
-    BOSSES.M25 = { name: 'Doom', short: 'DOOM', art: 'nexus_doom', portrait: 'mystery', fort: 'the fallen festival' };   // PLACEHOLDER: Doom sprite with ruby crystal bird crown (Cut)
+    BOSSES.M25 = { name: 'Doom', short: 'DOOM', art: 'doom_boss', portrait: 'mystery', fort: 'the fallen festival' };   // PLACEHOLDER: Doom sprite with ruby crystal bird crown (Cut)
     REGIONS.southmire.missions = ['M22', 'M23', 'M24', 'M25']; REGIONS.southmire.count = 4;
     const FB = { A: { bg: 'bg_m04_farmland_ashmorning', tint: { color: '#14532d', alpha: 0.22, blend: 'multiply' }, name: 'EASTMARCH' }, B: { bg: 'bg_m14_canals', tint: { color: '#713f12', alpha: 0.22, blend: 'multiply' }, name: 'WESTREACH' }, C: { bg: 'bg_p0_festival', tint: { color: '#1e1b4b', alpha: 0.32, blend: 'multiply' }, name: 'PARADALE' } };
     M.M25.stage.bg = FB.A.bg;
@@ -1706,6 +1705,7 @@
       toast((resumed ? 'CHECKPOINT · ' : '') + 'STAGE ' + stg + ': ' + FB[stg].name, '#fde68a');
       if (stg !== 'A' && !(R.kings || {}).glade) ally('glade', 'GLADE', -40);
       if (resumed && !(R.kings || {}).felix) ally('felix', 'FELIX', 30);
+      if (resumed && stg === 'C' && !(R.kings || {}).cline) { ally('cline', 'CLINE', 60); ['pawn', 'pawn', 'brute', 'archer'].forEach(t => state.spawnQ.blue.push(t)); }   // v39.19 Cline already cleared on a resumed C
       if (stg === 'C') spawnBoss({ hp: 1500, atk: 38, range: 170, interval: 1.1, speed: 22, y: 300, name: 'Doom' }); };
     S.finaleTick = function (dt) {
       const R = S.R, m = S.m; if (!R || !m.finale) return; const F = R.fin = R.fin || { stage: 'A', t: 0, th: [] }; F.t += dt;
@@ -1714,6 +1714,7 @@
       if (!F.tot && F.stage !== 'C') { F.tot = totems(F.stage === 'A' ? 2 : 3, F.stage === 'A' ? 450 : 520); }
       if (F.clineT && (F.clineT -= dt) <= 0) { F.clineT = 0; say('Rufus', 'Cline… I knew it.'); ally('cline', 'CLINE', 60); ['pawn', 'pawn', 'brute', 'archer'].forEach(t => state.spawnQ.blue.push(t)); setTimeout(() => say('Cline', 'Northcrag answers, Rufus! Silver Army, CHARGE!'), 3500); }
       if (F.stage === 'A' || F.stage === 'B') {
+        if (F.stage === 'A' && !F.aSaid && F.t > 2) { F.aSaid = 1; say('Felix', 'Those are my farmers. Their eyes… Don\'t kill them, break the totem!'); }   // v39.18+: stage-A only (not on a resumed checkpoint)
         if (F.stage === 'B' && !F.bSaid && F.t > 2) { F.bSaid = 1; say('Glade', 'My own lads, in yellow and white. Hold, I\'m coming for you.'); }
         const left = F.tot.filter(u => !u.dead && u.hp > 0);
         if (!F.half && left.length <= Math.floor(F.tot.length / 2)) { F.half = 1; say('Doom', F.stage === 'A' ? 'The light realm. One whisper and you turn on each other.' : 'Kings who burn their own fields and their own books. So easy.'); }

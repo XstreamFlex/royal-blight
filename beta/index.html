@@ -18,7 +18,7 @@
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
   <script>if (window.Capacitor) document.write('<script src="capacitor-shim.js"><\/script>');</script><!-- Android app only; no-op on web -->
-  <title>Evermarch BETA v39.18</title>
+  <title>Evermarch BETA v39.19</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -323,7 +323,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.18</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.19</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-3 gap-2">
@@ -938,7 +938,7 @@
         return loadSprite(away ? bk + '_back' : bk) || loadSprite(bk) || SPRITE_PENDING; }   // v26 dedicated boss art
       let chain = (away ? [k + '_' + at + '_back', k + '_' + at, base + '_' + at + '_back', base + '_' + at] : [k + '_' + at, base + '_' + at]);
       if (gm) {   // v39.4 Cut's <unit>_yellow art (plain men); Kingdom art + Glade tint only where yellow art is missing
-        const y = chain.map(n => n.replace('_red', '_yellow')); chain = y.concat(chain.map(n => n.replace('_red', '_blue'))); }
+        const y = chain.map(n => n.replace(new RegExp('_' + at + '(?=_back$|$)'), '_yellow')); chain = y.concat(chain.map(n => n.replace('_red', '_blue'))); }   // v39.19: artTeam is 'blue' for Glade's men, so swap whatever team suffix -> _yellow (knight_yellow was never reached)
       if (at === 'green') chain = chain.concat(chain.map(n => n.replace('_green', '_red')));   // red-only heroes (acolyte) keep their art
       chain = chain.concat([base]);
       let pending = false;
@@ -957,7 +957,7 @@
       Object.values(MAPS).forEach(m => loadSprite(m.bg));
       VARIANT_ART.forEach(n => { loadSprite(n); loadSprite(n + '_back'); });
       ['knight','archer','wizard','brute','worker','cavalier'].forEach(k => { loadSprite(k + '_green'); loadSprite(k + '_green_back'); });   // v26 Green Army
-      loadSprite('felix_boss'); loadSprite('felix_boss_back'); loadSprite('barn'); loadSprite('barn_burnt');
+      loadSprite('felix_boss'); loadSprite('felix_boss_back'); ['drevlar_boss', 'drevlar_boss_back', 'doom_boss', 'doom_boss_back', 'knight_yellow', 'knight_yellow_back'].forEach(loadSprite);   // v39.19 approved sprites loadSprite('barn'); loadSprite('barn_burnt');
     }, 300));
     loadSprite('cavalier_blue'); loadSprite('cavalier_blue_back'); loadSprite('acolyte_red'); loadSprite('acolyte_red_back');
     window.addEventListener('load', () => Object.entries(HERO_TYPES).forEach(([t, m]) => Object.values(m).forEach(k => { if (HEROX[k]) { loadSprite(k + '_' + t); loadSprite(k + '_' + t + '_back'); } })));   // v31
@@ -4536,7 +4536,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.18';
+    window.APP_VERSION = 'v39.19';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

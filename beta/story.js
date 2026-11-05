@@ -5,7 +5,7 @@
   'use strict';
   // ------------------------------------------------------------------ SAVE (localStorage, versioned)
   const SAVE_KEY = 'royalBlight.story', SAVE_V = 2;   // v27: v2 = illustrated map + new color rules (mapV)
-  const freshSave = () => ({ rc: cleanRc({}),  v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:short', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2, diff: 'normal', up: {}, power: null, replayStory: false });
+  const freshSave = () => ({ rc: cleanRc({}),  v: SAVE_V, gold: 0, xp: 0, missions: {}, unlocks: ['pawn:sword', 'archer:short', 'worker', 'turret'], seen: [], created: Date.now(), mapV: 2, diff: 'normal', up: {}, power: null, replayStory: false, a3v: 5 });
   function cleanUp(u) {   // v31 region upgrades { region: { mines, walls, barracks, hall } }, 0..3 each
     const o = {}; if (!u || typeof u !== 'object') return o;
     for (const [r, t] of Object.entries(u)) { if (!/^[a-z]{3,12}$/.test(r) || !t) continue; o[r] = {}; for (const k of ['mines', 'walls', 'barracks', 'hall']) o[r][k] = Math.max(0, Math.min(3, t[k] | 0)); }
@@ -23,6 +23,14 @@
       if (!/^[A-Z0-9_]{2,8}$/.test(id) || !m) continue;
       out.missions[id] = { stars: Math.max(0, Math.min(3, m.stars | 0)), wins: Math.max(0, m.wins | 0), plays: Math.max(0, m.plays | 0), best: +m.best || 0, starSet: Array.isArray(m.starSet) ? m.starSet.slice(0, 3).map(Boolean) : [false, false, false] };
     }
+    // v39.13 Act 3 v5 migration: the 8 placeholder Northcrag missions became 5. Old records are kept in legacyA3 (never deleted),
+    // progress is carried to the matching new mission (best of), and M22-M24 are freed for Act 4.
+    if (s.a3v === 5) { out.a3v = 5; if (s.legacyA3 && typeof s.legacyA3 === 'object') out.legacyA3 = s.legacyA3; }
+    else { const OLD2NEW = { M17: 'M17', M18: 'M17', M19: 'M18', M20: 'M19', M21: 'M20', M22: 'M20', M23: 'M20', M24: 'M21' }, old = {};
+      for (const k of Object.keys(OLD2NEW)) if (out.missions[k]) { old[k] = out.missions[k]; delete out.missions[k]; }
+      for (const [k, r] of Object.entries(old)) { const n = OLD2NEW[k], t = out.missions[n] || { stars: 0, wins: 0, plays: 0, best: 0, starSet: [false, false, false] };
+        out.missions[n] = { stars: Math.max(t.stars, r.stars), wins: Math.max(t.wins, r.wins), plays: t.plays + r.plays, best: Math.max(t.best, r.best), starSet: t.starSet.map((b, i) => b || !!r.starSet[i]) }; }
+      if (Object.keys(old).length) out.legacyA3 = old; out.a3v = 5; }
     out.rc = cleanRc(s.rc, out);
     return out;
   }
@@ -430,7 +438,7 @@
     if (m.act >= 2) { AI_LEVELS.story.income *= ({ easy: 0.8, normal: 1, hard: 1.2, veryhard: 1.45 })[SAVE.diff] || 1;   // v38: Act 2+ difficulty curve (Act 1 untouched)
       if (SAVE.diff === 'hard' || SAVE.diff === 'veryhard') AI_LEVELS.story.think = AI_LEVELS[aiBase].think;
       state.loadout.red = Object.assign({}, DEFAULT_LOADOUT, m.act === 2 ? { archer: 'long', wizard: 'priest' } : { brute: 'heavy', pawn: 'shield' }, m.enemyLoadout || {});
-      state.leaders.red = m.act === 2 ? 'glade' : 'cline';
+      state.leaders.red = m.leader || (m.act === 2 ? 'glade' : 'cline');
       if (m.redCore) { const c = state.cores.red; c.maxHp = Math.round(c.maxHp * m.redCore); c.hp = c.maxHp; } }
     if (window.armyStartFix) armyStartFix();   // v39.9 ARMY_TUNE: re-time wave clocks for the story leaders
     AIS.red.strat = AIS.red.strat0 = m.ai.strat || 'balanced'; AIS.red.switches = 0;
@@ -496,6 +504,7 @@
       st.structs = o.structs.map(s => { const bp = pp.find(q => q.bind === 'protect:' + s.name); return storyUnit({ type: 'structure', team: 'blue', x: bp ? bp.x * WORLD_W : (s.x || LANE_X + 70), y: s.y, hp: s.hp || 600, speed: 0, radius: 20, label: s.name }); }); }
     if (o.k === 'vip') { st.u = storyUnit({ type: 'vip', team: 'blue', x: LANE_X, y: state.cores.blue.y - 90, hp: o.hp || 500, speed: o.speed || 18, radius: 15, label: o.name }); const sv = S.m && S.m.stage && (S.m.stage.npcs || []).filter(d => d.spawnAs && d.spawnAs.vip && /^npc_/.test(d.sprite)).pop(); if (sv) st.u.npcSprite = sv.sprite; const sl = S.m.stage && (S.m.stage.npcs || []).find(d => d.spawnAs && d.spawnAs.vip && d.sprite === 'npc_supply_sled'); if (sl) st.u.npcSled = sl.sprite; }   // v39.4 Ruphene rides Cut's sled
     if (o.k === 'survive' || o.k === 'deadline') { st.left = o.secs; }
+    if (o.k === 'spire') { st.u = storyUnit({ type: 'spire', team: 'red', x: LANE_X + 70, y: state.cores.red.y + 110, hp: Math.round(o.hp * (BOSS_DIFF[SAVE.diff] || 1)), speed: 0, radius: 22, label: o.name }); st.u.untargetable = true; st.healT = 3; }   // v39.13 M21 crystal spire
   }
   // v34 THREE-BAR BOSS: each health bar is one phase. When a bar empties the boss flees to his fortress (his nexus),
   // untargetable, heals to full and returns with stronger powers. Only the 3rd bar kills him; then his nexus
@@ -547,6 +556,8 @@
     if (m.redFloor) { const cr = state.cores.red; if (cr.hp < cr.maxHp * m.redFloor) cr.hp = cr.maxHp * m.redFloor; }   // gold mission: the nexus isn't the goal
     if (m.allies && (R.allyT = (R.allyT == null ? 6 : R.allyT) - dt) <= 0) { R.allyT = m.allies.every; m.allies.units.forEach(t => state.spawnQ.blue.push(t)); }   // Garrow's troops (free, AI-driven)
     R.minCoreFrac = Math.min(R.minCoreFrac, cb.hp / cb.maxHp);
+    if (m.brannock && !R.bran && R.t > 2) { const st = Object.assign({}, UNIT_STATS.brute, { type: 'brute', team: 'blue', lane: 'C', x: LANE_X - 24, y: cb.y - 80 }); const u = new Unit(st); u.maxHp = u.hp = Math.round(u.maxHp * 3); u.atk = Math.round(u.atk * 1.5); u.hero3 = 'BRANNOCK'; state.units.push(u); R.bran = u; }   // v39.13 PLACEHOLDER Brannock (blue brute body)
+    if (m.countLost) state.units.forEach(u => { if (u.team === 'blue' && !u.story && (u.dead || u.hp <= 0) && !u._lc) { u._lc = 1; R.lostN = (R.lostN || 0) + 1; } });
     const B = blueArmy(), Rd = redArmy();
     for (const st of Object.values(R.obj)) tickObjective(st, dt, B, Rd);
     if (R.stage) stageTick(dt);
@@ -669,6 +680,11 @@
       if (st.left <= 0) { st.failed = true; toast('THE ENEMY HOST HAS ARRIVED', '#f87171'); }
     } else if (o.k === 'boss') {
       st.done = !!(R.boss && R.boss.dead);
+    } else if (o.k === 'spire') {   // v39.13: heals Cline until he is down to half; then it can be hit
+      const u = st.u, b = R.boss;
+      if (u.dead || u.hp <= 0) { if (!st.done) { st.done = true; R.spireFirst = !(b && b.dead); toast('THE SPIRE SHATTERS!', '#67e8f9'); } return; }
+      if (u.untargetable && b && S.bossFrac() <= 0.5) { u.untargetable = false; toast('THE SPIRE IS EXPOSED! BRING IT DOWN', '#67e8f9'); }
+      if (u.untargetable && b && !b.dead && !b.retreat && (st.healT -= dt) <= 0) { st.healT = 3; b.hp = Math.min(b.maxHp, b.hp + b.maxHp * 0.03); addFloatingText(b.x, b.y - 30, '+HEAL', '#67e8f9', 12); }
     }
   }
   // story-only units (farmers, wagons, structures, cages, VIPs) — called from the unit loop
@@ -725,6 +741,7 @@
     M24: { name: 'Cline', short: 'CLINE', art: 'cline_boss', portrait: 'cline', fort: 'the Light Keeper\u2019s tower' } };
   const bossOf = m => (m && BOSSES[m.id]) || (m && m.act === 2 ? BOSSES.M16 : m && m.act >= 3 ? BOSSES.M24 : BOSSES.M07);
   S.bossOf = bossOf;
+  S.bossFrac = () => { const R = S.R, b = R && R.boss; if (!b) return 1; if (b.dead) return 0; return Math.max(0, ((3 - (R.phase || 1)) * b.maxHp + (b.retreat ? 0 : b.hp)) / (3 * b.maxHp)); };   // v39.13 whole 3-bar boss as 0..1
   const bossWho = () => bossOf(S.m).short;
   function tickBoss(dt) {
     const R = S.R, b = R.boss, cr = state.cores.red;
@@ -767,6 +784,7 @@
     const R = S.R, m = S.m, o = Object.values(R.obj), get = k => o.find(st => st.o.k === k);
     if (!win) return [false, false, false];
     const s = [true, false, false], core = state.cores.blue.hp / state.cores.blue.maxHp;
+    if (m.starFn) { m.starFn(s, R, core, get); return s; }   // v39.13 Act 3 v5
     switch (m.id) {
       case 'P0': s[1] = core > 0.5; s[2] = get('beacons').done; break;
       case 'M01': s[1] = core > 0.5; s[2] = R.t <= m.par; break;
@@ -946,12 +964,16 @@
     if (R.boss && !R.boss.dead) { const cr = state.cores.red; c.strokeStyle = `rgba(74,222,128,${0.5 + 0.3 * Math.sin(now * 3)})`; c.lineWidth = 4; c.beginPath(); c.arc(cr.x, cr.y, 70, 0, Math.PI * 2); c.stroke(); }
     (R.wrecks || []).forEach(w => { const a = 1 - (state.gameTime - w.t) / 8, img = loadSprite('oilwagon_burnt'); if (a > 0 && img) { c.globalAlpha = a; c.drawImage(img, w.x - 34, w.y - 44, 68, 68); c.globalAlpha = 1; } });   // v34 wrecks smoulder, then fade
     if (R.wrecks && R.wrecks.length > 12) R.wrecks.splice(0, R.wrecks.length - 12);
+    if (R.bran && !R.bran.dead) label(c, '\u{1F6E1} BRANNOCK', R.bran.x, R.bran.y - 44);   // v39.13
     // story units
     state.units.forEach(u => {
       if (!u.story || u.dead) return;
       if (u.npcSled) drawNpc(c, { x: u.x, y: u.y + 14, sprite: u.npcSled, anim: 'walk', sc: 1, ph: u.id || 0, flip: false }, now);
       if (u.npcSprite) { drawNpc(c, { x: u.x, y: u.y + 10, sprite: u.npcSprite, anim: 'flee', sc: 1, ph: u.id || 0, flip: false }, now); drawHealthBar(u.x, u.y - u.radius - 24, u.radius * 2, 4, u.hp, u.lagHp, u.maxHp); return; }   // v37 spawnAs
       if (u.type === 'civilian' && (() => { const f = npcFrames(['npc_villager_farmhand', 'npc_villager_man', 'npc_villager_woman'][(u.id || 0) % 3], 'flee')[0]; return f && stImg('npc', f); })()) { const vs = ['npc_villager_farmhand', 'npc_villager_man', 'npc_villager_woman'][(u.id || 0) % 3]; drawNpc(c, { x: u.x, y: u.y + 10, sprite: vs, anim: 'flee', sc: 1, ph: u.id || 0, flip: false }, now); drawHealthBar(u.x, u.y - u.radius - 24, u.radius * 2, 4, u.hp, u.lagHp, u.maxHp); return; }   // v37.4 villager NPC art (was bouncing emoji head)
+      if (u.type === 'spire') { const g = 0.6 + 0.3 * Math.sin(now * 4); c.save(); c.translate(u.x, u.y); c.fillStyle = u.untargetable ? `rgba(103,232,249,${g})` : '#a5f3fc'; c.strokeStyle = '#0e7490'; c.lineWidth = 3;   // PLACEHOLDER crystal spire
+        c.beginPath(); c.moveTo(0, -58); c.lineTo(16, -8); c.lineTo(9, 18); c.lineTo(-9, 18); c.lineTo(-16, -8); c.closePath(); c.fill(); c.stroke(); if (u.untargetable) { c.strokeStyle = `rgba(103,232,249,${g})`; c.beginPath(); c.arc(0, -16, 38, 0, 7); c.stroke(); } c.restore();
+        label(c, '\u{1F48E} CRYSTAL SPIRE' + (u.untargetable ? ' (shielded)' : ''), u.x, u.y - 72); drawHealthBar(u.x, u.y - 64, 44, 4, u.hp, u.lagHp, u.maxHp); return; }
       const icon = { civilian: '\u{1F9D1}\u200D\u{1F33E}', wagon: u.team === 'red' ? '\u{1F6E2}' : '\u{1F6D2}', structure: '\u{1F3DB}', cage: '\u26D3', vip: '\u{1F451}' }[u.type] || '?';
       c.save(); c.translate(u.x, u.y + Math.sin(u.walkAnim) * 1.5);
       if (u.type === 'wagon') {   // v34 oil-wagon art: intact, then burning below half HP
@@ -1061,6 +1083,8 @@
       const i = h.o.zones.findIndex(z => z.name.toLowerCase().startsWith(mm[1].toLowerCase())); return i >= 0 && !!h.owned[i]; }
     if ((mm = /^nexus_hp<=(\d+)(?::(ally|enemy))?$/.exec(on))) { const c = state.cores[mm[2] === 'ally' ? 'blue' : 'red']; return c.hp <= c.maxHp * (+mm[1]) / 100; }
     if ((mm = /^boss_phase:(\d+)$/.exec(on))) return (R.phase || 0) >= +mm[1];
+    if ((mm = /^gate_hp<=(\d+)$/.exec(on))) { const c = state.cores.red; return c.hp <= c.maxHp * (+mm[1]) / 100; }   // v39.13 the gate = enemy nexus
+    if ((mm = /^boss_hp<=(\d+)$/.exec(on))) return !!R.boss && S.bossFrac() * 100 <= +mm[1];
     if ((mm = /^wave:(\d+)$/.exec(on))) return ST.wave >= +mm[1];
     // v38.1 Cut's Act 2/3 triggers
     const ob = k => Object.values(R.obj).find(s => s.o.k === k);
@@ -1421,6 +1445,61 @@
   const VO_LINE = {"m01_garrow_bark1": "m01_garrow_bark1.m4a?be62fd", "m01_rufus_bark1": "m01_rufus_bark1.m4a?5099d7", "P0_b0": "p0_ruphene_01_v2.m4a?v394", "P0_b1": "p0_rufus_01.m4a?b00906", "P0_b2": "p0_ruphene_02.m4a?v394", "P0_b3": "p0_vesper_02.m4a?2d210a", "P0_b4": "p0_garrow_01.m4a?7e7925", "P0_b5": "p0_garrow_02.m4a?601911", "bark_lantern": "p0_ruphene_03_v2.m4a?v394", "bark_lantern_2": "p0_ruphene_04.m4a?v394", "bark_lantern_3": "p0_ruphene_05_v2.m4a?v394", "P0_a0": "p0_vesper_03.m4a?0f41b4", "P0_a1": "p0_rufus_02.m4a?cda406", "prologue_lanterns_l0": "p0_storyteller_04.m4a?051159", "prologue_lanterns_l1": "p0_tobb_01.m4a?90bc3b", "prologue_lanterns_l2": "p0_vesper_01.m4a?f5b24a", "prologue_lanterns_l3": "p0_tobb_02.m4a?392171", "M01_b0": "m01_vesper_01.m4a?050bb5", "M01_b1": "m01_garrow_brief.m4a?4f3991", "M01_a0": "m01_rufus_02.m4a?f8fc22", "M01_a1": "m01_felix_01.m4a?ec7bb8", "M01_a2": "m01_rufus_03.m4a?79254d", "M01_a3": "m01_felix_02.m4a?e9036e", "M02_b0": "m02_rufus_02.m4a?b63d96", "M02_b1": "m02_garrow_02.m4a?dfa0bd", "M02_a0": "m02_farmer_01.m4a?f14da3", "M02_a1": "m02_rufus_03.m4a?8ff55a", "M03_b0": "m03_garrow_01.m4a?d40200", "bark_wagon_in": "m03_felix_01.m4a?63707a", "M03_a0": "m03_rufus_01.m4a?15b168", "M03_a1": "m03_garrow_02.m4a?8f7f67", "M04_b0": "m04_garrow_01.m4a?528b8b", "M04_b1": "m04_vesper_01.m4a?3f4605", "M04_b2": "m04_garrow_02.m4a?8a83cd", "bark_farm_won": "m04_farmer_01.m4a?f6ae59", "bark_farm_lost": "m04_farmer_02.m4a?e3d457", "bark_guard_down": "m04_garrow_03.m4a?7f45d2", "M04_a0": "m04_rufus_01.m4a?e4bf19", "M05_b0": "m05_rufus_02.m4a?d7cc80", "M05_b1": "m05_vesper_01.m4a?7307f9", "M05_b2": "m05_rufus_03.m4a?154949", "M05_a0": "m05_farmer_01.m4a?44faa6", "M05_a1": "m05_rufus_04.m4a?3aaffb", "M06_b0": "m06_vesper_01.m4a?02e150", "M06_b1": "m06_rufus_01.m4a?bba3c8", "M06_b2": "m06_vesper_02.m4a?1d8689", "bark_freed": "m06_garrow_01.m4a?9edeee", "M06_a0": "m06_garrow_02.m4a?2855bd", "M06_a1": "ch1_m06_garrow_somebody.m4a?637301", "M07_b0": "m07_felix_01.m4a?f3dce6", "M07_b1": "m07_rufus_01.m4a?f20ea0", "bark_phase2": "m07_felix_02.m4a?679afe", "bark_phase3": "m07_felix_03.m4a?047a84", "bark_felix_down": "m07_felix_04.m4a?dd7614", "bark_felix_flee": "m07_felix_05.m4a?7bd2cb", "M07_a0": "m07_felix_06.m4a?1d34f8", "M07_a1": "m07_rufus_02.m4a?2c6d1b", "M07_a2": "m07_vesper_01.m4a?7b3884", "M07_a3": "m07_garrow_01.m4a?5445f0", "M07_a4": "m07_felix_07.m4a?4d38dc", "M07_a5": "m07_vesper_02.m4a?d07eeb", "bark_reinf": "ch1_global_ruphene_01.m4a?v394", "M01_b2": "m01_rufus_01.m4a?f2cb1e", "M05_a2": "ch1_m05_vesper_beacon.m4a?8979d2", "M06_a2": "m06_garrow_03.m4a?9d5470", "P0_a2": "p0_garrow_05.m4a?e87c1c", "M08_a4": "m08_a4_rufus.m4a?97f6b7", "M08_a5": "m08_a5_garrow.m4a?c8bf7d", "M09_a3": "m09_a3_scholar.m4a?a09545", "M10_a4": "m10_a4_rufus.m4a?b435ff", "M11_a3": "m11_a3_scholar.m4a?eb434a", "M11_a4": "m11_a4_vesper.m4a?d655b6", "M13_a3": "m13_a3_garrow.m4a?caaca9", "M15_a3": "m15_a3_emberquill.m4a?0996e6", "M16_a7": "m16_a7_glade.m4a?3a4ede", "M16_a8": "m16_a8_rufus.m4a?440742"};
   Object.assign(VO_LINE, {"tut_m08_roster": "tut_m08_roster.m4a?v381", "M08_b0": "m08_b0_storyteller.m4a?v381", "M08_b1": "m08_b1_rufus.m4a?v381", "M08_b2": "m08_b2_ruphene_v2.m4a?v394", "M08_b3": "m08_b3_rufus.m4a?v381", "M08_b4": "m08_b4_ruphene_v2.m4a?v394", "M08_b5": "m08_b5_garrow.m4a?v381", "M08_a0": "m08_a0_rufus.m4a?v381", "M08_a1": "m08_a1_felix.m4a?v381", "M08_a2": "m08_a2_vesper.m4a?v381", "M08_a3": "m08_a3_vesper.m4a?v381", "M08_l0": "m08_l0_garrow.m4a?v381", "m08_garrow_bark1": "m08_garrow_bark1.m4a?v381", "m08_glade_bark1": "m08_glade_bark1.m4a?v381", "tut_m09_roster": "tut_m09_roster_v2.m4a?v394", "M09_b0": "m09_b0_vesper.m4a?v381", "M09_b1": "m09_b1_garrow.m4a?v381", "M09_b2": "m09_b2_ruphene_v2.m4a?v394", "M09_b3": "m09_b3_rufus.m4a?v381", "M09_a0": "m09_a0_scholar.m4a?v381", "M09_a1": "m09_a1_ruphene_v2.m4a?v394", "M09_a2": "m09_a2_rufus.m4a?v381", "M09_l0": "m09_l0_garrow.m4a?v381", "m09_scholar_bark1": "m09_scholar_bark1.m4a?v381", "m09_scholar_bark2": "m09_scholar_bark2.m4a?v381", "tut_m10_roster": "tut_m10_roster.m4a?v381", "M10_b0": "m10_b0_glade.m4a?v381", "M10_b1": "m10_b1_ruphene_v2.m4a?v394", "M10_b2": "m10_b2_garrow.m4a?v381", "M10_b3": "m10_b3_rufus.m4a?v381", "M10_a0": "m10_a0_rufus.m4a?v381", "M10_a1": "m10_a1_garrow.m4a?v381", "M10_a2": "m10_a2_tobb.m4a?v381", "M10_a3": "m10_a3_rufus.m4a?v381", "M10_l0": "m10_l0_ruphene_v2.m4a?v394", "m10_ruphene_bark1": "m10_ruphene_bark1_v2.m4a?v394", "tut_m11_roster": "tut_m11_roster.m4a?v381", "M11_b0": "m11_b0_vesper.m4a?v381", "M11_b1": "m11_b1_ruphene_v2.m4a?v394", "M11_b2": "m11_b2_rufus.m4a?v381", "M11_a0": "m11_a0_ruphene_v2.m4a?v394", "M11_a1": "m11_a1_scholar.m4a?v381", "M11_a2": "m11_a2_vesper.m4a?v381", "M11_l0": "m11_l0_rufus.m4a?v381", "m11_garrow_bark1": "m11_garrow_bark1.m4a?v381", "m11_vesper_bark1": "m11_vesper_bark1.m4a?v381", "tut_m12_roster": "tut_m12_roster.m4a?v381", "M12_b0": "m12_b0_ruphene_v2.m4a?v394", "M12_b1": "m12_b1_rufus.m4a?v381", "M12_b2": "m12_b2_garrow.m4a?v381", "M12_b3": "m12_b3_rufus.m4a?v381", "M12_a0": "m12_a0_ruphene_v2.m4a?v394", "M12_a1": "m12_a1_rufus.m4a?v381", "M12_a2": "m12_a2_vesper.m4a?v381", "M12_a3": "m12_a3_rufus.m4a?v381", "M12_l0": "m12_l0_garrow.m4a?v381", "m12_ruphene_bark1": "m12_ruphene_bark1_v2.m4a?v394", "tut_m13_roster": "tut_m13_roster.m4a?v381", "M13_b0": "m13_b0_rufus.m4a?v381", "M13_b1": "m13_b1_ruphene_v2.m4a?v394", "M13_b2": "m13_b2_garrow.m4a?v381", "M13_b3": "m13_b3_ruphene_v2.m4a?v394", "M13_a0": "m13_a0_garrow.m4a?v381", "M13_a1": "m13_a1_ruphene_v2.m4a?v394", "M13_a2": "m13_a2_rufus.m4a?v381", "M13_l0": "m13_l0_ruphene_v2.m4a?v394", "m13_garrow_bark1": "m13_garrow_bark1.m4a?v381", "tut_m14_roster": "tut_m14_roster.m4a?v381", "M14_b0": "m14_b0_glade.m4a?v381", "M14_b1": "m14_b1_vesper.m4a?v381", "M14_b2": "m14_b2_rufus.m4a?v381", "M14_b3": "m14_b3_garrow.m4a?v381", "M14_a0": "m14_a0_ruphene_v2.m4a?v394", "M14_a1": "m14_a1_vesper.m4a?v381", "M14_a2": "m14_a2_rufus.m4a?v381", "M14_l0": "m14_l0_garrow.m4a?v381", "m14_garrow_bark1": "m14_garrow_bark1.m4a?v381", "m14_ruphene_bark1": "m14_ruphene_bark1_v2.m4a?v394", "tut_m15_roster": "tut_m15_roster.m4a?v381", "M15_b0": "m15_b0_emberquill.m4a?v381", "M15_b1": "m15_b1_rufus.m4a?v381", "M15_b2": "m15_b2_emberquill.m4a?v381", "M15_a0": "m15_a0_emberquill.m4a?v381", "M15_a1": "m15_a1_rufus.m4a?v381", "M15_a2": "m15_a2_emberquill.m4a?v381", "M15_l0": "m15_l0_emberquill.m4a?v381", "m15_tam_bark1": "m15_tam_bark1.m4a?v381", "m15_emberquill_bark1": "m15_emberquill_bark1.m4a?v381", "tut_m16_roster": "tut_m16_roster.m4a?v381", "M16_b0": "m16_b0_glade.m4a?v381", "M16_b1": "m16_b1_rufus.m4a?v381", "M16_b2": "m16_b2_glade.m4a?v381", "M16_b3": "m16_b3_ruphene_v2.m4a?v394", "M16_a0": "m16_a0_glade.m4a?v381", "M16_a1": "m16_a1_rufus.m4a?v381", "M16_a2": "m16_a2_glade.m4a?v381", "M16_a3": "m16_a3_vesper.m4a?v381", "M16_a4": "m16_a4_emberquill.m4a?v381", "M16_a5": "m16_a5_ruphene_v2.m4a?v394", "M16_a6": "m16_a6_rufus.m4a?v381", "M16_l0": "m16_l0_glade.m4a?v381", "m16_glade_bark1": "m16_glade_bark1.m4a?v381", "m16_glade_bark2": "m16_glade_bark2.m4a?v381"});   // v38.1 Act 2 VO (M16_a7 + Act 3 text-only)
   Object.assign(VO_LINE, {"M22_a0": "m22_a0_ruphene.m4a?v394", "M22_a2": "m22_a2_ruphene.m4a?v394", "M22_a3": "m22_a3_ruphene.m4a?v394", "M22_b2": "m22_b2_ruphene.m4a?v394", "M22_b4": "m22_b4_ruphene.m4a?v394", "m22_ruphene_bark1": "m22_ruphene_bark1_ruphene.m4a?v394", "M23_a1": "m23_a1_ruphene.m4a?v394", "M24_a0": "m24_a0_ruphene.m4a?v394", "M24_b1": "m24_b1_ruphene.m4a?v394", "M24_l0": "m24_l0_ruphene.m4a?v394"});   // v39.4 Ruphene RB3 Act 3 lines
+
+  // ------------------------------------------------------------------ v39.13 ACT 3 v5 (Northcrag, Cut's FINAL v5 script + Nov 4 fixes)
+  // Replaces the v38 skeleton (M17-M24). Old data is kept untouched in CH23/ST23 above and copied to S.LEGACY_ACT3 + docs/legacy_act3_v38.json.
+  // TEXT-ONLY: new lines carry an explicit VO key; '' = silent. An old clip is reused only when its text is identical.
+  {
+    const A3V5 = {"M17": {"brief": "Act 3. Someone has walled off the mountain pass from Paradale. Break the gate and find out why.", "roster": ["Garrow", "Brutes on the gate, archers on the wall. Keep the shields up front."], "before": [["§", "THE NORTHCRAG GATE|Placeholder card (cutscene ch3_m17_gate). A raw timber wall across the mountain road, silver banners on top.", ""], ["Storyteller", "Act Three. Northcrag. The road from Paradale climbs into the snow, and this winter, someone has built a gate across it.", "M17_b0"], ["Rufus", "Cline taught me to ride on this road. He said if I fell off, the mountain would keep me.", "M17_b1"], ["Ruphene", "That's new. He never said anything about a gate. He never says anything anymore.", "M17_b2"], ["Garrow", "Silver banners on the wall, Majesty. Those are Cline's own men.", "M17_b3"], ["Rufus", "Then we knock. Loudly.", "M17_b4"]], "after": [["Emberquill", "That gate went up in a hurry. Green timber, still wet. Whoever built it was afraid of something.", "M17_a0"], ["Rufus", "Afraid of us?", "M17_a1"], ["Emberquill", "Or afraid for you. Let's find out which.", "M17_a2"]], "lose": [["Garrow", "Back from the wall! Regroup down the road!", "M17_l0"]], "barks": [["time:10", "Silver Knight", "m17_silver_bark1", "Turn back! The pass is closed by order of the Light Keeper!"], ["gate_hp<=50", "Rufus", "m17_rufus_bark1", "It's cracking! Keep at it!"]]}, "M18": {"brief": "Cline's soldiers are holding the pass against you. They don't look tainted. Push through.", "roster": ["Garrow", "They're good soldiers, lad. Shields in front, archers behind."], "before": [["Vesper", "No glow in their eyes, Majesty. These men aren't amulet-bound. They're just following orders.", "M18_b0"], ["Rufus", "Then go easy where you can. They're Cline's men.", "M18_b1"]], "after": [["Rufus", "They kept saying it isn't safe. Not \"go home.\" Not safe.", "M18_a0"], ["Garrow", "He's still in there somewhere, lad. Same as the others.", "M18_a1"]], "lose": [["Garrow", "Fall back to the gate!", "M18_l0"]], "barks": [["wave:1", "Silver Knight", "m18_silver_bark1", "Stay back! We are ordered to keep everyone out!"], ["wave:3", "Silver Knight", "m18_silver_bark2", "It's not safe!"], ["nexus_hp<=50:enemy", "Garrow", "m18_garrow_bark1", "Not safe for who?"]]}, "M19": {"brief": "A Silver Army outpost is under attack by the dead. Help them hold.", "roster": ["Garrow", "Survive. Your allies fight beside you. Don't let them fall."], "before": [["§", "COMMANDER BRANNOCK|Placeholder card (cutscene ch3_m19_commander). A silver outpost under siege by the dead.", ""], ["Brannock", "Paradale colours. Thank the mountain. You came.", "M19_b0"], ["Rufus", "Your men have been trying to kill us since the gate.", "M19_b1"], ["Brannock", "Keeping you out, Majesty. Orders. There's worse than us on this mountain.", "M19_b2"], ["Brannock", "Cline and I thought no one was coming. We haven't received a bird back since the shadow realm started attacking.", "M19_b3"], ["Vesper", "I sent birds every week. Every single week.", "M19_b4"]], "after": [["Rufus", "Where's Cline?", "M19_a0"], ["Brannock", "This means Cline is trapped in the furthest north fort.", "M19_a1"], ["Brannock", "The switchbacks are the only way up. They'll be crawling with them.", "M19_a2"], ["Ruphene", "Then we go up the switchbacks.", "M19_a3"]], "lose": [["Brannock", "Inside the walls! Everyone inside!", "M19_l0"]], "barks": [["wave:2", "Brannock", "m19_brannock_bark1", "Silver, with Paradale! Hold the wall!"], ["time:120", "Rufus", "m19_rufus_bark1", "Almost there! Hold!"]]}, "M20": {"brief": "Fight up the switchbacks with Commander Brannock. The dead hold every turn.", "roster": ["Garrow", "They hold the high ground. Archers and longbows to the front."], "before": [["Brannock", "Six turns to the top. They'll drop on us from every one.", "M20_b0"], ["Garrow", "Then we take them one at a time, lad.", "M20_b1"]], "after": [["Brannock", "The fort's just over the ridge. Majesty, what you see in there... he's still Cline. Remember that.", "M20_a0"], ["Rufus", "I know.", "M20_a1"]], "lose": [["Garrow", "Too steep! Back down the slope.", "M20_l0"]], "barks": [["wave:2", "Brannock", "m20_brannock_bark1", "Watch the upper turn!"], ["nexus_hp<=50:enemy", "Garrow", "m20_garrow_bark1", "Halfway! Keep climbing!"]]}, "M21": {"brief": "Cline is being turned by the crystal behind him. Beat him, then shatter the spire.", "roster": ["Garrow", "Everything you've got. Cline first, then the crystal."], "before": [["§", "THE LIGHT KEEPER|Placeholder card (cutscene ch3_m21_intro). Cline stands before a pulsing crystal spire, half his face gone grey.", ""], ["Rufus", "Cline... half his face...", "M21_b0"], ["Emberquill", "The crystal behind him. It's feeding on him. Look at it pulse.", "M21_b1"], ["Cline", "Rufus? No... RUN. It's using my hands, Rufus. RUN!", "M21_b2"], ["Rufus", "Cline, you held me on that horse when I was six. Hold on one more time.", "M21_b3"]], "after": [["§", "THE CURE|Placeholder card (cutscene ch3_m21_cure). The spire shatters. Emberquill opens the book from the library fire.", ""], ["Emberquill", "Hold him still. This book came out of the library fire for a reason.", "M21_a0"], ["Emberquill", "It was written to make the dead. Read backwards, it unmakes them. I hope.", "M21_a1"], ["Cline", "I held out as long as I could. I thought you had forgotten about me.", "M21_a2"], ["Rufus", "Never.", "M21_a3"], ["Rufus", "The amulet. What did the note say? The one that came with it.", "M21_a4"], ["Cline", "The amulet showed up with a note, all it said was \"this will help.\" In handwriting that almost looked like Rufus's, but his fat hands could never write that small. So I never wore it, it's been on my desk playing tricks on my mind ever since.", "M21_a5"], ["Cline", "But just having it near me... I wanted to join them. To march them to Paradale.", "M21_a6"], ["Ruphene", "Cline! What is this? What have you done?", "M21_a7"], ["Rufus", "(reading) A shadow-realm commander takes an army through the southern swamps. Hits Paradale from the south while Cline marches from the north.", "M21_a8"], ["Cline", "I thought it was a dream. I don't know what is real.", "M21_a9"], ["Ruphene", "We can fix this. I'm so sorry you had to go through all this alone, Cline.", "M21_a10"], ["Garrow", "Majesty, if that's real, Paradale's open from the south.", "M21_a11"], ["§", "THE SCREAM|Placeholder card (cutscene ch3_m21_scream). A scream from outside. Vesper’s birds scatter into the snow.", ""], ["Vesper", "Rufus, help! (distant, off-screen)", "M21_a12"], ["Rufus", "Vesper? VESPER!", "M21_a13"], ["Garrow", "She was right here. Her birds, her bag. She's gone, lad.", "M21_a14"], ["Storyteller", "And so the light came back to Northcrag. But someone had been listening all along. And by morning, the south was moving.", "M21_a15"]], "lose": [["Garrow", "Back! Back down the ridge!", "M21_l0"]], "barks": [["boss_hp<=75", "Cline", "m21_cline_bark1", "I can't stop it! It won't let me stop!"], ["boss_hp<=50", "Cline", "m21_cline_bark2", "Break it, Rufus! The crystal! Break it!"], ["boss_hp<=50", "Brannock", "m21_brannock_bark1", "The spire! Bring it down!"]]}};
+    const old = {}; ['M17', 'M18', 'M19', 'M20', 'M21', 'M22', 'M23', 'M24'].forEach(k => { old[k] = JSON.parse(JSON.stringify(Object.assign({}, M[k], { stage: M[k].stage }))); });
+    ['M17', 'M18', 'M19', 'M20', 'M21', 'M22', 'M23', 'M24'].forEach(k => { if (CH23[k]) old[k].roster = CH23[k].roster; });
+    S.LEGACY_ACT3 = old;
+    ['M17', 'M18', 'M19', 'M20', 'M21'].forEach(k => { const r = A3V5[k].roster; if (r && CH23[k]) CH23[k].roster = [r[0], 'tut_' + k.toLowerCase() + '_roster', r[1], false]; });   // text-only roster briefings
+    const norm = t => String(t || '').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"').replace(/\u2014/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+    const voByText = {};   // identical old text -> its recorded clip key
+    for (const [k, m] of Object.entries(old)) {
+      [['before', '_b'], ['after', '_a'], ['lose', '_l']].forEach(([sec, p]) => (m[sec] || []).filter(l => l && l[1]).forEach((l, i) => { if (VO_LINE[k + p + i]) voByText[norm(l[1])] = k + p + i; }));
+      ((m.stage && m.stage.events) || []).forEach(ev => (ev.lines || []).forEach(l => { if (l[1] && VO_LINE[l[1]]) voByText[norm(l[2])] = l[1]; }));
+    }
+    S.A3_REUSED_VO = [];
+    const vo = (t, id) => { const k = voByText[norm(t)]; if (k) S.A3_REUSED_VO.push(id + '<-' + k); return k || ''; };
+    const lines = L => L.map(([w, t, id]) => [w, t, w === '\u00A7' ? '' : vo(t, id)]);
+    const bark = b => ({ on: b[0], once: true, lines: [[b[1], vo(b[3], b[2]) || null, b[3]]], gap: 0.4, pause: false });
+    const SNOW = { bg: 'bg_northcrag_pass', lane: 'lane_snow_cobble', overlay: 'fx_ash' };
+    const GATE = { enemy: { sprite: 'nexus_highwatch', states: ['normal', 'lantern_lit'], defeat: { mode: 'transform', to: 'lantern_lit' } } };   // PLACEHOLDER for prop_northcrag_gate
+    const RUF = { id: 'rufus', sprite: 'npc_rufus_torch', at: 'ally_nexus', dx: 100, scale: 2 };
+    const RUPH = { id: 'ruphene', sprite: 'npc_ruphene_cline_cloak', at: 'ally_nexus', dx: -100, scale: 2 };
+    const stage = (k, o) => Object.assign({}, SNOW, o, { events: A3V5[k].barks.map(bark) });
+    const defs = {
+      M17: { name: 'The Northcrag Gate', type: 'BREACH', needs: 'M16', redCore: 0.85, stars: ['Win the mission', 'Break the gate before 3:00', 'Nexus never below 75%'],
+        starFn: (s, R) => { s[1] = R.t <= 180; s[2] = R.minCoreFrac >= 0.75; },
+        stage: stage('M17', { tint: { color: '#93c5fd', alpha: 0.14, blend: 'multiply' }, nexus: GATE, npcs: [RUPH, RUF],
+          props: [{ id: 'banner1', sprite: 'prop_silver_banner', x: 0.1, y: 0.3, w: 50, states: ['silver', 'blue'], state: 'silver' }, { id: 'stumps', sprite: 'prop_pine_stumps', x: 0.9, y: 0.6, w: 60, states: ['normal'] }] }) },
+      M18: { name: 'Stay Back', type: 'STANDARD', countLost: true, stars: ['Win the mission', 'Lose no more than 5 units', 'Nexus never below 50%'],
+        starFn: (s, R) => { s[1] = (R.lostN || 0) <= 5; s[2] = R.minCoreFrac >= 0.5; },
+        stage: stage('M18', { tint: { color: '#93c5fd', alpha: 0.18, blend: 'multiply' }, nexus: GATE, npcs: [RUPH, RUF], props: [] }) },
+      M19: { name: 'Not Alone', type: 'SURVIVE', leader: 'necro', brannock: true, allies: { every: 24, units: ['pawn', 'pawn', 'archer'] }, objectives: [{ k: 'survive', secs: 180, reinforce: [] }],
+        stars: ['Survive 3:00', 'Brannock\u2019s squad survives', 'Nexus never below 50%'],
+        starFn: (s, R) => { s[1] = !!(R.bran && !R.bran.dead); s[2] = R.minCoreFrac >= 0.5; },
+        stage: stage('M19', { tint: { color: '#1e293b', alpha: 0.3, blend: 'multiply' }, npcs: [RUF, { id: 'brannock', sprite: 'army_cline_knight', at: 'ally_nexus', dx: -100, scale: 2 }], props: [] }) },
+      M20: { name: 'The Switchbacks', type: 'STANDARD', leader: 'necro', brannock: true, redCore: 1.3, stars: ['Win the mission', 'Brannock survives', 'Win in under 4:00'],
+        starFn: (s, R) => { s[1] = !!(R.bran && !R.bran.dead); s[2] = R.t < 240; },
+        stage: stage('M20', { tint: { color: '#1e293b', alpha: 0.3, blend: 'multiply' }, npcs: [RUPH, RUF], props: [{ id: 'stumps', sprite: 'prop_pine_stumps', x: 0.12, y: 0.45, w: 60, states: ['normal'] }, { id: 'stumps2', sprite: 'prop_pine_stumps', x: 0.88, y: 0.7, w: 60, states: ['normal'] }] }) },
+      M21: { name: 'BOSS: The Light Keeper', type: 'BOSS', final: true, reward: ['G5', 'X3'], unlock: ['region:northcrag'], brannock: true, redFloor: 0.05,
+        boss: { hp: 1300, atk: 34, range: 170, interval: 1.15, speed: 24, y: 300, name: 'Cline' },
+        objectives: [{ k: 'boss', name: 'Cline' }, { k: 'spire', hp: 900, name: 'Crystal Spire' }],
+        stars: ['Win the mission', 'Destroy the spire before Cline falls', 'Nexus never below 50%'],
+        starFn: (s, R) => { s[1] = !!R.spireFirst; s[2] = R.minCoreFrac >= 0.5; },
+        stage: stage('M21', { bg: 'bg_act3_northcrag_keep', tint: { color: '#1e1b4b', alpha: 0.28, blend: 'multiply' }, nexus: GATE, npcs: [RUPH, RUF], props: [] }) }
+    };
+    for (const [k, o] of Object.entries(defs)) {
+      const v = A3V5[k];
+      M[k] = Object.assign(a3({ id: k }), o, { id: k, brief: v.brief, before: lines(v.before), after: lines(v.after), lose: lines(v.lose), rosterLine: v.roster, a3v: 5 });
+    }
+    delete M.M22; delete M.M23; delete M.M24;   // those IDs belong to Act 4 (Southmire) from v39.15
+    REGIONS.northcrag.missions = ['M17', 'M18', 'M19', 'M20', 'M21']; REGIONS.northcrag.skeleton = false;
+    BOSSES.M21 = { name: 'Cline', short: 'CLINE', art: 'cline_boss', portrait: 'cline', fort: 'the Light Keeper\u2019s tower' };   // PLACEHOLDER: half-lich Cline art
+  }
   fetch('assets/vo/index.json').then(r => r.json()).then(j => VO = j).catch(() => {});
   S.voMuted = () => localStorage.getItem('rb.voMute') === '1';
   S.setVoMute = m => { localStorage.setItem('rb.voMute', m ? '1' : '0'); if (m) S.voStop(0); };
@@ -1447,8 +1526,11 @@
       const show = () => {
         clearTimeout(t);
         if (i >= lines.length) return finish();
-        const [w0, txt] = lines[i], who = w0 || 'Narrator', left = !!LEFT[who] || who === 'Narrator', muted = S.voMuted();
+        const [w0, txt] = lines[i], card = w0 === '\u00A7', who = card ? 'Narrator' : (w0 || 'Narrator'), left = !!LEFT[who] || who === 'Narrator', muted = S.voMuted();
         const clean = String(txt); stPose(who);
+        if (card) { const [ct, cd] = clean.split('|');   // v39.13 text/still placeholder card for an unmade cutscene
+          el.innerHTML = `<div class="absolute inset-0 bg-black/80"></div><div class="relative m-auto max-w-sm px-6 text-center" style="animation:rbpop .25s ease-out"><div class="text-amber-300 text-2xl font-black tracking-widest">${esc(ct)}</div><div class="mt-3 text-slate-200 text-sm italic">${esc(cd || '')}</div><div class="mt-6 text-[11px] text-slate-400 font-black">${i + 1}/${lines.length} \u00B7 tap \u25B6</div></div><style>@keyframes rbpop{from{transform:translateY(14px) scale(.96);opacity:.3}to{transform:none;opacity:1}}</style>`;
+          el.style.justifyContent = 'center'; const nx = () => { i++; el.style.justifyContent = ''; show(); }; t = setTimeout(nx, 4200); el.onclick = () => nx(); return; }
         el.innerHTML = `<div class="absolute inset-0 bg-black/55"></div>
           <div class="absolute right-3 flex gap-2 z-10" style="top:calc(var(--sat, 0px) + 12px)">
             <button data-d="mute" class="px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-500 text-lg" aria-label="Toggle voices">${muted ? '\u{1F507}' : '\u{1F50A}'}</button>
@@ -1462,7 +1544,7 @@
           <style>@keyframes rbpop{from{transform:translateY(14px) scale(.96);opacity:.3}to{transform:none;opacity:1}}</style>`;
         // auto-advance after voice ends (+0.9s) or reading time when muted
         const next = () => { i++; show(); }, li = i;
-        const a = playVo(prefix + i, 3, why => { if (li !== i) return; if (why === 'ended') t = setTimeout(next, 900); else if (why === 'error') t = setTimeout(next, 1800 + clean.length * 55); });
+        const a = playVo(lines[i].length > 2 ? lines[i][2] : prefix + i, 3, why => { if (li !== i) return; if (why === 'ended') t = setTimeout(next, 900); else if (why === 'error') t = setTimeout(next, 1800 + clean.length * 55); });
         if (!a) t = setTimeout(next, 1800 + clean.length * 55);
         el.onclick = e => { const d = e.target.closest('[data-d]'); if (d && d.dataset.d === 'skip') return finish();
           if (d && d.dataset.d === 'mute') { S.setVoMute(!S.voMuted()); d.textContent = S.voMuted() ? '\u{1F507}' : '\u{1F50A}'; return; } next(); };
@@ -1701,6 +1783,7 @@
       if (o.k === 'hold') rows.push(`${ck} Farms held ${st.owned.filter(Boolean).length}/${o.zones.length}` + (st.idx < o.zones.length && !st.owned[st.idx] ? ` \u00B7 ${o.zones[st.idx].name} ${Math.round(100 * st.held[st.idx] / o.secs)}%` : ''));
       if (o.k === 'defend') rows.push(`${ck} Hold ${o.zone.name} ${fmt(st.left)} \u00B7 enemy ${Math.round(st.enemyT)}/${o.maxEnemy}s`);
       if (o.k === 'rescue') rows.push(`${ck} Free ${o.cages.map(c => c.name).join(', ')}`);
+      if (o.k === 'spire') rows.push(`${ck} Shatter the Crystal Spire` + (st.u && !st.u.dead && !st.done ? ` ${Math.round(100 * st.u.hp / st.u.maxHp)}%` + (st.u.untargetable ? ' (shielded until Cline is at half)' : '') : ''));
       if (o.k === 'boss') rows.push(`${ck} Defeat ${(S.m && S.m.boss && S.m.boss.name) || 'Felix'}` + (R.boss && !R.boss.dead ? ` ${Math.round(100 * R.boss.hp / R.boss.maxHp)}% \u00B7 phase ${R.phase}` : ''));
       if (o.k === 'minerKill') rows.push(`${ck} Enemy miners down: ${Math.min(st.n || 0, o.count)}/${o.count}`);
       if (o.k === 'gold') rows.push(o.solo ? `${ck} Bank ${o.target} gold: ${Math.floor(st.mine || 0)}/${o.target}` : `${ck} Gold ${Math.floor(st.mine || 0)}/${o.target} (enemy ${Math.floor(st.theirs || 0)})`);

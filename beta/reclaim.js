@@ -279,6 +279,7 @@
     let y = H - 150; ['brute', 'inf', 'archer', 'wiz'].forEach(k => { const n = d[k] || 0; if (n) { place('me', k, n, y, 1); y += 20 * Math.ceil(n / 12) + 4; } });
     spawnGroup(F.g, fortY + 150);
     b.units.filter(u => u.team === 'me').forEach(u => u.y = Math.min(u.y, H - 14));
+    if (F.hold) { b.holdY = H * 0.58; b.units.filter(u => u.team === 'me').forEach(u => { u.y = Math.max(u.y, b.holdY); }); }   // v39.15 hold line
     return b;
   }
   // v39.9 global rule: ranged units never step past their frontmost friendly melee unit (they hold just behind it)
@@ -293,7 +294,7 @@
     b.units.push(mkU(team, k, b.W / 2 + (c - (cnt - 1) / 2) * (b.W * 0.84 / per) + (Math.random() - 0.5) * 6, row0 + dir * r * 20 + (Math.random() - 0.5) * 6, team === 'me' ? b.meSc : b.foeSc)); } }
   function spawnGroup(g, y0) { let y = y0; ['brute', 'inf', 'archer', 'wiz'].forEach(k => { const n = g[k] || 0; if (n) { place('foe', k, n, y, -1); y -= 20 * Math.ceil(n / 12) + 2; } });
     B.units.filter(u => u.team === 'foe').forEach(u => u.y = Math.max(u.y, B.fortY + 28)); }
-  function say(txt, col) { if (B) B.msg = { txt, col: col || '#fde68a', t: 2.6 }; }
+  function say(txt, col, prio) { if (!B) return; if (B.msg && B.msg.prio && B.msg.t > 0 && !(prio > (B.msg.prio || 0))) return; B.msg = { txt, col: col || '#fde68a', t: prio ? 6 : 2.6, prio: prio || 0 }; }
   function battle(f, d) {
     const F = FORTS[f];
     if (!payMarch(f)) return;
@@ -391,7 +392,7 @@
     if (b.ph === 1 && b.waves < (b.X.wave.max || 4) && (b.waveT -= dt) <= 0) { b.waveT = b.X.wave.every; b.waves++; const nec = b.F.hold && b.waves % 2 === 0, n0 = b.units.length; spawnGroup(b.X.wave.g, b.fortY + 40); if (nec) { b.units.slice(n0).forEach(u => u.nec = 1); b.necW = (b.necW || 0) + 1; } say(nec ? 'THE DEAD COME DOWN THE SWITCHBACKS' : b.F.hold ? 'OUTLAWS CHARGE THE OUTPOST' : 'REINFORCEMENTS FROM THE FORT', '#fca5a5'); }
     if (b.F.barks && !b.headless) b.F.barks.forEach((k, i) => { if ((b.bk = b.bk || {})[i]) return; const [on, who, txt] = k; let hit = false;
       if (on === 'keep_breached') hit = b.ph === 3; else if (/^boss_hp<=/.test(on)) hit = b.cap && b.cap.hp / b.cap.max <= +on.split('<=')[1] / 100; else if (/^wave_faction:necro:/.test(on)) hit = (b.necW || 0) >= +on.split(':')[2];
-      if (hit) { b.bk[i] = 1; b.msg = { txt: who + ': “' + txt + '”', col: '#e0f2fe', t: 4.5 }; } });
+      if (hit) { b.bk[i] = 1; say(who + ': \u201C' + txt + '\u201D', '#e0f2fe', 2); if (typeof toast === 'function') toast(who + ': ' + txt, '#e0f2fe'); } });
     if (b.contactT >= 0) b.fa.forEach(a => fortAbil(b, a, dt, mine, foes));
     live = b.units.filter(u => u.hp > 0); foes = live.filter(u => u.team === 'foe');
     // v39.7 RAIN: real-time damage (no TEMPO division; it used to do ~2 HP total). Scales with archers alive:
@@ -406,14 +407,16 @@
       let tgt = null, best = 1e9;
       if (u.blitz > 0 && u.team === 'me') { for (const e of opp) { const s = e.y - (e.cap ? 300 : e.k === 'wiz' ? 200 : e.k === 'archer' ? 100 : 0); if (s < best) { best = s; tgt = e; } } best = tgt ? Math.hypot(tgt.x - u.x, tgt.y - u.y) : 1e9; }
       else for (const e of opp) { const dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < best) { best = dd; tgt = e; } }
-      const holding = (u.team === 'foe' && !b.F.hold && !u.fblitz && (!tgt || best > (u.cap ? 140 : 230))) || (u.team === 'me' && b.F.hold && (!tgt || best > 200));
+      const holdY = b.holdY || (b.H * 0.58);
+      const holding = (u.team === 'foe' && !b.F.hold && !u.fblitz && (!tgt || best > (u.cap ? 140 : 230))) || (u.team === 'me' && b.F.hold && (!tgt || best > 160 || (tgt && tgt.y < holdY - 40)));
+      if (u.team === 'me' && b.F.hold) { if (u.y < holdY) u.y = holdY; }   // v39.15: hold the line — no forward drift past the outpost
       if (u.team === 'me' && b.ph === 1 && !b.F.hold && (!tgt || (best > 260 && u.y - b.fortY < 150))) {
         const dy = u.y - (b.fortY + 30); if (dy > P.rng) { u.y -= u.spd * dt; u.mv = 1; } else if (u.t <= 0 && u.inv <= 0) { u.t = RC.TEMPO / (u.as || 1); hitFort(u); }
         continue;
       }
       if (!tgt || holding) continue;
       const rng = u.cap ? P.rng + 10 : P.rng;
-      if (best > rng + (P.melee ? tgt.r : 0)) { const sp = (P.melee || !holdBehind(u, tgt) ? 1 : 0) * u.spd * (u.blitz > 0 ? 2.2 : 1) * (u.fblitz > 0 ? 1.8 : 1); u.x += (tgt.x - u.x) / best * sp * dt; u.y += (tgt.y - u.y) / best * sp * dt; u.mv = 1; }
+      if (best > rng + (P.melee ? tgt.r : 0)) { let sp = (P.melee || !holdBehind(u, tgt) ? 1 : 0) * u.spd * (u.blitz > 0 ? 2.2 : 1) * (u.fblitz > 0 ? 1.8 : 1); let nx = u.x + (tgt.x - u.x) / best * sp * dt, ny = u.y + (tgt.y - u.y) / best * sp * dt; if (u.team === 'me' && b.F.hold && ny < holdY) ny = holdY; u.x = nx; u.y = ny; u.mv = 1; }
       else if (u.t <= 0 && u.inv <= 0) {
         u.t = (0.9 + Math.random() * 0.2) * RC.TEMPO / (u.as || 1); u.lunge = 0.18; u.lx = (tgt.x - u.x) / (best || 1); u.ly = (tgt.y - u.y) / (best || 1);   // v39.7 attack lunge (also on misses)
         if (P.melee && !b.sim && b.fx.length < 80) b.fx.push({ k: 'spark', x: (u.x + tgt.x) / 2, y: (u.y + tgt.y) / 2, t: 0.2, t0: 0.2 });
@@ -423,7 +426,7 @@
       }
     }
     for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) { const a = live[i], c = live[j]; const dx = c.x - a.x, dy = c.y - a.y, dd = Math.hypot(dx, dy) || 0.01, m = (a.r + c.r) * 0.8; if (dd < m) { const p = (m - dd) / 2 / dd; a.x -= dx * p; a.y -= dy * p; c.x += dx * p; c.y += dy * p; } }
-    for (const u of live) { u.x = Math.max(8, Math.min(b.W - 8, u.x)); u.y = Math.max(b.fortY + 20, Math.min(b.H - 8, u.y)); }
+    for (const u of live) { u.x = Math.max(8, Math.min(b.W - 8, u.x)); const ymin = (u.team === "me" && b.F.hold) ? (b.holdY || b.H * 0.58) : (b.fortY + 20); u.y = Math.max(ymin, Math.min(b.H - 8, u.y)); }   // v39.15: hold missions pin me at holdY
     if (b.F.towers && mine.length) { b.towerT -= dt; if (b.towerT <= 0) { b.towerT = 1.2 * RC.TEMPO; const dmg = 26 * (b.miss.siege ? 1 + 1.5 * b.miss.siege : 0.4) * (b.ms ? 1.5 : 1);
       for (let i = 0; i < b.F.towers; i++) { const tx = b.W * (i ? 0.85 : 0.15), ty = b.fortY + 10; let t = null, bd = 300; for (const m of mine) { const dd = Math.hypot(m.x - tx, m.y - ty); if (dd < bd) { bd = dd; t = m; } } if (t) { hurt({ team: 'foe', k: 'tower' }, t, dmg); b.fx.push({ k: 'shot', x: tx, y: ty, x2: t.x, y2: t.y, t: 0.3, t0: 0.3 }); } } } }
     if (b.ms && mine.length && Math.floor(b.t) !== Math.floor(b.t - dt)) { const near = mine.filter(m => m.y - b.fortY < 160); near.forEach(m => hurt({ team: 'foe', k: 'fort' }, m, 14 * b.ms / RC.TEMPO)); }
@@ -458,11 +461,18 @@
     const bg = img[A + b.F.bg]; if (bg && bg.complete && bg.naturalWidth) { const s = Math.max(W / bg.naturalWidth, H / bg.naturalHeight); c.drawImage(bg, (W - bg.naturalWidth * s) / 2, 0, bg.naturalWidth * s, bg.naturalHeight * s); } else { c.fillStyle = '#3b3a32'; c.fillRect(0, 0, W, H); }
     if (b.F.tint) { c.fillStyle = b.F.tint; c.fillRect(0, 0, W, H); }
     const dr = (src, x, y, w, h) => { const im = img[src]; if (im && im.complete && im.naturalWidth) c.drawImage(im, x - w / 2, y - h / 2, w, h); };
-    dr(A + 'props/' + (b.fortHp <= 0 ? 'prop_fort_breached' : 'prop_fort_fortified') + '.webp', W / 2, b.fortY - 20, 110, 110);
-    if (b.F.dem.ram) dr(A + 'props/prop_breach_gate.webp', W / 2, b.fortY + 22, 44, 44);
-    for (let i = 0; i < b.F.towers; i++) dr(A + 'props/prop_breach_tower.webp', W * (i ? 0.85 : 0.15), b.fortY - 10, 46, 70);
-    if (b.barrierHp > 0) { c.globalAlpha = 0.55; dr(A + 'props/prop_breach_barrier.webp', W / 2, b.fortY - 6, 180, 120); c.globalAlpha = 1; }
-    if (b.ms && b.fortHp > 0) { c.strokeStyle = 'rgba(244,63,94,0.8)'; c.lineWidth = 3; c.setLineDash([6, 4]); c.beginPath(); c.arc(W / 2, b.fortY - 10, 70, 0, Math.PI * 2); c.stroke(); c.setLineDash([]); }
+    if (b.F.hold) {   // v39.15 R3-B: defend outpost (watch towers + banner), not a pirate fort
+      const hy = b.holdY || (H * 0.58);
+      dr(A + 'props/prop_breach_tower.webp', W * 0.22, hy - 8, 42, 64); dr(A + 'props/prop_breach_tower.webp', W * 0.78, hy - 8, 42, 64);
+      c.fillStyle = 'rgba(14,165,233,0.18)'; c.fillRect(0, hy - 8, W, 16); c.strokeStyle = '#38bdf8'; c.lineWidth = 2; c.setLineDash([8, 5]); c.beginPath(); c.moveTo(0, hy); c.lineTo(W, hy); c.stroke(); c.setLineDash([]);
+      c.fillStyle = '#e0f2fe'; c.font = 'bold 11px sans-serif'; c.textAlign = 'center'; c.fillText('\u2691 HOLD THE OUTPOST', W / 2, hy - 28);
+    } else {
+      dr(A + 'props/' + (b.fortHp <= 0 ? 'prop_fort_breached' : 'prop_fort_fortified') + '.webp', W / 2, b.fortY - 20, 110, 110);
+      if (b.F.dem.ram) dr(A + 'props/prop_breach_gate.webp', W / 2, b.fortY + 22, 44, 44);
+      for (let i = 0; i < b.F.towers; i++) dr(A + 'props/prop_breach_tower.webp', W * (i ? 0.85 : 0.15), b.fortY - 10, 46, 70);
+      if (b.barrierHp > 0) { c.globalAlpha = 0.55; dr(A + 'props/prop_breach_barrier.webp', W / 2, b.fortY - 6, 180, 120); c.globalAlpha = 1; }
+      if (b.ms && b.fortHp > 0) { c.strokeStyle = 'rgba(244,63,94,0.8)'; c.lineWidth = 3; c.setLineDash([6, 4]); c.beginPath(); c.arc(W / 2, b.fortY - 10, 70, 0, Math.PI * 2); c.stroke(); c.setLineDash([]); }
+    }
     if (b.act.rain > 0 && b.rainZ) { { const [z0, z1] = b.rainZ; c.fillStyle = 'rgba(251,191,36,0.10)'; c.fillRect(0, z0, W, z1 - z0); c.lineWidth = 2; for (let i = 0; i < 34; i++) { const x = Math.random() * W, y = z0 + Math.random() * (z1 - z0); c.strokeStyle = '#e2e8f0'; c.beginPath(); c.moveTo(x + 2, y - 7); c.lineTo(x - 2, y + 7); c.stroke(); c.fillStyle = '#f59e0b'; c.fillRect(x + 1, y - 8, 3, 3); } /* v39.5 falling arrows, story-style */ } }
     b.fa.forEach(a => { if (a.k === 'volley' && (a.warn > 0 || a.on > 0)) { const mine = b.units.filter(u => u.team === 'me' && u.hp > 0); if (mine.length) { const fy = Math.min(...mine.map(m => m.y)); c.fillStyle = a.on > 0 ? 'rgba(244,63,94,0.28)' : `rgba(244,63,94,${0.1 + 0.12 * Math.abs(Math.sin(b.t * 8))})`; c.fillRect(0, fy - 14, W, 104);
         if (a.on > 0) { c.lineWidth = 2; for (let i = 0; i < 22; i++) { const x = Math.random() * W, y = fy - 10 + Math.random() * 96; c.strokeStyle = '#fecaca'; c.beginPath(); c.moveTo(x - 2, y - 7); c.lineTo(x + 2, y + 7); c.stroke(); } } } } });
@@ -493,10 +503,10 @@
       else { c.strokeStyle = f.k === 'ring' ? '#a78bfa' : '#5eead4'; c.lineWidth = 3; c.beginPath(); c.arc(f.x, f.y, f.k === 'ring' ? 110 * (1 - f.t * 2) : 20, 0, 7); c.stroke(); } }
   }
   function drawHud(b) {
-    const fe = $('rc-fort'); if (fe && b.ph > 1) fe.innerHTML = `<span class="text-amber-200">${b.ph === 2 ? 'Courtyard: ' + b.units.filter(u => u.team === 'foe' && u.hp > 0).length + ' defenders' : 'Keep: defeat the captain'}</span>`; else if (fe) fe.innerHTML = `<div class="mx-auto w-40 h-2 bg-slate-900 rounded"><div class="h-2 rounded ${b.ms ? 'bg-rose-500' : 'bg-amber-400'}" style="width:${Math.max(0, b.fortHp / b.fortMax * 100)}%"></div></div>${b.ms ? '<span class="text-rose-300">FORTIFIED: breach power too low</span>' : b.barrierHp > 0 ? '<span class="text-violet-300">Barrier up</span>' : ''}`;
+    const fe = $('rc-fort'); if (fe && b.F.hold) { const left = Math.max(0, Math.ceil(b.F.hold - b.t)); fe.innerHTML = `<span class="text-sky-200 font-black">HOLD \u00B7 ${left}s left</span><div class="mx-auto w-44 h-2 bg-slate-900 rounded mt-0.5"><div class="h-2 rounded bg-sky-400" style="width:${Math.min(100, 100 * b.t / b.F.hold)}%"></div></div>`; } else if (fe && b.ph > 1) fe.innerHTML = `<span class="text-amber-200">${b.ph === 2 ? 'Courtyard: ' + b.units.filter(u => u.team === 'foe' && u.hp > 0).length + ' defenders' : 'Keep: defeat the captain'}</span>`; else if (fe) fe.innerHTML = `<div class="mx-auto w-40 h-2 bg-slate-900 rounded"><div class="h-2 rounded ${b.ms ? 'bg-rose-500' : 'bg-amber-400'}" style="width:${Math.max(0, b.fortHp / b.fortMax * 100)}%"></div></div>${b.ms ? '<span class="text-rose-300">FORTIFIED: breach power too low</span>' : b.barrierHp > 0 ? '<span class="text-violet-300">Barrier up</span>' : ''}`;
     const me = $('rc-msg'); if (me) me.innerHTML = b.msg ? `<span class="inline-block px-3 py-1.5 rounded-xl bg-black/70 text-[13px] font-black" style="color:${b.msg.col};border:1px solid ${b.msg.col}">${b.msg.txt}</span>` : '';
     root.querySelectorAll('[data-chg]').forEach(el => { const k = el.closest('[data-ab]').dataset.ab; el.textContent = '\u00D7' + b.chg[k]; el.closest('[data-ab]').style.opacity = b.chg[k] > 0 ? 1 : 0.4; });
-    const te = $('rc-time'); if (te) te.textContent = `${PH_NAME[b.ph]} \u00B7 ${Math.floor(b.t)}s / ${b.X.time}s`;
+    const te = $('rc-time'); if (te) te.textContent = b.F.hold ? `HOLD \u00B7 ${Math.floor(b.t)}s / ${b.F.hold}s` : `${PH_NAME[b.ph]} \u00B7 ${Math.floor(b.t)}s / ${b.X.time}s`;
     root.querySelectorAll('[data-ab]').forEach(el => { const k = el.dataset.ab, f = el.querySelector('[data-fill]'); if (f) f.style.height = `${(1 - b.cds[k] / b.cdMax[k]) * 100}%`; el.classList.toggle('ring-2', b.cds[k] <= 0); el.classList.toggle('ring-amber-300', b.cds[k] <= 0); });
   }
 

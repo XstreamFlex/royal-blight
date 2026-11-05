@@ -15,7 +15,7 @@
     if (!s || typeof s !== 'object') return freshSave();
     const f = freshSave();
     const out = { v: SAVE_V, gold: Math.max(0, Math.floor(+s.gold || 0)), xp: Math.max(0, Math.floor(+s.xp || 0)),
-      missions: {}, unlocks: Array.isArray(s.unlocks) ? s.unlocks.filter(x => typeof x === 'string').slice(0, 500) : f.unlocks,
+      missions: {}, unlocks: Array.isArray(s.unlocks) ? [...new Set(s.unlocks.filter(x => typeof x === 'string').map(x => x === 'hero:bram' ? 'hero:torvald' : x))].slice(0, 500) : f.unlocks,   /* v39.20 Bram -> Torvald */ heroPick: ['default', 'archer', 'brute', 'magic'].includes(s.heroPick) ? s.heroPick : 'default',
       seen: Array.isArray(s.seen) ? s.seen.filter(x => typeof x === 'string').slice(0, 500) : [], created: +s.created || Date.now(),
       diff: ['easy', 'normal', 'hard', 'veryhard'].includes(s.diff) ? s.diff : 'normal', vh: Array.isArray(s.vh) ? s.vh.filter(n => n > 0 && n < 10) : [], mapV: 2, replayStory: !!s.replayStory, cineAll: !!s.cineAll, power: typeof s.power === 'string' ? s.power : null, up: cleanUp(s.up), migratedFrom: (s.v | 0) < 2 ? (s.v | 0) || 1 : (s.migratedFrom || 0) };   // v1 -> v2: progress is derived from wins, so nothing is lost
     f.unlocks.forEach(u => { if (!out.unlocks.includes(u)) out.unlocks.push(u); });
@@ -260,11 +260,19 @@
     for (const [rx, k] of REQ_RX) if (rx.test(t)) ks.push(k);
     const out = {}; for (const k of ks) { const [sl, v] = k.split(':'); if (!out[sl]) out[sl] = v; } return out;
   }
+  function storyHeroPick(m) {   // v39.20 story hero by TYPE slot; only heroes earned in the story, never in a forced/necro mission
+    const p = SAVE.heroPick || 'default'; if (p === 'default' || !m || m.playerNecro || m.heroTrial || m.id === 'M04' || m.id === 'M05') return 'default';
+    const k = (HERO_TYPES.blue || {})[p]; return k && unlocked('hero:' + k) ? p : 'default'; }
+  function heroPickHtml(m) {   // v39.20 brief hero chips (only when a story hero is earned)
+    if (!m || m.playerNecro || m.heroTrial || m.id === 'M04' || m.id === 'M05' || (m.allowedUnits && !m.allowedUnits.some(a => a.startsWith('hero:')))) return '';
+    const opts = [['default', 'Rufus\u2019 Cavalier']].concat(['archer', 'brute', 'magic'].map(p => [p, HERO_TYPES.blue[p]]).filter(([p, k]) => unlocked('hero:' + k)).map(([p, k]) => [p, HEROX[k].name]));
+    if (opts.length < 2) return ''; const cur = storyHeroPick(m);
+    return `<div id="st-hp" class="mt-2"><div class="text-[10px] font-black text-amber-300 uppercase">Hero</div><div class="flex flex-wrap gap-1">${opts.map(([p, n]) => `<button data-hp="${p}" class="px-2 py-1 rounded text-[10px] font-black ${p === cur ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-200'}">${esc(n)}</button>`).join('')}</div></div>`; }
   function storyLoadout(m) {
     const lo = Object.assign({}, DEFAULT_LOADOUT, (typeof SETTINGS !== 'undefined' && SETTINGS.loadout) || {});
     if (m && m.allowedUnits) {   // v35.9: only listed variants; otherwise the first listed one for that slot (or the base)
       for (const slot of ['pawn', 'archer', 'brute', 'wizard', 'hero']) { const ok = m.allowedUnits.filter(a => a.startsWith(slot + ':')).map(a => a.split(':')[1]);
-        if (slot === 'hero') { lo.hero = 'default'; continue; }
+        if (slot === 'hero') { lo.hero = storyHeroPick(m); continue; }
         if (!ok.includes(lo[slot])) lo[slot] = ok[0] || DEFAULT_LOADOUT[slot]; }
       if (m.act >= 2) { const ml = SAVE.mload || {}, rq = reqUnits(m);   // v39.1 brief loadout picks, then story-required units win
         for (const slot of ['pawn', 'archer', 'brute', 'wizard']) { const ok = m.allowedUnits.filter(a => a.startsWith(slot + ':')).map(a => a.split(':')[1]);
@@ -401,6 +409,8 @@
     return h + (Object.keys(rq).length || m.power ? `<p class="text-[9px] text-slate-400">\u{1F512} = required by this mission. PREVIEW = trial for this mission only.</p>` : '') + `</div>`;
   }
   function bindLoadout() {
+    const hp = $('st-hp'); if (hp) hp.querySelectorAll('[data-hp]').forEach(b => b.onclick = () => { SAVE.heroPick = b.dataset.hp; persist();
+      hp.querySelectorAll('[data-hp]').forEach(x => { const on = x === b; x.classList.toggle('bg-amber-500', on); x.classList.toggle('text-slate-950', on); x.classList.toggle('bg-slate-800', !on); x.classList.toggle('text-slate-200', !on); }); });
     const r = $('st-lo'); if (!r) return;
     r.querySelectorAll('[data-lo]').forEach(b => b.onclick = () => { const [sl, v] = b.dataset.lo.split(':'); SAVE.mload = Object.assign({}, SAVE.mload, { [sl]: v }); persist();
       r.querySelectorAll(`[data-lo^="${sl}:"]`).forEach(x => { const on = x === b; x.classList.toggle('bg-amber-500', on); x.classList.toggle('text-slate-950', on); x.classList.toggle('bg-slate-800', !on); x.classList.toggle('text-slate-200', !on); }); });
@@ -420,7 +430,9 @@
   };
   S.backdropOff = function () { const el = $('rb-backdrop'); if (!el) return; requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => el.classList.add('hidden'), 50))); };
   S.start = function (id) {
-    const m = M[id]; if (!m || !missionOpen(id)) return false;
+    state.heroForce = null;   // v39.20
+    const m = M[id];
+    { const HU = { M06: 'hero:wren', M15: 'hero:torvald', M19: 'hero:quill' }[id]; if (m && HU) { m.unlock = m.unlock || []; if (!m.unlock.includes(HU)) m.unlock.push(HU); } }   // v39.20 hero unlocks on win if (!m || !missionOpen(id)) return false;
     if (SAVE.diff === 'veryhard' && !vhOpen(m.act)) SAVE.diff = 'hard';
     if (m.act >= 2) { const own = SAVE.unlocks.filter(u => /^(pawn|archer|brute|wizard):/.test(u));
       const rq = Object.entries(reqUnits(m)).map(([a, b]) => a + ':' + b);
@@ -540,7 +552,7 @@
     if (au) cards = cards.filter(k => au.some(a => a === k || a.split(':')[0] === ({ archers: 'archer', brutes: 'brute', wizards: 'wizard' }[k] || k)));
     if (c.k === 'hero' && S.m && S.m.heroTrial && S.R) S.R.trialHero = true;
     if (c.k === 'hero' && S.m && S.m.id === 'M05') { if (!c.quiet && team === myTeam()) toast('Not needed this mission', '#fca5a5'); return false; }   // v37.5: no Outrider (M04 hero card) carries into M05
-    if (c.k === 'hero') { const ok = (!au || au.some(a => a.startsWith('hero:'))) && (unlocked('hero:cavalier') || !!(S.R && S.R.trialHero)); if (!ok && !c.quiet && team === myTeam()) toast('Not needed this mission', '#fca5a5'); return ok; }
+    if (c.k === 'hero') { const ok = (!au || au.some(a => a.startsWith('hero:'))) && (unlocked('hero:cavalier') || unlocked('hero:wren') || !!(S.R && S.R.trialHero) || !!(S.m && S.m.playerNecro)); if (!ok && !c.quiet && team === myTeam()) toast('Not needed this mission', '#fca5a5'); return ok; }
     if (!cards.includes(c.k)) { if (team === myTeam() && !c.quiet) toast('Not needed this mission', '#fca5a5'); return false; }
     if (S.m.cap && CADENCE_INFO[c.k] && (state.blueCadence.archers + state.blueCadence.wizards + state.blueCadence.brutes) >= S.m.cap) { if (!c.quiet) toast('Army limit reached', '#fca5a5'); return false; }
     return true;
@@ -554,7 +566,8 @@
   S.tick = function (dt) {
     const R = S.R, m = S.m; if (!R || R.done) return;
     R.t += dt;
-    const cb = state.cores.blue; if (m.nexusFloor && cb.hp < cb.maxHp * m.nexusFloor) cb.hp = cb.maxHp * m.nexusFloor;   // v36.4 M01: can't be lost unfairly
+    const cb = state.cores.blue; if (R.nexusFloor && cb.hp < cb.maxHp * R.nexusFloor) cb.hp = cb.maxHp * R.nexusFloor; if (R.redFloor) { const cr = state.cores.red; if (cr.hp < cr.maxHp * R.redFloor) cr.hp = cr.maxHp * R.redFloor; }   // v39.20 scene floors
+    if (m.nexusFloor && cb.hp < cb.maxHp * m.nexusFloor) cb.hp = cb.maxHp * m.nexusFloor;   // v36.4 M01: can't be lost unfairly
     if (m.redFloor) { const cr = state.cores.red; if (cr.hp < cr.maxHp * m.redFloor) cr.hp = cr.maxHp * m.redFloor; }   // gold mission: the nexus isn't the goal
     if (m.allies && (R.allyT = (R.allyT == null ? 6 : R.allyT) - dt) <= 0) { R.allyT = m.allies.every; m.allies.units.forEach(t => state.spawnQ.blue.push(t)); }   // Garrow's troops (free, AI-driven)
     R.minCoreFrac = Math.min(R.minCoreFrac, cb.hp / cb.maxHp);
@@ -580,7 +593,8 @@
     if (m.commander === 'Glade') state.units.forEach(u => { if (u.team === 'blue' && u.type === 'worker' && (u.dead || u.hp <= 0) && !u._ml) { u._ml = 1; R.minerLost = (R.minerLost || 0) + 1; } });
     if (m.factionWaves && m.factionWaves.alt === 'pirate') { const mines = (typeof state.mines !== 'undefined' && state.mines) ? state.mines.filter(mm => mm.team === 'blue') : []; if (mines.length) state.units.forEach(u => { if (!u.dead && u.faction === 'pirate' && mines.some(mn => Math.hypot(u.x - mn.x, u.y - mn.y) < 40)) R.pirateMine = true; }); }
 
-    if (m.finale && S.finaleTick) S.finaleTick(dt);   // v39.17 Act 5
+    if (m.finale && S.finaleTick) S.finaleTick(dt);
+    if (HERO_SCENES[m.id]) HERO_SCENES[m.id](dt, R);   // v39.20 hero story scenes   // v39.17 Act 5
     if (m.countLost) state.units.forEach(u => { if (u.team === 'blue' && !u.story && (u.dead || u.hp <= 0) && !u._lc) { u._lc = 1; R.lostN = (R.lostN || 0) + 1; } });
     const B = blueArmy(), Rd = redArmy();
     for (const st of Object.values(R.obj)) tickObjective(st, dt, B, Rd);
@@ -832,7 +846,7 @@
   // end of a story match (called from showGameOver). Returns true = story handled the end screen.
   S.onEnd = function (win) {
     const R = S.R, m = S.m; if (!R || R.done) return true;
-    R.done = true; if (S.tutStop) S.tutStop(); if (R.stage) stageEnd(win);
+    R.done = true; state.heroForce = null; if (S.tutStop) S.tutStop(); if (R.stage) stageEnd(win);
     const st = starsFor(win);
     const rec = SAVE.missions[m.id] = SAVE.missions[m.id] || { stars: 0, wins: 0, plays: 0, best: 0, starSet: [false, false, false] };
     const firstClear = win && !rec.wins;
@@ -1706,10 +1720,12 @@
       if (stg !== 'A' && !(R.kings || {}).glade) ally('glade', 'GLADE', -40);
       if (resumed && !(R.kings || {}).felix) ally('felix', 'FELIX', 30);
       if (resumed && stg === 'C' && !(R.kings || {}).cline) { ally('cline', 'CLINE', 60); ['pawn', 'pawn', 'brute', 'archer'].forEach(t => state.spawnQ.blue.push(t)); }   // v39.19 Cline already cleared on a resumed C
+      if (stg !== 'A' || resumed) S.m25Hero(stg, resumed);   // v39.20
       if (stg === 'C') spawnBoss({ hp: 1500, atk: 38, range: 170, interval: 1.1, speed: 22, y: 300, name: 'Doom' }); };
     S.finaleTick = function (dt) {
       const R = S.R, m = S.m; if (!R || !m.finale) return; const F = R.fin = R.fin || { stage: 'A', t: 0, th: [] }; F.t += dt;
-      if (!F.init) { F.init = 1; const ck = S.ckpt && S.ckpt.id === 'M25' ? S.ckpt.stage : 'A'; if (ck !== 'A') { F.stage = ck; enterStage(ck, true); } else { S.ckpt = { id: 'M25', stage: 'A' }; S.m.stage.bg = FB.A.bg; } }
+      if (!F.init) { F.init = 1; const ck = S.ckpt && S.ckpt.id === 'M25' ? S.ckpt.stage : 'A'; if (ck !== 'A') { F.stage = ck; enterStage(ck, true); } else { S.ckpt = { id: 'M25', stage: 'A' }; S.m.stage.bg = FB.A.bg; S.m25Hero('start'); } }
+      if (F.stage === 'A' && !F.hA && F.t > 20 && !F.talk) { F.hA = 1; if (!(state.heroForce && state.heroForce.blue === 'nettle')) S.m25Hero('A'); }
       if (F.talk) return;
       if (!F.tot && F.stage !== 'C') { F.tot = totems(F.stage === 'A' ? 2 : 3, F.stage === 'A' ? 450 : 520); }
       if (F.clineT && (F.clineT -= dt) <= 0) { F.clineT = 0; say('Rufus', 'Cline… I knew it.'); ally('cline', 'CLINE', 60); ['pawn', 'pawn', 'brute', 'archer'].forEach(t => state.spawnQ.blue.push(t)); setTimeout(() => say('Cline', 'Northcrag answers, Rufus! Silver Army, CHARGE!'), 3500); }
@@ -1813,6 +1829,107 @@
   };
   // small non-blocking mid-mission bubble (top of screen)
   let barkT = null;
+
+  // ---------- v39.20 hero story scenes (TEXT ONLY, pending Ian OK + voice; see STORY_BIBLE.md) ----------
+  const HERO_LINES = {
+    M06_w1: ['Rufus', "Ha! They're running! That's it? That's ALL Felix had?"],
+    M06_w2: ['Garrow', "Don't celebrate yet, lad. The ground's shaking."],
+    M06_w3: ['Storyteller', "Then Felix's cavalry came over the hill."],
+    M06_w4: ['Ruphene', "That's every horse in the farmlands! We can't hold that!"],
+    M06_w5: ['Rufus', 'Hold the line! Somebody help us!'],
+    M06_w6: ['Wren', 'Duck, Your Majesty.'],
+    M06_w7: ['Wren', 'One arrow, one problem. I brought plenty.'],
+    M06_w8: ['Rufus', 'Who ARE you?!'],
+    M06_w9: ['Wren', "Wren. Felix's scouts couldn't catch me. Neither could his volleys."],
+    M06_w10: ['Garrow', 'Fast hands. Keep her close, Rufus.'],
+    M06_a1: ['Wren', "Felix hasn't been the same king for months. Point me at his fortress and let's bring him back."],
+    M15_t1: ['Torvald', 'HALT! No one but the GREATEST commanders gets past BIG TOAST!'],
+    M15_t2: ['Rufus', 'Big what?'],
+    M15_t3: ['Torvald', 'TOAST! Because I leave my enemies CRISPY!'],
+    M15_t4: ['Ember Quill', "He's Glade's royal axeman. Hit him hard, he won't take it personally."],
+    M15_t5: ['Torvald', 'WHIRL OF THE TWIN AXES!'],
+    M15_t6: ['Torvald', 'Ha! You tickle like a library mouse!'],
+    M15_t7: ['Torvald', 'Down. Big Toast is DOWN. Nobody puts Big Toast down!'],
+    M15_t8: ['Torvald', "You've proven your worth, little king. Master Glade hasn't been himself, and he's locked himself in that tower. Help me bring him back, and my axes are yours."],
+    M15_t9: ['Rufus', "We came here for Glade. We're not leaving without him."],
+    M15_t10: ['Torvald', 'Then Big Toast walks in front. Mind the spin.'],
+    M15_a1: ['Ember Quill', "I'm going back to the ward. Bring Glade home."],
+    M19_n1: ['Nettle', 'Shhh. Breathe in, little soldiers. Breathe DEEP.'],
+    M19_n2: ['Ruphene', 'Green poison on every arrow! Our men are dropping!'],
+    M19_n3: ['Nettle', 'One scratch and even your heroes go down.'],
+    M19_n4: ['Rufus', "We can't even get close to her!"],
+    M19_e1: ['Ember Quill', "Then don't. Stand behind the angry old woman."],
+    M19_e2: ['Ember Quill', 'Page nine. Purge. Read it and WEEP, sprout.'],
+    M19_n5: ['Nettle', 'My poison, burned off?! Who taught you that?!'],
+    M19_e3: ['Ember Quill', 'Nobody. I wrote it. Run along, sprout.'],
+    M19_n6: ['Nettle', "This isn't over, bookworm!"],
+    M19_e4: ['Ember Quill', "You're not alone, Rufus. You never were. Now let's climb."],
+    M25_h0: ['Drevlar', 'My dead march for you now, Rufus. Take my acolyte. He can talk the dead into resting.'],
+    M25_h1: ['Acolyte', 'Every soul I put to rest is one less the Skeleton King can throw at us.'],
+    M25_hA: ['Nettle', 'Remember me? Drevlar set me straight. Different side, same arrows.'],
+    M25_hA2: ['Ember Quill', 'Behave, sprout.'],
+    M25_hB: ['Ossuar', 'OSSUAR STANDS! OSSUAR CRUSHES!'],
+    M25_hB2: ['Rufus', 'Did he just say his own name twice?'],
+    M25_hB3: ['Drevlar', "Bones don't make good poets. They make good walls."],
+    M25_hC: ['Mother Wail', "Hush now, children. Mother's here. Lie down and rest."],
+    M25_hC2: ['Doom', 'You turn MY dead against me?!'],
+    M25_hC3: ['Drevlar', "That's not my king talking. Hold on, Doom. We're coming for you."]
+  };
+  S.HERO_LINES = HERO_LINES;
+  function heroSay(...ids) {   // non-pausing, queued text lines (no VO yet)
+    const ls = ids.map(i => HERO_LINES[i]).filter(Boolean); if (!ls.length || !S.R) return;
+    const ST = S.R.stage; if (ST) { stFire(ST, { lines: ls.map(([w, t]) => [w, null, t]), gap: 0.5, priority: 1 }); return; }
+    ls.forEach(([w, t], i) => setTimeout(() => toast(w + ': ' + t, '#e2e8f0'), i * 2600)); }
+  S.heroLine = heroSay;
+  const DIFF = () => (BOSS_DIFF[SAVE.diff] || 1);
+  const heroUnit = (key, team, hpMul) => { const u = spawnUnit(key, team, 'C', 0); if (hpMul) { u.maxHp = u.hp = Math.round(u.maxHp * hpMul); } u.sceneHero = true; return u; };
+  const HERO_SCENES = {
+    M06(dt, R) {   // fake win -> overrun -> Wren rescue at 20% nexus -> normal play
+      const W = R.wren = R.wren || { ph: 0 }, cb = state.cores.blue, cr = state.cores.red;
+      if (W.ph === 0) { R.redFloor = 0.25; if (cr.hp <= cr.maxHp * 0.3 || R.t > 150) { W.ph = 1; W.t = 0; toast('VICTORY?', '#fde68a'); state.shake = 0.3; heroSay('M06_w1', 'M06_w2'); } return; }
+      W.t += dt;
+      if (W.ph === 1 && W.t > 4) { W.ph = 2; W.t = 0; R.nexusFloor = 0.15; state.shake = 0.8; toast('THE HILL MOVES!', '#fca5a5'); heroSay('M06_w3', 'M06_w4', 'M06_w5');
+        W.foes = []; for (let i = 0; i < 15; i++) { const b = i < 3, u = spawnUnit(b ? 'brute' : 'pawn', 'red', 'C', b ? 0 : (i % 4) * 8); u.x += (i % 5 - 2) * 18; u.y = cb.y - 520 - (i % 4) * 26;   /* they crest the hill close to our camp */ u.resist = { physical: 0.7, ranged: 0.7, magic: 0.7 }; u.overrun = b ? 'b' : 'p'; W.foes.push(u); } return; }
+      if (W.ph === 2) { const near = W.foes.some(u => !u.dead && Math.hypot(u.x - cb.x, u.y - cb.y) < 160);
+        if (cb.hp <= cb.maxHp * 0.2 || (near && W.t > 25) || W.t > 45) { W.ph = 3; W.t = 0;
+          const w = heroUnit('wren', 'blue'); w.y = cb.y - 140; W.w = w; createSparks(w.x, w.y, '#86efac', 30); state.shake = 0.5;
+          W.foes.forEach(u => { if (u.dead) return; if (u.overrun === 'p') { createSparks(u.x, u.y, '#86efac', 6); u.hp = 0; u.dead = true; } else { u.resist = {}; u.hp = Math.ceil(u.hp / 2); } });
+          toast('NEW HERO: WREN, Quickdraw', '#86efac'); heroSay('M06_w6', 'M06_w7', 'M06_w8', 'M06_w9', 'M06_w10'); } return; }
+      if (W.ph === 3 && W.t > 6) { W.ph = 4; R.nexusFloor = 0; R.redFloor = 0; cb.hp = Math.max(cb.hp, cb.maxHp * 0.35); heroSay('M06_a1'); }
+    },
+    M15(dt, R) {   // Torvald gatekeeper: kneels at 0 HP and joins
+      const T = R.tor = R.tor || { ph: 0 };
+      if (T.ph === 0 && R.t > 20) { T.ph = 1; const u = heroUnit('torvald', 'red', 2); u.maxHp = u.hp = Math.round(2600 * DIFF()); u.label = 'Torvald'; T.u = u;
+        u.onSpin = () => { if (R.t - (T.spinSaid || -99) > 20) { T.spinSaid = R.t; heroSay('M15_t5'); } };
+        u.onZero = v => { T.ph = 2; v.team = 'blue'; v.target = null; v.hp = Math.round(v.maxHp * 0.6); v.stunT = 2; v.burnT = 0; state.units.forEach(e => { if (e.target === v) e.target = null; });
+          createSparks(v.x, v.y, '#facc15', 30); addFloatingText(v.x, v.y - 40, 'KNEELS', '#facc15', 15, true); toast('NEW HERO: TORVALD, Twin-Axe Whirl', '#facc15'); heroSay('M15_t7', 'M15_t8', 'M15_t9', 'M15_t10', 'M15_a1'); };
+        toast('THE GATEKEEPER: TORVALD', '#fca5a5'); heroSay('M15_t1', 'M15_t2', 'M15_t3', 'M15_t4'); }
+      if (T.ph === 1 && !T.tick && T.u && T.u.hp < T.u.maxHp * 0.7) { T.tick = 1; heroSay('M15_t6'); }
+    },
+    M19(dt, R) {   // Nettle: spreading poison; Ember's cleanse counters; Nettle retreats at 10%
+      const N = R.net = R.net || { ph: 0 }, cb = state.cores.blue;
+      if (N.ph === 0 && R.t > 40) { N.ph = 1; const u = heroUnit('nettle', 'red'); u.maxHp = u.hp = Math.round(2200 * DIFF()); u.label = 'Nettle'; N.u = u; N.pT = 3;
+        u.onZero = () => retreat(); toast('NETTLE, THE BLIGHT-ARCHER', '#a3e635'); heroSay('M19_n1', 'M19_n2', 'M19_n3', 'M19_n4'); }
+      function retreat() { if (N.ph >= 3) return; N.ph = 3; const u = N.u; createSparks(u.x, u.y, '#a3e635', 30); u.dead = true; u.hp = 0; toast('NETTLE RETREATS!', '#a3e635'); heroSay('M19_n6', 'M19_e4'); }
+      if (N.ph === 1 || N.ph === 2) { const u = N.u; if (u.dead) { N.ph = 3; return; }
+        if ((N.pT -= dt) <= 0) { N.pT = 6; state.units.filter(a => !a.dead && a.team === 'blue' && a.type !== 'worker' && Math.hypot(a.x - u.x, a.y - u.y) < 280).sort((a, b) => Math.hypot(a.x - u.x, a.y - u.y) - Math.hypot(b.x - u.x, b.y - u.y)).slice(0, 3)
+          .forEach(a => { a.burnT = 5; a.burnDps = Math.round(9 * DIFF()); a.burnBy = u; createSparks(a.x, a.y, '#4ade80', 6); addFloatingText(a.x, a.y - 24, 'POISON', '#4ade80', 11); }); }
+        if (N.ph === 1 && (u.hp <= u.maxHp * 0.6 || cb.hp <= cb.maxHp * 0.5)) { N.ph = 2; const q = heroUnit('quill', 'blue'); q.y = cb.y - 120; q.cleanseR = 140; N.q = q;
+          state.units.forEach(a => { if (!a.dead && a.team === 'blue' && a.burnT > 0) { a.burnT = 0; createSparks(a.x, a.y, '#fde047', 8); } });
+          state.particles.push({ type: 'shockwave', color: '253,224,71', x: q.x, y: q.y, radius: 10, maxRadius: 220, life: 0.7, maxLife: 0.7 });
+          toast('NEW HERO: EMBER QUILL, Cleansing Script', '#fde047'); heroSay('M19_e1', 'M19_e2', 'M19_n5', 'M19_e3'); }
+        if (u.hp <= u.maxHp * 0.1) retreat(); }
+    }
+  };
+  S.m25Hero = function (stg, resumed) {   // M25 test-drive heroes: Acolyte -> Nettle (A) -> Ossuar (B) -> Mother Wail (C)
+    const key = stg === 'start' ? 'acolyte' : stg === 'A' ? 'nettle' : stg === 'B' ? 'ossuar' : 'wail';
+    state.heroForce = { blue: key }; const R = S.R; if (!R) return;
+    state.units.forEach(u => { if (!u.dead && u.team === 'blue' && u.sceneHero) { createSparks(u.x, u.y, '#a855f7', 12); u.dead = true; u.hp = 0; } });
+    const u = heroUnit(key === 'acolyte' ? 'acolyte' : key, 'blue'); u.sceneHero = true; createSparks(u.x, u.y, '#c084fc', 24);
+    if (key !== 'acolyte') toast('NEW HERO: ' + HEROX[key].name.toUpperCase() + ' (TEST DRIVE)', '#c084fc');
+    if (resumed) return;
+    if (key === 'acolyte') heroSay('M25_h0', 'M25_h1'); else if (key === 'nettle') heroSay('M25_hA', 'M25_hA2'); else if (key === 'ossuar') heroSay('M25_hB', 'M25_hB2', 'M25_hB3');
+    else { heroSay('M25_hC'); setTimeout(() => heroSay('M25_hC2', 'M25_hC3'), 9000); } };
   S.bark = function (key) {
     if (S.m && S.m.act > 1 && /^(phase[23]|felix_(down|flee))$/.test(key)) { if (!BARKS[S.m.id.toLowerCase() + '_' + key]) return; key = S.m.id.toLowerCase() + '_' + key; }   // v39.6: no Felix lines outside Act 1
     const b = BARKS[key]; if (!b || !S.R) return;
@@ -1958,7 +2075,7 @@
     const rs = replayed ? `<button id="st-rs" class="mt-2 w-full py-2 rounded-lg border-2 text-[11px] font-black uppercase ${SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'}">\u{1F4D6} Replay story: ${SAVE.replayStory ? 'ON' : 'OFF'}</button>` : '';
     const bsel = m.boss ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty \u00B7 boss health per phase</div><div class="text-xs text-slate-200">${['easy', 'normal', 'hard'].map(d => d === SAVE.diff ? `<b class="text-amber-300">[${d} ${Math.round(BOSS_DIFF[d] * 100)}%]</b>` : d + ' ' + Math.round(BOSS_DIFF[d] * 100) + '%').join(' \u00B7 ')}</div><div class="flex items-center gap-2 mt-1">${portraitHtml(bossOf(m).name.replace('King ', ''), 44).replace(/assets\/portraits\/[a-z_]+\.webp/, 'assets/portraits/' + bossOf(m).portrait + '.webp')}<p class="text-[10px] text-slate-400">Boss: <b class="text-amber-200">${esc(bossOf(m).name)}</b>. Three health bars. Each time ${esc(bossOf(m).name)} falls, the boss flees to ${bossOf(m).fort}, heals, and returns stronger.</p></div>` : '';
     const a2d = m.act >= 2 ? `<div class="text-[10px] font-black text-amber-300 uppercase mt-2">Difficulty: <span class="text-slate-100">${({ easy: 'Easy', normal: 'Normal', hard: 'Hard', veryhard: 'Very Hard' })[SAVE.diff]}</span></div><p class="text-[10px] text-slate-400">${vhOpen(m.act) ? 'Very Hard unlocked for this act.' : 'Beat this act\u2019s final mission on Hard to unlock Very Hard.'}</p>` : '';
-    const lout = m.act >= 2 ? loadoutHtml(m) : '';
+    const lout = heroPickHtml(m) + (m.act >= 2 ? loadoutHtml(m) : '');
     const kP = showPanel(`${id}: ${esc(m.name)}`, html + lout + dsel + bsel + a2d + rs, guarded || m.boss || m.act >= 2 ? [['Back', 'back'], ['Easy', 'd:easy'], ['Normal', 'd:normal'], ['Hard', 'd:hard']].concat(vhOpen(m.act) ? [['Very Hard', 'd:veryhard']] : []).concat([['\u2694 Start', 'go']]) : [['Back', 'back'], ['\u2694 Start', 'go']]);
     bindLoadout();
     const rsb = $('st-rs'); if (rsb) rsb.onclick = () => { SAVE.replayStory = !SAVE.replayStory; persist(); rsb.textContent = '\u{1F4D6} Replay story: ' + (SAVE.replayStory ? 'ON' : 'OFF'); rsb.className = rsb.className.replace(SAVE.replayStory ? 'bg-slate-800 text-slate-300 border-slate-600' : 'bg-amber-500 text-slate-950 border-amber-300', SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'); };
@@ -1988,6 +2105,11 @@
   }
   // v39.7 B2: light debrief recap of each mission's closing dialogue (full dialogue still plays in mission).
   // recaps reviewed by Cut (v39.8, /workspace/cut/recaps_review.md); M22-M24 blank until Act 4 recaps are written
+  const HERO_RECAP = {   // v39.20 light hero summaries (debrief only, never on briefs)
+    M06: 'Wren the scout turned the overrun and joins as an archer hero.',
+    M15: 'Torvald Twin-Axe knelt at the gate and joins as a brute hero.',
+    M19: 'Ember Quill burned off Nettle\u2019s poison and joins as a magic hero.',
+    M25: 'Drevlar lent you his dead: Acolyte, Nettle, Ossuar and Mother Wail.' };
   const RECAP = {
     P0: "The festival ends in cheers and Felix saves Rufus a seat. Garrow thinks something is off about Felix\u2019s birds.",
     M01: "Felix admits he wrote the threat letter. Rufus forgave his tithe in front of every king, and Felix won\u2019t be pitied again.",
@@ -2024,7 +2146,7 @@
       ${r.win ? m.stars.map((s, i) => `<p class="text-xs ${r.stars[i] ? 'text-amber-200' : 'text-slate-500'}">${r.stars[i] ? '\u2B50' : '\u2606'} ${esc(s)}</p>`).join('') : ''}
       ${S.vhNew ? `<p class="text-center text-[11px] font-black text-rose-300">\u{1F480} VERY HARD unlocked for Act ${S.vhNew}!</p>` : ''}<p class="text-center text-sm font-black mt-2"><span class="text-amber-300">+${r.gold}g</span>${S.lastRes ? ` \u00B7 <span class="text-lime-300">+${S.lastRes[1]} ${S.lastRes[0]}</span>` : ''} \u00B7 <span class="text-sky-300">+${r.xp} XP</span></p>
       ${r.win && m.unlock ? `<p class="text-center text-[11px] text-emerald-300 mt-1">${r.firstClear ? 'Unlocked: ' + m.unlock.map(u => (REGIONS[m.region].cards.find(c => c[0] === u) || [0, 0, u.replace('bonus:worker_east', '+1 starting worker in Eastmarch').replace('region:eastmarch', 'Eastmarch is free!')])[2]).join(', ') : ''}</p>` : ''}
-      ${r.win && RECAP[r.id] ? `<div class="mt-2 border-t border-slate-700 pt-2"><div class="text-[10px] font-black text-amber-300 uppercase">Story so far</div><p class="text-xs text-slate-200 italic">${esc(RECAP[r.id])}</p></div>` : ''}`;
+      ${r.win && RECAP[r.id] ? `<div class="mt-2 border-t border-slate-700 pt-2"><div class="text-[10px] font-black text-amber-300 uppercase">Story so far</div><p class="text-xs text-slate-200 italic">${esc(RECAP[r.id])}</p>${HERO_RECAP[r.id] ? `<p class="text-xs text-emerald-300 mt-1">${esc(HERO_RECAP[r.id])}</p>` : ''}</div>` : ''}`;
     const k = await showPanel(r.win ? 'Victory!' : 'Defeat', html + (window.matchStatsHtml ? '<div class="mt-2 flex justify-center">' + matchStatsHtml() + '</div>' : ''), [['Retry', 'retry']].concat(won('M07') ? [['\u{1FA99} Shop', 'shop']] : []).concat([['Continue', 'map']]));
     S.quit(); state.started = false; initGame();
     if (r.win || k !== 'retry') S.ckpt = null;   // v39.18 M25 checkpoint only survives a Retry after a loss
@@ -2225,7 +2347,8 @@
       { id: 'shield', line: 'tut_m07_shield', speaker: 'Garrow', voiced: true, trigger: { k: 'time', t: 3 }, pause: true }
     ] }
   };
-  S.heroLabel = k => (S.m && S.m.playerNecro) ? 'Death Rider' : k === 'cavalier' ? (S.m && (S.m.heroTrial || S.m.id === 'M04')) ? 'Garrow\u2019s Outrider' : (won('M06') || (S.m && S.m.id === 'M06' && S.R && Object.values(S.R.obj).some(st => st.cages && st.cages.every(c => c.freed))) ? 'General Garrow' : 'Garrow\u2019s Outrider') : null;
+  S.heroLabel = k => (S.m && S.m.playerNecro) ? (HEROX[k] ? HEROX[k].name : 'Acolyte') :   // v39.20 no more Death Rider
+    k === 'cavalier' ? (S.m && (S.m.heroTrial || S.m.id === 'M04')) ? 'Garrow\u2019s Outrider' : (won('M06') || (S.m && S.m.id === 'M06' && S.R && Object.values(S.R.obj).some(st => st.cages && st.cages.every(c => c.freed))) ? 'General Garrow' : 'Garrow\u2019s Outrider') : null;
   S.TUT = TUT; const TUT_VO = S.TUT_VO = { tut_m05_roster: true, tut_m05_limits: true };
   for (const k in CH23) { const r = CH23[k].roster; if (!r || TUT[k]) continue; TUT_LINES[r[1]] = r[2]; if (r[3]) TUT_VO[r[1]] = true;   // v38.1 roster briefings
     TUT[k] = { steps: [{ id: 'roster', line: r[1], speaker: r[0] === 'Emberquill' ? 'Ember Quill' : r[0], voiced: r[3], roster: true, trigger: { k: 'time', t: 1 }, pause: true }] }; }   // v36.6 Cut's Vesper VO -> assets/vo/<lineId>.m4a

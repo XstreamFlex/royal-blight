@@ -18,7 +18,7 @@
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
   <script>if (window.Capacitor) document.write('<script src="capacitor-shim.js"><\/script>');</script><!-- Android app only; no-op on web -->
-  <title>Evermarch BETA v39.19</title>
+  <title>Evermarch BETA v39.20</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -323,7 +323,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.19</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.20</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-3 gap-2">
@@ -870,8 +870,9 @@
       el.dataset.k = key; const emoji = el.dataset.e || (el.dataset.e = el.textContent.trim());
       el.innerHTML = `<img src="assets/${key}.png" alt="" draggable="false" style="height:28px;width:28px;object-fit:contain;margin:-3px auto;filter:drop-shadow(0 1px 1px #000a)" onerror="this.replaceWith(document.createTextNode('${emoji}'))">`;
     }
+    const HERO_STANDIN = { torvald: 'brute', ossuar: 'brute' };   // v39.20 stand-in art until torvald_*/ossuar_* sprites land (delete the entry to use real art)
     function spriteKey(u) {
-      if (u.heroKey) return u.heroKey;
+      if (u.heroKey) return HERO_STANDIN[u.heroKey] || u.heroKey;
       if (u.type === 'pawn') return artTeam(u) === 'red' && !gladeMen(u) ? 'skeleton' : 'knight';   // v39.4 Glade's men are men, not skeletons
       return u.type;
     }
@@ -960,7 +961,7 @@
       loadSprite('felix_boss'); loadSprite('felix_boss_back'); ['drevlar_boss', 'drevlar_boss_back', 'doom_boss', 'doom_boss_back', 'knight_yellow', 'knight_yellow_back'].forEach(loadSprite);   // v39.19 approved sprites loadSprite('barn'); loadSprite('barn_burnt');
     }, 300));
     loadSprite('cavalier_blue'); loadSprite('cavalier_blue_back'); loadSprite('acolyte_red'); loadSprite('acolyte_red_back');
-    window.addEventListener('load', () => Object.entries(HERO_TYPES).forEach(([t, m]) => Object.values(m).forEach(k => { if (HEROX[k]) { loadSprite(k + '_' + t); loadSprite(k + '_' + t + '_back'); } })));   // v31
+    window.addEventListener('load', () => Object.entries(HERO_TYPES).forEach(([t, m]) => Object.values(m).forEach(k => { if (HEROX[k] && !HERO_STANDIN[k]) { loadSprite(k + '_' + t); loadSprite(k + '_' + t + '_back'); } })));   // v31
     ['turret_blue', 'turret_red', 'turret_pad', 'mine_safe', 'mine_mid', 'mine_far'].forEach(loadSprite);
     loadSprite('nexus_king');        // blue nexus (front)
     loadSprite('nexus_king_back');   // blue nexus seen from behind (faces its troops)
@@ -1141,11 +1142,13 @@
     const HERO_OF = { blue: 'cavalier', red: 'acolyte' };   // default heroes
     // v31 HERO ROSTER (STORY_BIBLE 8.1/8.2): one hero slot, 4 picks per army as mirror pairs by type.
     // New heroes reuse a base unit's attack code (archer / brute / wizard) plus one signature ability.
-    const HERO_TYPES = { blue: { default: 'cavalier', archer: 'wren', brute: 'bram', magic: 'quill' },
+    const HERO_TYPES = { blue: { default: 'cavalier', archer: 'wren', brute: 'torvald', magic: 'quill' },   // v39.20 Torvald replaces Bram (oar); saves store the TYPE slot so old picks resolve to Torvald
                          red:  { default: 'acolyte', archer: 'nettle', brute: 'ossuar', magic: 'wail' } };
     const HEROX = {   // v34.4: Nettle atk 35->38, Wail atk 48->45. v31 tuned with hero_mirror.py (equal-AI King vs Necro mirrors, Normal + Hard)
-      wren:   { base: 'archer', name: 'Wren', icon: '\u{1F3AF}', desc: 'Heartpiercer: every 4th arrow pierces the whole line', hp: 430, speed: 44, atk: 30, range: 170, interval: 1.1, radius: 16,
-                pierceEvery: 4, pierceMul: 1.5, pierceLen: 190 },
+      wren:   { base: 'archer', name: 'Wren', icon: '\u{1F3AF}', desc: 'Quickdraw: rapid single shots, every 4th pierces; Swoop dash to the threat', hp: 430, speed: 44, atk: 17, range: 185, interval: 0.55, radius: 16,
+                pierceEvery: 4, pierceMul: 1.5, pierceLen: 190, dashEvery: 25, dashR: 300 },   // v39.20 fast single shots (same DPS as v31), not volleys
+      torvald: { base: 'brute', name: 'Torvald Twin-Axe', icon: '\u{1FA93}', desc: 'Twin-Axe Whirl: every 4th attack spins and hits everything nearby', hp: 1300, speed: 34, atk: 26, range: 32, interval: 1.15, radius: 22,
+                resist: { magic: 0.5, ranged: 0.15 }, spinEvery: 4, spinR: 80, spinMul: 1.3, spinKb: 8 },
       nettle: { base: 'archer', name: 'Nettle', icon: '\u{1F9EA}', desc: 'Blightshot: poison arrows that spread to a 2nd foe', hp: 560, speed: 44, atk: 38, range: 170, interval: 1.1, radius: 16,
                 burn: [13, 4], spreadR: 70 },
       bram:   { base: 'brute', name: 'Bram', icon: '\u{1F6F6}', desc: 'Oar Sweep knockback; allies near him take 6% less', hp: 1250, speed: 34, atk: 30, range: 30, interval: 1.3, radius: 22,
@@ -1153,11 +1156,11 @@
       ossuar: { base: 'brute', name: 'Ossuar', icon: '\u{1F9B4}', desc: 'Bone Golem: huge HP, splits into 3 skeletons on death', hp: 1900, speed: 32, atk: 34, range: 30, interval: 1.3, radius: 23,
                 resist: { magic: 0.5, ranged: 0.15 }, split: 3, splitHp: 1.0 },
       quill:  { base: 'wizard', name: 'Ember Quill', icon: '\u{1F525}', desc: 'Ember Script: fireballs leave foes burning', hp: 360, speed: 40, atk: 32, range: 150, interval: 1.6, radius: 16,
-                splash: 60, burn: [8, 3], resist: { ranged: 0.3 } },
+                splash: 60, burn: [8, 3], resist: { ranged: 0.3 }, cleanseEvery: 3, cleanseR: 90, vsNecro: 1.5 },   // v39.20 Cleansing Script
       wail:   { base: 'wizard', name: 'Mother Wail', icon: '\u{1F47B}', desc: 'Grave Wail: every 5s a fear cone shoves foes back', hp: 480, speed: 40, atk: 45, range: 140, interval: 1.5, radius: 16,
                 splash: 60, resist: { ranged: 0.3 }, fearEvery: 5, fearR: 120, fearKb: 42, fearStun: 1.0 }
     };
-    function heroOf(team) { const k = (loadoutOf(team).hero) || 'default'; return (HERO_TYPES[team] && HERO_TYPES[team][k]) || HERO_OF[team]; }
+    function heroOf(team) { if (state.heroForce && state.heroForce[team]) return state.heroForce[team]; const k = (loadoutOf(team).hero) || 'default'; return (HERO_TYPES[team] && HERO_TYPES[team][k]) || HERO_OF[team]; }
     const isRangedType = t => t === 'archer' || t === 'wizard' || t === 'acolyte' || (HEROX[t] && HEROX[t].base !== 'brute');
 
     // v17 UNIT VARIANTS: one pick per slot in the pre-match loadout. Each variant has ONE trade-off.
@@ -1800,7 +1803,19 @@
 
     // v31 hero abilities
     function updateHeroX(u, dt) {
-      const H = u.hx; if (!H.sweepEvery && !H.fearEvery) return;
+      const H = u.hx;
+      if (H.dashEvery && !u.stunT) {   // v39.20 Wren: Swoop, dash to the foe nearest our nexus
+        u.dashT = (u.dashT == null ? 4 : u.dashT) - dt;
+        if (u.dashT <= 0) { const core = state.cores[u.team]; let f = null, bd = H.dashR;
+          for (const e of state.units) { if (e.dead || e.team === u.team || e.type === 'worker') continue; const d = Math.hypot(e.x - core.x, e.y - core.y); if (d < bd) { bd = d; f = e; } }
+          if (f && Math.hypot(f.x - u.x, f.y - u.y) > 140) { const dir = u.team === 'blue' ? 1 : -1; createSparks(u.x, u.y, '#86efac', 10); u.x = f.x + (Math.random() - 0.5) * 30; u.y = f.y + dir * 110; createSparks(u.x, u.y, '#86efac', 14); addFloatingText(u.x, u.y - 30, 'SWOOP!', '#86efac', 13, true); u.dashT = H.dashEvery; }
+          else u.dashT = 1; } }
+      if (H.cleanseEvery) {   // v39.20 Ember Quill: Cleansing Script burns poison/burn off nearby allies
+        u.clT = (u.clT == null ? 1 : u.clT) - dt;
+        if (u.clT <= 0) { u.clT = H.cleanseEvery; let n = 0;
+          for (const a of state.units) if (!a.dead && a.team === u.team && a.burnT > 0 && Math.hypot(a.x - u.x, a.y - u.y) <= (u.cleanseR || H.cleanseR)) { a.burnT = 0; a.burnAcc = 0; n++; createSparks(a.x, a.y, '#fde047', 5); }
+          if (n) addFloatingText(u.x, u.y - 30, 'CLEANSE', '#fde047', 12); } }
+      if (!H.sweepEvery && !H.fearEvery) return;
       u.abilT -= dt; if (u.abilT > 0 || u.stunT > 0) return;
       const fwd = u.team === 'blue' ? -1 : 1;
       if (H.sweepEvery) {   // Bram: Oar Sweep (AoE + knockback around him)
@@ -1932,6 +1947,12 @@
       } else if (u.type === 'brute') {
         sound.playHammerSlam();
         dealDamage(target, u.effectiveAtk, u, 'physical');
+        if (u.hx && u.hx.spinEvery && ++u.shots % u.hx.spinEvery === 0) {   // v39.20 Torvald: Twin-Axe Whirl
+          const H = u.hx, fwd = u.team === 'blue' ? -1 : 1, D = Math.round(u.effectiveAtk * H.spinMul);
+          state.units.forEach(e => { if (!e.dead && e.team !== u.team && e.type !== 'worker' && Math.hypot(e.x - u.x, e.y - u.y) <= H.spinR) { dealDamage(e, D, u, 'physical'); if (!e.boss && !e.dead) e.y += fwd * H.spinKb; } });
+          state.particles.push({ type: 'shockwave', color: '250,204,21', x: u.x, y: u.y, radius: 10, maxRadius: H.spinR, life: 0.4, maxLife: 0.4 });
+          addFloatingText(u.x, u.y - 34, 'WHIRL!', '#facc15', 13, true); if (u.onSpin) u.onSpin(u);
+        }
         createSparks(target.x, target.y, '#f59e0b', 8);
       } else if (u.type === 'archer') {
         sound.playArrowShoot();
@@ -1990,6 +2011,7 @@
     // Untyped damage (turrets, cores, shockwave) ignores resistances, as before.
     function dealDamage(target, dmg, source, dmgType) {
       if (target.retreat) return;                                   // v34: a retreating hero can't be hurt
+      if (source && source.heroKey === 'quill' && source.hx.vsNecro && target instanceof Unit && (target.type === 'acolyte' || (target.heroKey && HEROX[target.heroKey] && HERO_TYPES.red && Object.values(HERO_TYPES.red).includes(target.heroKey)))) dmg = Math.round(dmg * source.hx.vsNecro);   // v39.20 Ember vs necro heroes
       // v13 Ian: Cavalier fully blocks every 3rd incoming hit (any damage type)
       if (target.type === 'cavalier' && target.hp > 0 && dmg > 0 && dmgType !== 'burn') {
         target.hitsTaken = (target.hitsTaken || 0) + 1;
@@ -2040,6 +2062,7 @@
         }
       }
 
+      if (target.hp <= 0 && !target.dead && target.onZero) { const f = target.onZero; target.onZero = null; target.hp = 1; f(target); return; }   // v39.20 story mini-boss hook (kneel / retreat instead of dying)
       if (target.hp <= 0 && !target.dead && target.boss && window.Story && Story.bossDown && Story.bossDown(target)) return;   // v34 3-bar boss flees
       if (target.hp <= 0 && !target.dead && isHeroUnit(target) && !target.retreat && !(window.Story && Story.active && Story.heroDies)) {
         heroDefeated(target); return;                               // v34: heroes fall back to the nexus instead of dying
@@ -2124,7 +2147,8 @@
     }
     function heroRetreatTick(u, dt) {
       const core = state.cores[u.team], fwd = u.team === 'blue' ? -1 : 1, hy = core.y + fwd * HERO_RT.home, dy = hy - u.y, dx = LANE_X - u.x, d = Math.hypot(dx, dy);
-      if (d > 4) { const st = Math.min(d, u.speed * HERO_RT.walk * dt); u.x += dx / d * st; u.y += dy / d * st; return; }
+      if (d > (u.boss ? 90 : 20)) {   // v39.20: 20px slack so crowd-shoves at home cannot stall the heal
+      const st = Math.min(d, u.speed * HERO_RT.walk * dt); u.x += dx / d * st; u.y += dy / d * st; return; }
       u.hp = Math.min(u.effectiveMaxHp, u.hp + u.effectiveMaxHp * HERO_RT.heal * dt); u.lagHp = u.hp;
       if (u.hp >= u.effectiveMaxHp) { u.retreat = false; u.untargetable = false; u.rally = true; u.rallyT = HERO_RT.rallyMax; addFloatingText(u.x, u.y - 30, 'RALLY!', '#fde68a', 13); }
     }
@@ -3831,7 +3855,7 @@
         const art = (k, v) => VARIANT_ART.has(k + '_' + v + '_' + me) ? k + '_' + v + '_' + me : k + '_' + me;
         cardIcon('btn-buy-worker', 'worker_' + me); cardIcon('btn-buy-turret', 'turret_' + me);
         cardIcon('icon-archer', art('archer', lo.archer)); cardIcon('icon-brute', art('brute', lo.brute)); cardIcon('icon-wizard', art('wizard', lo.wizard));
-        cardIcon('hero-icon', (pn ? 'acolyte' : heroOf(me)) + '_' + me);
+        { const hk0 = heroOf(me); cardIcon('hero-icon', (pn && !HEROX[hk0] ? 'acolyte' : (HERO_STANDIN[hk0] || hk0)) + '_' + (pn ? 'red' : me)); }
       }
       {
         const me = myTeam(), lo = loadoutOf(me);
@@ -4536,7 +4560,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.19';
+    window.APP_VERSION = 'v39.20';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

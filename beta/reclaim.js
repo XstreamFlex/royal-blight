@@ -7,6 +7,8 @@
   try { if (/[?&]rcdev=1/.test(location.search)) localStorage.setItem('evermarch.rcdev', '1'); RC.dev = localStorage.getItem('evermarch.rcdev') === '1'; } catch (e) {}
   const SV = () => window.Story && Story.save(), rc = () => SV().rc, save = () => Story.persist();
   const unlocked = () => RC.dev || !!(SV() && SV().missions.M07 && SV().missions.M07.wins);
+  const ACT_GATE = { 1: 'M07', 2: 'M16', 3: 'M21' };   // v39.14 each act's Reclamation opens after its boss (Act 3: after Cline's cure)
+  const actOpen = a => RC.dev || !!(SV() && SV().missions[ACT_GATE[a]] && SV().missions[ACT_GATE[a]].wins && (a < 3 || (SV().missions[ACT_GATE[a]].a3v || 5) === 5));
   const IC = n => '<img src="assets/reclamation/icons/' + n + '.webp" alt="" style="display:inline-block;width:1.25em;height:1.25em;vertical-align:-0.25em">';   // v39.4 Cut's icons replace the emoji placeholders
   const RES_ICON = { grain: IC('icon_res_grain'), wood: IC('icon_res_wood'), metal: IC('icon_res_metal'), gold: IC('icon_res_gold') };
   const resTxt = o => Object.entries(o).filter(([, v]) => v).map(([k, v]) => `${RES_ICON[k]}${v}`).join(' ');
@@ -52,9 +54,12 @@
     4: { time: 240, par: 185, supply: { grain: 50, wood: 30, metal: 15 }, wave: { every: 24, g: { inf: 4, archer: 2, brute: 1 } }, court: { inf: 9, archer: 5, brute: 2, wiz: 1 }, keep: { cap: { k: 'brute', hp: 2400, atk: 44 }, g: { inf: 4, brute: 2, wiz: 1 } },
          fa: [['volley', 22], ['charge', 30], ['ward', 36]], vol: 18, bomb: 0, mod: { wiz: 1.25, brute: 0.85 }, weak: 'Wizards: the wharf is packed tight (+25%)', strong: 'Brutes: the captain\u2019s guard is drilled (-15%)' },
   };
+  Object.assign(FORTS, {"5": {"name": "Mill Ford", "where": "Westreach woods", "act": 2, "bg": "../bg/bg_m14_canals.webp", "foe": "outlaw", "g": {"inf": 8, "archer": 5}, "sc": 0.9, "hp": 1600, "towers": 0, "dem": {}, "budget": 45, "pay": {"grain": 50, "wood": 60, "gold": 70}, "teach": [], "unlockAb": [], "perk": ["wood5", "+5 wood after every Reclamation win"], "note": 5, "noteText": "[PLACEHOLDER, Cut to write] Outlaw tally sheets, nailed to the mill door. Every tree they felled, every cart they stopped."}, "6": {"name": "Canal Lock", "where": "Westreach canals", "act": 2, "bg": "../bg/bg_m09_stacks.webp", "foe": "rogue", "g": {"inf": 12, "archer": 7, "brute": 2}, "sc": 1.0, "hp": 2400, "towers": 1, "dem": {"ram": 1}, "budget": 55, "pay": {"grain": 80, "wood": 80, "gold": 100}, "teach": [], "unlockAb": [], "perk": ["grain5", "+5 grain after every Reclamation win"], "note": 6, "noteText": "[PLACEHOLDER, Cut to write] A purse of foreign coin under the lockkeeper’s floor. No crest anyone in Westreach has seen."}, "7": {"name": "Library Ruins", "where": "Westreach library", "act": 2, "bg": "../bg/bg_m16_library_dusk.webp", "foe": "outlaw", "g": {"inf": 16, "archer": 10, "brute": 4, "wiz": 1}, "sc": 1.0, "hp": 3600, "towers": 2, "barrier": true, "dem": {"ram": 1, "siege": 1, "arcane": 1}, "budget": 75, "pay": {"grain": 140, "wood": 120, "metal": 40, "gold": 200}, "teach": [], "unlockAb": [], "perk": ["draft5w", "+5 draft points in Reclamation"], "note": 7, "noteText": "[PLACEHOLDER, Cut to write] The outlaw chief’s payment, wrapped in a page torn from Glade’s own library."}, "8": {"name": "The Broken Gate", "where": "Northcrag gate", "act": 3, "bg": "../bg/bg_northcrag_pass.webp", "foe": "outlaw", "g": {"inf": 12, "archer": 6, "brute": 2}, "sc": 1.0, "hp": 2600, "towers": 0, "dem": {"ram": 1}, "budget": 60, "pay": {"grain": 90, "wood": 60, "metal": 30, "gold": 120}, "teach": [], "unlockAb": [], "perk": ["banner3", "Silver banner flies over your camp"], "note": 8, "before": [["Brannock", "Outlaws in our gatehouse, my lord. They're charging our own people to use our road.", ""], ["Cline", "I built that gate to keep the dead out. Rufus broke it to get me out. Now we fix it properly.", ""]], "after": [["Cline", "Hang the silver banner back up. Let the road see it.", ""]], "lore": [["Narrator", "A marker from the far side. No names. Only marks, thousands upon thousands, one for every soul the 1000 Year March poured into the shadow realm. A thousand years of dead, and none of them found their way out.", ""], ["Brannock", "My grandfather said that when the March ended, a hundred years ago, the dead didn't go home. They went down. Into the dark. All of them.", ""], ["Cline", "A hundred years we've called it a victory. We never asked who had to keep the dead.", ""]], "barks": [["keep_breached", "Outlaw Captain", "It's the Light Keeper! They said he was dead!"]], "noteText": "A marker from the far side. No names. Only marks, thousands upon thousands, one for every soul the 1000 Year March poured into the shadow realm. A thousand years of dead, and none of them found their way out."}, "9": {"name": "Hold the Outpost", "where": "Brannock’s outpost", "act": 3, "bg": "../bg/bg_northcrag_pass.webp", "foe": "outlaw", "g": {"inf": 6, "archer": 4}, "sc": 1.0, "hp": 1, "towers": 0, "dem": {}, "budget": 65, "hold": 120, "pay": {"grain": 110, "wood": 80, "metal": 40, "gold": 150}, "teach": [], "unlockAb": [], "perk": ["hp5", "Your outpost stores feed the march (+5 grain per win)"], "note": 9, "before": [["Brannock", "We can't move the wounded till the road's clear. We hold here.", ""], ["Cline", "Two minutes. I held out alone in that fort for months. I can hold two minutes with all of you.", ""]], "after": [["Brannock", "Road's clear. It's good to have you back, my lord.", ""]], "lore": [["Narrator", "Watch log, Northcrag, last winter of the March. Both armies were paid in the same coin this week. Good silver, no king's face on it. Nobody here knows who sent it. Lights on the ridge again tonight. Green ones. They never belong to either side.", ""], ["Cline", "No king's face. Someone paid both sides to keep killing each other. Someone who never wanted to be remembered.", ""], ["Brannock", "My lord... last month the green lights came back to the ridge. The same lights. A hundred years later.", ""]], "barks": [["wave_faction:necro:1", "Cline", "Those were my men. Put them to rest."]], "noteText": "Watch log, Northcrag, last winter of the March. Both armies were paid in the same coin this week. Good silver, no king's face on it. Nobody here knows who sent it. Lights on the ridge again tonight. Green ones. They never belong to either side."}, "10": {"name": "The High Holdfast", "where": "Northcrag heights", "act": 3, "bg": "../bg/bg_act3_northcrag_keep.webp", "foe": "outlaw", "g": {"inf": 18, "archer": 11, "brute": 5, "wiz": 2}, "sc": 1.0, "hp": 4800, "towers": 2, "barrier": true, "dem": {"ram": 2, "siege": 1, "arcane": 1, "army": 30}, "budget": 90, "pay": {"grain": 200, "wood": 140, "metal": 80, "gold": 300}, "teach": [], "unlockAb": [], "perk": ["draft10b", "+10 draft points in Reclamation"], "note": 10, "before": [["Brannock", "They moved in the week the fort went quiet. Like someone told them when.", ""], ["Cline", "Then let's ask their captain who.", ""]], "after": [["Cline", "Northcrag's ours again. Send a rider south. Tell Rufus I'm coming as soon as I can.", ""]], "lore": [["Narrator", "Orders. Hold the high holdfast until the thaw. Payment on arrival. Sealed in silver wax: the Light Keeper's own crest.", ""], ["Doom", "They are still coming down. A thousand years the March fed them to us, and a hundred years since it ended they are still lost. I have no graves to give them, only the dark, and the dark is full. If another March comes, the walls of this realm will not hold, and the dead will spill into every land of light. I did not open the way. I am not sure anymore whose hand moves mine. If I am ever free of it, I will lead them to rest. They have marched long enough.", ""], ["Cline", "My seal. Stolen the night the fort went dark. Someone wants us looking at each other.", ""], ["Cline", "That's not a conqueror. That's a man keeping a graveyard that won't stop filling.", ""], ["Ruphene", "\"Whose hand moves mine.\" Cline... that's what you said about the crystal.", ""]], "barks": [["boss_hp<=30", "Outlaw Captain", "We were paid to sit here! Nobody said the Light Keeper would come back!"]], "noteText": "Orders. Hold the high holdfast until the thaw. Payment on arrival. Sealed in silver wax: the Light Keeper's own crest."}});   // v39.14 Act 2 (Glade) + Act 3 (Cline, R3-A/B/C) forts
+  Object.assign(RCX, {"5": {"time": 220, "par": 150, "supply": {"grain": 20}, "wave": {"every": 20, "max": 6, "g": {"inf": 3, "archer": 1}}, "court": {"inf": 8, "archer": 4}, "keep": {"cap": {"k": "brute", "hp": 3000, "atk": 24}, "g": {"inf": 4}}, "fa": [["volley", 35]], "vol": 5, "bomb": 25, "mod": {"brute": 1.25, "inf": 0.85}, "weak": "Brutes: woodcutters scatter (+25%)", "strong": "Infantry: archers in the trees (-15%)"}, "6": {"time": 250, "par": 165, "supply": {"grain": 30, "wood": 20}, "wave": {"every": 20, "max": 6, "g": {"inf": 3, "archer": 2}}, "court": {"inf": 7, "archer": 5, "brute": 1}, "keep": {"cap": {"k": "brute", "hp": 4000, "atk": 32}, "g": {"inf": 4, "brute": 1}}, "fa": [["volley", 32], ["charge", 45]], "vol": 5, "bomb": 25, "mod": {"archer": 1.25, "brute": 0.85}, "weak": "Archers: the lock bridge has no cover (+25%)", "strong": "Brutes: rogues brace on the bridge (-15%)"}, "7": {"time": 340, "par": 120, "supply": {"grain": 45, "wood": 30, "metal": 10}, "wave": {"every": 22, "max": 6, "g": {"inf": 3, "archer": 2, "brute": 1}}, "court": {"inf": 6, "archer": 5, "brute": 2}, "keep": {"cap": {"k": "wiz", "hp": 3400, "atk": 20}, "g": {"archer": 2, "brute": 1}}, "fa": [["volley", 50], ["bombard", 70], ["ward", 80]], "vol": 5, "bomb": 25, "mod": {"inf": 1.25, "archer": 0.85}, "weak": "Infantry: the ruins break up their lines (+25%)", "strong": "Archers: shelves give cover (-15%)"}, "8": {"time": 260, "par": 170, "supply": {"grain": 35, "wood": 20}, "wave": {"every": 20, "max": 6, "g": {"inf": 3, "archer": 2}}, "court": {"inf": 8, "archer": 5, "brute": 1}, "keep": {"cap": {"k": "brute", "hp": 4200, "atk": 32}, "g": {"inf": 4, "brute": 1}}, "fa": [["volley", 32], ["charge", 45]], "vol": 5, "bomb": 25, "mod": {"archer": 1.25, "brute": 0.85}, "weak": "Archers: the cart barricade is low (+25%)", "strong": "Brutes: the gatehouse is narrow (-15%)"}, "9": {"time": 121, "par": 999, "supply": {"grain": 40, "wood": 20}, "wave": {"every": 14, "max": 99, "g": {"inf": 4, "archer": 2}}, "court": {}, "keep": {"cap": {"k": "brute", "hp": 1, "atk": 1}, "g": {}}, "fa": [["volley", 40]], "vol": 5, "bomb": 25, "mod": {}, "weak": "Brutes: stragglers come in thin lines (+25% feel)", "strong": "Waves never stop: hold 2:00"}, "10": {"time": 380, "par": 130, "supply": {"grain": 55, "wood": 35, "metal": 20}, "wave": {"every": 22, "max": 7, "g": {"inf": 3, "archer": 1, "brute": 1}}, "court": {"inf": 6, "archer": 6, "brute": 2, "wiz": 1}, "keep": {"cap": {"k": "wiz", "hp": 5600, "atk": 28}, "g": {"inf": 4, "brute": 2}}, "fa": [["volley", 45], ["charge", 60], ["ward", 70]], "vol": 5, "bomb": 25, "mod": {"wiz": 1.25, "brute": 0.85}, "weak": "Wizards: the holdfast yard is packed (+25%)", "strong": "Brutes: the captain’s guard is drilled (-15%)"}});
+  const FIDS = Object.keys(FORTS).map(Number), ACT_FORTS = a => FIDS.filter(n => (FORTS[n].act || 1) === a);
   const ABIL_CHG = { rain: 3, turtle: 3, blitz: 2, repel: 3, barrier: 2 };
   Object.entries(ABIL_CHG).forEach(([k, n]) => ABIL[k].chg = n);
-  [1, 2, 3, 4].forEach(n => { const P = FORTS[n].pay; for (const k in P) P[k] = Math.round(P[k] * 2); });
+  FIDS.forEach(n => { const P = FORTS[n].pay; for (const k in P) P[k] = Math.round(P[k] * 2); });
   const BR = {   // breach costs (doc §7)
     ram:    { name: 'Ram',    icon: '\u{1FAB5}', what: 'Breaks gates', cost: [{ grain: 60 }, { grain: 100 }, { grain: 170 }] },
     siege:  { name: 'Siege',  icon: '\u{1F3F0}', what: 'Silences towers', cost: [{ grain: 40, wood: 40 }, { grain: 70, wood: 70 }, { grain: 120, wood: 120 }] },
@@ -73,10 +78,10 @@
   const give = c => { for (const [k, v] of Object.entries(c)) { if (k === 'gold') SV().gold += v; else rc().res[k] += v; } };
   const armyCap = () => 40 + 10 * rc().br.army;
   const poolCap = k => k === 'wiz' && !wizOpen() ? 0 : Math.max(0, POOLS[k].cap + CAP_UP[k] * rc().up.caps - ((rc().wounded || {})[k] || 0));
-  const wizOpen = () => cleared(3) || RC._fort === 4;
+  const wizOpen = () => cleared(3) || RC._fort === 4 || (FORTS[RC._fort] && (FORTS[RC._fort].act || 1) > 1);
   const cleared = n => !!(rc().forts[n] && rc().forts[n].clears);
-  const fortOpen = n => n === 1 || cleared(n - 1);
-  const budgetOf = f => FORTS[f].budget + (rc().perks.includes('draft10') ? 10 : 0);
+  const fortOpen = n => { const a = FORTS[n].act || 1, L = ACT_FORTS(a), i = L.indexOf(n); return actOpen(a) && (i === 0 || cleared(L[i - 1])); };
+  const budgetOf = f => FORTS[f].budget + (rc().perks.includes('draft10') ? 10 : 0) + ((FORTS[f].act || 1) > 1 && rc().perks.includes('draft5w') ? 5 : 0) + ((FORTS[f].act || 1) > 2 && rc().perks.includes('draft10b') ? 10 : 0);
   function missing(f, total) {
     const d = FORTS[f].dem, b = rc().br, o = {};
     for (const k of ['ram', 'siege', 'arcane']) if (d[k]) o[k] = Math.max(0, d[k] - b[k]);
@@ -166,16 +171,16 @@
   // ---------------------------------------------------------------- MAP (fort select) + CAMP (breach + upgrades)
   // v39.5 Reclamation lives on the story map: forts + camp are map nodes (Story.openMap calls RC.mapNodes / RC.bindMap)
   RC.open = function () { close(); if (window.Story && Story.openMap) Story.openMap(); };
-  const MAP_POS = { 1: [76, 64], 2: [68, 44], 3: [90, 36], 4: [92, 72] }, CAMP_POS = [72, 80];
+  const MAP_POS = { 1: [76, 64], 2: [68, 44], 3: [90, 36], 4: [92, 72], 5: [8, 36], 6: [28, 34], 7: [10, 66], 8: [34, 9], 9: [68, 9], 10: [70, 24] }, CAMP_POS = [72, 80];
   RC.mapNodes = function () {
-    const on = unlocked(), all = [1, 2, 3, 4].every(cleared);
-    const fort = n => { const f = FORTS[n], ok = on && fortOpen(n), done = cleared(n);
+    const on = unlocked(), all = ACT_FORTS(1).every(cleared), shown = FIDS.filter(n => (FORTS[n].act || 1) === 1 || actOpen(FORTS[n].act));
+    const fort = n => { const f = FORTS[n], ok = on && fortOpen(n), done = cleared(n), flag = 'units/' + (FORTS[n].foe || 'pirate') + '_deckhand_front.webp';
       const ring = all ? '#fbbf24' : done ? '#3b82f6' : ok ? '#e11d48' : '#64748b';
       const glow = all ? 'filter:drop-shadow(0 0 4px #fbbf24) drop-shadow(0 0 2px #fde68a)' : done ? 'filter:hue-rotate(190deg) saturate(1.3) drop-shadow(0 2px 3px #000a)' : 'filter:drop-shadow(0 2px 3px #000a)';
       return `<button data-rcfort="${n}" ${ok ? '' : 'disabled'} class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center ${ok ? '' : 'opacity-50 grayscale'}" style="left:${MAP_POS[n][0]}%;top:${MAP_POS[n][1]}%;z-index:2">
-        <div class="rounded-lg flex items-center justify-center" style="width:34px;height:34px;background:#0f172acc;border:2px solid ${ring};${all ? 'box-shadow:0 0 8px #fbbf24' : ''}"><img src="${A}props/${done ? 'prop_fort_breached' : 'prop_fort_fortified'}.webp" style="width:30px;height:30px;object-fit:contain;${glow}">${done ? '' : `<img src="${A}icon_pirate_flag.webp" style="position:absolute;width:12px;height:12px;right:-4px;top:-4px">`}</div>
+        <div class="rounded-lg flex items-center justify-center" style="width:34px;height:34px;background:#0f172acc;border:2px solid ${ring};${all ? 'box-shadow:0 0 8px #fbbf24' : ''}"><img src="${A}props/${done ? 'prop_fort_breached' : 'prop_fort_fortified'}.webp" style="width:30px;height:30px;object-fit:contain;${glow}">${done ? '' : `<img src="${A}${flag}" style="position:absolute;width:12px;height:12px;right:-4px;top:-4px">`}</div>
         <div class="mt-0.5 px-1 rounded bg-black/70 text-[8px] font-black leading-tight" style="color:${all ? '#fde68a' : done ? '#93c5fd' : '#fecdd3'}">${f.name}${done ? ' \u2714' : ok ? '' : ' \u{1F512}'}</div></button>`; };
-    return [1, 2, 3, 4].map(fort).join('') + `<button data-rccamp ${on ? '' : 'disabled'} class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center ${on ? '' : 'opacity-50 grayscale'}" style="left:${CAMP_POS[0]}%;top:${CAMP_POS[1]}%;z-index:2">
+    return shown.map(fort).join('') + `<button data-rccamp ${on ? '' : 'disabled'} class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center ${on ? '' : 'opacity-50 grayscale'}" style="left:${CAMP_POS[0]}%;top:${CAMP_POS[1]}%;z-index:2">
       <div class="rounded-lg flex items-center justify-center text-base" style="width:30px;height:30px;background:#0f172acc;border:2px solid ${all ? '#fbbf24' : '#f59e0b'}">\u26FA</div>
       <div class="mt-0.5 px-1 rounded bg-black/70 text-[8px] font-black text-amber-200 leading-tight">${on ? 'Camp ' + ['grain', 'wood', 'metal', 'gold'].map(k => RES_ICON[k].replace('1.25em', '0.9em').replace('1.25em', '0.9em') + (have(k) || 0)).join('') : 'Reclamation \u{1F512} M07'}</div></button>`;
   };
@@ -193,7 +198,7 @@
       ${(() => { const W = rc().wounded || {}, n = Object.values(W).reduce((x, v) => x + v, 0), c = { grain: 3 * n }; return n ? `<div class="flex items-center gap-2 bg-rose-950/60 rounded-lg p-2 mt-2"><div class="flex-1 text-xs font-black">\u{1FA79} Wounded: ${Object.entries(W).filter(([, v]) => v).map(([k, v]) => v + ' ' + POOLS[k].name).join(', ')}<div class="text-[10px] text-slate-400 font-normal">Out of your draft pools until tended.</div></div><button data-heal ${canPay(c) ? '' : 'disabled'} class="px-2 py-1.5 rounded-lg text-[11px] font-black ${canPay(c) ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-500'}">Tend ${resTxt(c)}</button></div>` : ''; })()}
       <div class="text-[11px] font-black text-amber-300 uppercase mt-3 mb-1">Reclamation upgrades</div>${Object.entries(UPS).map(([k, d]) => row('up', k, d, rc().up[k])).join('')}
       <div class="text-[11px] font-black text-amber-300 uppercase mt-3 mb-1">Abilities</div><div class="grid grid-cols-5 gap-1">${Object.entries(ABIL).map(([k, a]) => `<div class="text-center rounded-lg p-1 ${rc().abil.includes(k) ? 'bg-slate-700' : 'bg-slate-900 opacity-40'}"><div class="text-xl">${a.icon}</div><div class="text-[9px] font-black">${a.name}</div></div>`).join('')}</div>
-      <div class="text-[11px] font-black text-amber-300 uppercase mt-3 mb-1">Prosperity perks</div><div class="text-[11px] text-slate-300">${[1, 2, 3, 4].map(n => `<div>${rc().perks.includes(FORTS[n].perk[0]) ? '\u2705' : '\u2B1C'} Fort ${n}: ${FORTS[n].perk[1]}</div>`).join('')}</div></div>`);
+      <div class="text-[11px] font-black text-amber-300 uppercase mt-3 mb-1">Prosperity perks</div><div class="text-[11px] text-slate-300">${FIDS.filter(n => (FORTS[n].act || 1) === 1 || actOpen(FORTS[n].act)).map(n => `<div>${rc().perks.includes(FORTS[n].perk[0]) ? '\u2705' : '\u2B1C'} Fort ${n}: ${FORTS[n].perk[1]}</div>`).join('')}</div></div>`);
     root.querySelector('[data-back]').onclick = back;
     const hb = root.querySelector('[data-heal]'); if (hb) hb.onclick = () => { const W = rc().wounded, c = { grain: 3 * Object.values(W).reduce((x, v) => x + v, 0) }; if (canPay(c)) { pay(c); for (const k in W) W[k] = 0; save(); } camp(back); };
     root.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const [g, k] = b.dataset.buy.split(':'), T = g === 'br' ? BR : UPS, c = T[k].cost[rc()[g][k]]; if (c && canPay(c)) { pay(c); rc()[g][k]++; save(); } camp(back); });
@@ -202,6 +207,7 @@
   // ---------------------------------------------------------------- SCOUT + DRAFT (scroll-wheel pools, points)
   let draft = {};
   function scout(f) {
+    const F0 = FORTS[f]; if (F0.before && !rc().seen.includes('pre' + f) && window.Story && Story.dialogue) { rc().seen.push('pre' + f); save(); return Story.dialogue(F0.before, 'rc' + f + '_b').then(() => scout(f)); }
     RC._fort = f; const F = FORTS[f];
     draft = draft._f === f ? draft : { _f: f, inf: 0, archer: 0, brute: 0, wiz: 0 };
     const total = () => ['inf', 'archer', 'brute', 'wiz'].reduce((a, k) => a + draft[k], 0);
@@ -251,7 +257,7 @@
     $('rc-march').onclick = () => { if (!total()) return; RC.ev('march'); battle(f, { ...draft }); };
     RC.setDraft = o => { for (const k in o) if (POOLS[k]) setV(k, o[k]); };   // test hook
     refresh();
-    if (!guided(f, 'd')) guide(G[f].draft).then(() => markGuided(f, 'd'));
+    if (G[f] && !guided(f, 'd')) guide(G[f].draft).then(() => markGuided(f, 'd'));
   }
 
   // ---------------------------------------------------------------- BATTLE (v39.6: phased siege - WALL, COURTYARD, KEEP; fort counter-abilities; charges)
@@ -264,7 +270,7 @@
     const total = Object.entries(d).filter(([k]) => POOLS[k]).reduce((a, [, v]) => a + v, 0);
     const miss = missing(f, total), ms = missSum(miss), up = rc().up, fortY = 92;
     const b = { f, F, X, W, H, t: 0, units: [], fx: [], fortHp: F.hp, fortMax: F.hp, fortMult: ms === 0 ? 1 : ms === 1 ? 0.1 : 0, miss, ms, towerT: 0, cds: {}, cdMax: {}, chg: {}, act: {}, done: false, headless, ab,
-      stats: { lost: { me: {}, foe: {} }, kills: {}, sent: { ...d } }, fortY, barrierHp: F.barrier ? 600 * (miss.arcane ? 3 : 0.4) : 0, guideBattle: !headless && !guided(f, 'b') && G[f].battle.length, contactT: -1,
+      stats: { lost: { me: {}, foe: {} }, kills: {}, sent: { ...d } }, fortY, barrierHp: F.barrier ? 600 * (miss.arcane ? 3 : 0.4) : 0, guideBattle: !headless && !guided(f, 'b') && !!G[f] && G[f].battle.length, contactT: -1,
       ph: 1, waveT: X.wave.every, waves: 0, fa: X.fa.map(([k, every], i) => ({ k, every, t: every * 0.6 + i * 6, warn: 0, on: 0 })), msg: null, sent: total };
     const cdMul = (1 - 0.1 * up.cd) * (rc().perks.includes('cd10') ? 0.9 : 1);
     ab.forEach(k => { b.cds[k] = 0; b.cdMax[k] = ABIL[k].cd * cdMul; b.chg[k] = ABIL[k].chg; });
@@ -298,11 +304,11 @@
       <div class="flex gap-1.5 p-2 bg-slate-900 justify-center" id="rc-abs" style="padding-bottom:calc(8px + env(safe-area-inset-bottom))">${ab.length ? ab.map(k => `<button data-ab="${k}" class="relative w-16 h-14 rounded-xl bg-slate-700 overflow-hidden"><div class="absolute inset-x-0 bottom-0 bg-amber-500/60" data-fill></div><div class="relative text-xl leading-none">${ABIL[k].icon}</div><div class="relative text-[9px] font-black uppercase">${ABIL[k].name} <span data-chg></span></div></button>`).join('') : '<span class="text-[11px] text-slate-400 py-4">No abilities yet: they unlock as you free forts.</span>'}</div>`);
     const cv = $('rc-cv'), dpr = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr;
     const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
-    makeB(f, d, W, H, false); say(PH_NAME[1] + ': BREAK IT');
+    makeB(f, d, W, H, false); say(F.hold ? 'HOLD THE OUTPOST: ' + F.hold + 's' : PH_NAME[1] + ': BREAK IT');
     $('rc-retreat').onclick = () => { if (B && !B.done && !RC.paused) finish(false, true); };
     root.querySelectorAll('[data-ab]').forEach(b => b.onclick = () => useAb(b.dataset.ab));
     I(A + F.bg); ['prop_fort_fortified', 'prop_fort_breached', 'prop_breach_gate', 'prop_breach_tower', 'prop_breach_barrier'].forEach(n => I(A + 'props/' + n + '.webp')); I(A + 'units/outlaw_brute_front.webp'); I(A + 'units/outlaw_seawitch_front.webp');
-    Object.values(POOLS).forEach(P => { I('assets/' + P.me); I(A + 'units/' + P.foe); }); ['inf', 'archer', 'brute', 'wiz'].forEach(k => { const src = 'assets/' + unitSrc(f, k, true); const im = I(src); if (im) im.onerror = () => MISS.add(src); }); I('assets/' + armyOf(f).hero);
+    Object.values(POOLS).forEach(P => { I('assets/' + P.me); I(A + 'units/' + P.foe); }); ['inf', 'archer', 'brute', 'wiz'].forEach(k => { I(foeSrc(f, { k })); I(foeSrc(f, { k, nec: 1 })); }); ['inf', 'archer', 'brute', 'wiz'].forEach(k => { const src = 'assets/' + unitSrc(f, k, true); const im = I(src); if (im) im.onerror = () => MISS.add(src); }); I('assets/' + armyOf(f).hero);
     let last = performance.now();
     const loop = now => { if (!B) return; const dt = Math.min(0.05, (now - last) / 1000); last = now; if (!RC.paused) step(dt); if (B) draw(ctx); if (B && !B.done) raf = requestAnimationFrame(loop); };
     raf = requestAnimationFrame(loop);
@@ -380,9 +386,12 @@
     for (const k in b.act) b.act[k] = Math.max(0, b.act[k] - dt);
     let foes = live.filter(u => u.team === 'foe'); const mine = live.filter(u => u.team === 'me');
     if (b.contactT < 0 && mine.some(m => foes.some(e => Math.abs(e.y - m.y) < 170))) { b.contactT = b.t; if (b.guideBattle) { b.guideBattle = 0; guide(G[b.f].battle).then(() => markGuided(b.f, 'b')); } }
-    if (b.ph === 1 && b.fortHp <= 0) nextPhase(b);
+    if (b.F.hold) { /* v39.14 R3-B: hold the outpost, no wall */ } else if (b.ph === 1 && b.fortHp <= 0) nextPhase(b);
     else if (b.ph === 2 && foes.length <= 1) nextPhase(b);
-    if (b.ph === 1 && b.waves < (b.X.wave.max || 4) && (b.waveT -= dt) <= 0) { b.waveT = b.X.wave.every; b.waves++; spawnGroup(b.X.wave.g, b.fortY + 40); say('REINFORCEMENTS FROM THE FORT', '#fca5a5'); }
+    if (b.ph === 1 && b.waves < (b.X.wave.max || 4) && (b.waveT -= dt) <= 0) { b.waveT = b.X.wave.every; b.waves++; const nec = b.F.hold && b.waves % 2 === 0, n0 = b.units.length; spawnGroup(b.X.wave.g, b.fortY + 40); if (nec) { b.units.slice(n0).forEach(u => u.nec = 1); b.necW = (b.necW || 0) + 1; } say(nec ? 'THE DEAD COME DOWN THE SWITCHBACKS' : b.F.hold ? 'OUTLAWS CHARGE THE OUTPOST' : 'REINFORCEMENTS FROM THE FORT', '#fca5a5'); }
+    if (b.F.barks && !b.headless) b.F.barks.forEach((k, i) => { if ((b.bk = b.bk || {})[i]) return; const [on, who, txt] = k; let hit = false;
+      if (on === 'keep_breached') hit = b.ph === 3; else if (/^boss_hp<=/.test(on)) hit = b.cap && b.cap.hp / b.cap.max <= +on.split('<=')[1] / 100; else if (/^wave_faction:necro:/.test(on)) hit = (b.necW || 0) >= +on.split(':')[2];
+      if (hit) { b.bk[i] = 1; b.msg = { txt: who + ': “' + txt + '”', col: '#e0f2fe', t: 4.5 }; } });
     if (b.contactT >= 0) b.fa.forEach(a => fortAbil(b, a, dt, mine, foes));
     live = b.units.filter(u => u.hp > 0); foes = live.filter(u => u.team === 'foe');
     // v39.7 RAIN: real-time damage (no TEMPO division; it used to do ~2 HP total). Scales with archers alive:
@@ -397,8 +406,8 @@
       let tgt = null, best = 1e9;
       if (u.blitz > 0 && u.team === 'me') { for (const e of opp) { const s = e.y - (e.cap ? 300 : e.k === 'wiz' ? 200 : e.k === 'archer' ? 100 : 0); if (s < best) { best = s; tgt = e; } } best = tgt ? Math.hypot(tgt.x - u.x, tgt.y - u.y) : 1e9; }
       else for (const e of opp) { const dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < best) { best = dd; tgt = e; } }
-      const holding = u.team === 'foe' && !u.fblitz && (!tgt || best > (u.cap ? 140 : 230));
-      if (u.team === 'me' && b.ph === 1 && (!tgt || (best > 260 && u.y - b.fortY < 150))) {
+      const holding = (u.team === 'foe' && !b.F.hold && !u.fblitz && (!tgt || best > (u.cap ? 140 : 230))) || (u.team === 'me' && b.F.hold && (!tgt || best > 200));
+      if (u.team === 'me' && b.ph === 1 && !b.F.hold && (!tgt || (best > 260 && u.y - b.fortY < 150))) {
         const dy = u.y - (b.fortY + 30); if (dy > P.rng) { u.y -= u.spd * dt; u.mv = 1; } else if (u.t <= 0 && u.inv <= 0) { u.t = RC.TEMPO / (u.as || 1); hitFort(u); }
         continue;
       }
@@ -418,7 +427,7 @@
     if (b.F.towers && mine.length) { b.towerT -= dt; if (b.towerT <= 0) { b.towerT = 1.2 * RC.TEMPO; const dmg = 26 * (b.miss.siege ? 1 + 1.5 * b.miss.siege : 0.4) * (b.ms ? 1.5 : 1);
       for (let i = 0; i < b.F.towers; i++) { const tx = b.W * (i ? 0.85 : 0.15), ty = b.fortY + 10; let t = null, bd = 300; for (const m of mine) { const dd = Math.hypot(m.x - tx, m.y - ty); if (dd < bd) { bd = dd; t = m; } } if (t) { hurt({ team: 'foe', k: 'tower' }, t, dmg); b.fx.push({ k: 'shot', x: tx, y: ty, x2: t.x, y2: t.y, t: 0.3, t0: 0.3 }); } } } }
     if (b.ms && mine.length && Math.floor(b.t) !== Math.floor(b.t - dt)) { const near = mine.filter(m => m.y - b.fortY < 160); near.forEach(m => hurt({ team: 'foe', k: 'fort' }, m, 14 * b.ms / RC.TEMPO)); }
-    const alive = b.units.some(u => u.team === 'me' && u.hp > 0), won = b.ph === 3 && b.cap && b.cap.hp <= 0;
+    const alive = b.units.some(u => u.team === 'me' && u.hp > 0), won = b.F.hold ? alive && b.t >= b.F.hold : b.ph === 3 && b.cap && b.cap.hp <= 0;
     if (won || !alive || b.t >= b.X.time) finish(won);
   }
   RC.sim = function (f, d, policy) {
@@ -468,7 +477,7 @@
       const ox = L * (u.lx || 0), oy = (u.mv ? -Math.abs(Math.sin(b.t * 11 + sd)) * 3 : Math.sin(b.t * 3 + sd) * 1.2) + L * (u.ly || 0);
       c.fillStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.ellipse(u.x, u.y + s * 0.42, s * 0.32, s * 0.12, 0, 0, 7); c.fill();
       c.strokeStyle = u.team === 'me' ? 'rgba(56,189,248,0.8)' : 'rgba(244,63,94,0.8)'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(u.x, u.y + s * 0.42, s * 0.34, s * 0.14, 0, 0, 7); c.stroke();
-      if (u.team === 'me') { const src = 'assets/' + unitSrc(b.f, u.k, true); if (MISS.has(src) || !(img[src] && img[src].naturalWidth)) { c.filter = armyOf(b.f).tint; dr('assets/' + P.me, u.x + ox, u.y + oy, s, s); c.filter = 'none'; } else dr(src, u.x + ox, u.y + oy, s, s); } else dr(A + 'units/' + P.foe, u.x + ox, u.y + oy, s, s);
+      if (u.team === 'me') { const src = 'assets/' + unitSrc(b.f, u.k, true); if (MISS.has(src) || !(img[src] && img[src].naturalWidth)) { c.filter = armyOf(b.f).tint; dr('assets/' + P.me, u.x + ox, u.y + oy, s, s); c.filter = 'none'; } else dr(src, u.x + ox, u.y + oy, s, s); } else dr(foeSrc(b.f, u), u.x + ox, u.y + oy, s, s);
       if (u.hitT > 0) { c.globalAlpha = Math.min(0.6, u.hitT * 4.5); c.fillStyle = '#fff'; c.beginPath(); c.arc(u.x + ox, u.y + oy, s * 0.38, 0, 7); c.fill(); c.globalAlpha = 1; }
       if (u.inv > 0) { c.strokeStyle = '#fbbf24'; c.lineWidth = 2; c.beginPath(); c.arc(u.x, u.y, s / 2, 0, 7); c.stroke(); }
       if (u.shield > 0) { c.fillStyle = 'rgba(167,139,250,0.3)'; c.beginPath(); c.arc(u.x, u.y, s / 2 + 2, 0, 7); c.fill(); }
@@ -509,6 +518,7 @@
       const bonus = [0, 0, 0.25, 0.6][stars], newStar = stars > (rec.stars || 0);
       for (const [k, v] of Object.entries(F.pay)) reward[k] = Math.round(v * (1 + bonus) * (first ? 1 : newStar ? 0.6 : 0.25));
       rec.stars = Math.max(rec.stars || 0, stars);
+      if (rc().perks.includes('wood5')) reward.wood = (reward.wood || 0) + 5; if (rc().perks.includes('grain5')) reward.grain = (reward.grain || 0) + 5; if (rc().perks.includes('hp5')) reward.grain = (reward.grain || 0) + 5;
       give(reward);
       if (first) { F.unlockAb.forEach(k => { if (!rc().abil.includes(k)) { rc().abil.push(k); unlockedAb.push(k); } }); if (!rc().perks.includes(F.perk[0])) { rc().perks.push(F.perk[0]); perk = F.perk[1]; } }
     }
@@ -528,20 +538,20 @@
       ${win ? `<div class="text-center text-4xl leading-none mt-1">${st(1)}${st(2)}${st(3)}</div><div class="text-center text-[10px] text-slate-400">\u2605 Freed \u00B7 ${surv >= 0.5 ? '\u2714' : '\u2716'} \u2605 half your troops alive (${Math.round(surv * 100)}%) \u00B7 ${b.t <= X.par ? '\u2714' : '\u2716'} \u2605 under ${X.par}s</div>` : ''}
       ${why ? `<p class="text-center text-[12px] text-amber-200">${why}</p>` : ''}
       <div class="bg-slate-800 rounded-xl p-2 mt-2 text-center text-[12px] font-black text-amber-200">\u2694\uFE0F Decisive matchup: ${decTxt}</div>
-      <table class="w-full text-[12px] text-center mt-2"><tr class="text-slate-400 text-[10px] uppercase"><th class="text-left">Unit</th><th>Sent</th><th>Lost</th><th>Pirates</th><th>Killed</th></tr>${['inf', 'archer', 'brute', 'wiz'].map(row).join('')}</table>
+      <table class="w-full text-[12px] text-center mt-2"><tr class="text-slate-400 text-[10px] uppercase"><th class="text-left">Unit</th><th>Sent</th><th>Lost</th><th>${F.foe ? 'Foes' : 'Pirates'}</th><th>Killed</th></tr>${['inf', 'archer', 'brute', 'wiz'].map(row).join('')}</table>
       <div class="text-[11px] text-slate-300 mt-1">Reached: ${PH_NAME[b.ph]} \u00B7 ${wn ? `\u{1FA79} ${win ? Math.ceil(wn / 2) + ' patched up, ' + Math.floor(wn / 2) : wn} wounded (tend them at camp)` : 'no wounded'}</div>
       ${win ? `<div class="mt-2 bg-emerald-900/50 rounded-xl p-2 text-[12px] font-black">Reward: ${resTxt(reward) || 'none'}${stars > 1 ? ` <span class="text-amber-300">(+${[0, 0, 25, 60][stars]}% star bonus)</span>` : ''}${unlockedAb.length ? `<br>New ability: ${unlockedAb.map(k => ABIL[k].icon + ' ' + ABIL[k].name).join(', ')}` : ''}${perk ? `<br>Prosperity perk: ${perk}` : ''}</div>` : retreat ? `<div class="mt-2 bg-slate-800 rounded-xl p-2 text-[12px] font-black">Refund: ${resTxt(refund)}</div>` : ''}
       <div class="grid grid-cols-2 gap-2 mt-3"><button id="rc-again" class="py-3 rounded-xl bg-slate-700 font-black text-xs uppercase">Redraft</button><button id="rc-map" class="py-3 rounded-xl bg-amber-500 text-slate-950 font-black text-xs uppercase">Map</button></div></div>`);
     root.querySelector('[data-back]').onclick = RC.open; $('rc-map').onclick = RC.open; $('rc-again').onclick = () => scout(f);
-    B = null; if (first) note(f);
+    B = null; if (first) { if (F.after && window.Story && Story.dialogue) Story.dialogue(F.after.concat(F.lore ? [['\u00A7', 'LORE FOUND|' + F.name, '']] : []), 'rc' + f + '_a').then(() => note(f)); else note(f); }
   }
   function note(f) {
     const F = FORTS[f], ov = document.createElement('div');
     ov.className = 'fixed inset-0 z-[96] bg-black/80 flex items-center justify-center p-5';
-    ov.innerHTML = `<div class="bg-amber-50 text-slate-900 rounded-xl p-4 max-w-xs shadow-2xl" style="font-family:Georgia,serif"><div class="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1">\u{1F4DC} Story note ${f}/4</div><p class="text-[14px] leading-snug italic">${F.noteText}</p><div class="text-right text-[10px] text-slate-500 mt-2">tap to close</div></div>`;
+    ov.innerHTML = `<div class="bg-amber-50 text-slate-900 rounded-xl p-4 max-w-xs shadow-2xl" style="font-family:Georgia,serif"><div class="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1">\u{1F4DC} Story note ${F.act > 1 ? (F.act === 2 ? 'Westreach ' : 'Northcrag ') + (ACT_FORTS(F.act).indexOf(f) + 1) + '/' + ACT_FORTS(F.act).length : f + '/4'}</div><p class="text-[14px] leading-snug italic">${F.noteText}</p><div class="text-right text-[10px] text-slate-500 mt-2">tap to close</div></div>`;
     root.appendChild(ov); let au = null;
     if (F.note <= 3) { try { au = new Audio(A + `voice/reclaim_note_fort${F.note}.mp3`); if (!(Story.voMuted && Story.voMuted())) au.play().catch(() => {}); RC._noteAudio = au; } catch (e) {} }
-    ov.onclick = () => { if (au) au.pause(); ov.remove(); };
+    ov.onclick = () => { if (au) au.pause(); ov.remove(); if (F.lore && F.lore.length > 1 && window.Story && Story.dialogue) Story.dialogue(F.lore.slice(1), 'rc' + f + '_l'); };
   }
 
   // ---------------------------------------------------------------- menu entry (after Story), unlocked by beating M07
@@ -563,6 +573,9 @@
   const actOf = f => (FORTS[f] && FORTS[f].act) || 1;
   const armyOf = f => ARMY[actOf(f)] || ARMY[1];
   const unitSrc = (f, k, back) => { const a = armyOf(f); return a.dir + a.base[k] + a.suffix + (back ? '_back' : '') + a.ext; };
+  // v39.14 per-fort enemy faction sprites (outlaw/rogue sets exist); R3-B necro stragglers reuse the story skeleton art
+  const NEC = { inf: 'skeleton_shield_red.png', archer: 'skeleton_red.png', brute: 'skeleton_hammer_red.png', wiz: 'acolyte_red.png' };
+  const foeSrc = (f, u) => { if (u.nec) return 'assets/' + NEC[u.k]; const fs = (FORTS[f] && FORTS[f].foe) || 'pirate'; return fs === 'pirate' ? A + 'units/' + POOLS[u.k].foe : A + 'units/' + POOLS[u.k].foe.replace('pirate_', fs + '_'); };
   const MISS = new Set();   // sprite paths that failed to load -> tinted blue fallback
   const TUNE = {"1":{"F":{"hp":10000},"X":{"wave":{"every":20,"max":6,"g":{"inf":3,"archer":1}},"court":{"inf":8,"archer":4},"keep":{"cap":{"k":"brute","hp":2800,"atk":22},"g":{"inf":4}},"vol":5,"time":220,"par":150,"fa":[["volley",35]],"bomb":25}},"2":{"F":{"hp":12000},"X":{"wave":{"every":20,"max":6,"g":{"inf":3,"archer":2}},"court":{"inf":7,"archer":4,"brute":1},"keep":{"cap":{"k":"brute","hp":3800,"atk":34},"g":{"inf":4,"brute":1}},"vol":5,"time":240,"par":160,"fa":[["volley",32],["charge",45]],"bomb":25}},"3":{"F":{"hp":26000,"sc":0.55,"g":{"inf":8,"archer":4,"brute":1,"wiz":1}},"X":{"wave":{"every":22,"max":6,"g":{"inf":3,"archer":2}},"court":{"inf":5,"archer":3,"brute":1},"keep":{"cap":{"k":"wiz","hp":2700,"atk":16},"g":{"archer":1,"brute":1}},"vol":5,"bomb":25,"time":330,"par":85,"fa":[["volley",60],["bombard",80]]}},"4":{"F":{"hp":34000,"sc":0.55,"g":{"inf":15,"archer":9,"brute":4,"wiz":1}},"X":{"wave":{"every":22,"max":7,"g":{"inf":3,"archer":1,"brute":1}},"court":{"inf":6,"archer":6,"brute":2},"keep":{"cap":{"k":"brute","hp":5200,"atk":28},"g":{"inf":4,"brute":2}},"vol":5,"time":360,"par":75,"fa":[["volley",45],["charge",60],["ward",70]],"bomb":25}}};
   for (const f in TUNE) { if (TUNE[f].F) Object.assign(FORTS[f], TUNE[f].F); if (TUNE[f].X) Object.assign(RCX[f], TUNE[f].X); }

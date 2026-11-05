@@ -18,7 +18,7 @@
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
   <script>if (window.Capacitor) document.write('<script src="capacitor-shim.js"><\/script>');</script><!-- Android app only; no-op on web -->
-  <title>Evermarch BETA v39.16</title>
+  <title>Evermarch BETA v39.17</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -325,7 +325,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.16</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.17</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-3 gap-2">
@@ -861,7 +861,7 @@
       return null;
     }
     // v24: story Chapter 1 enemy (Felix's Green Army) wears Kingdom art tinted green
-    function artTeam(u) { return (u.team === 'red' && window.Story && Story.active && Story.m && Story.m.region === 'eastmarch') ? 'green' : (u.team === 'red' && isDrill()) ? 'blue' : u.team; }
+    function artTeam(u) { return (u.team === 'blue' && !u.kingAlly && window.Story && Story.active && Story.m && Story.m.playerNecro) ? 'red' : (u.team === 'red' && window.Story && Story.active && Story.m && Story.m.region === 'eastmarch') ? 'green' : (u.team === 'red' && isDrill()) ? 'blue' : u.team; }
     // v36.2: P0 sparring match -> the red side is Garrow's Training Troops: Kingdom art (knights, archers, workers, turret, nexus) in gray
     function gladeMen(u) { return u.team === 'red' && !!(window.Story && Story.active && Story.m) && state.leaders && state.leaders.red === 'glade'; }   // v39.4 Act 2 Yellow Army: Kingdom art + Glade tint (knight_yellow* wins once Cut ships it)
     function isDrill() { return !!(window.Story && Story.active && Story.m && Story.m.enemy === 'drill'); }   // v26: real Green Army art
@@ -885,7 +885,8 @@
       blue: { rufus: { name: 'Rufus', key: 'nexus_king', tint: '', color: '#3b82f6' },
               felix: { name: 'Felix', key: 'nexus_felix', tint: 'hue-rotate(-95deg) saturate(1.1)', color: '#22c55e' },
               glade: { name: 'Glade', key: 'nexus_glade', tint: 'hue-rotate(-175deg) saturate(1.3) brightness(1.08)', color: '#eab308' },
-              cline: { name: 'Cline', key: 'nexus_cline', tint: 'grayscale(0.92) brightness(1.18) contrast(1.12)', color: '#e5e7eb' } },   // v39.16 silver like story (was teal)
+              cline: { name: 'Cline', key: 'nexus_cline', tint: 'grayscale(0.92) brightness(1.18) contrast(1.12)', color: '#e5e7eb' },
+              drevlar: { name: 'Drevlar', key: 'nexus_drevlar', tint: '', color: '#16a34a', story: true } },   // v39.17 Act 5 player army (story only)   // v39.16 silver like story (was teal)
       red:  { glade: { name: 'Glade', key: 'nexus_glade', tint: 'hue-rotate(-175deg) saturate(1.3) brightness(1.08)', color: '#eab308', story: true },   // v38 Act 2 Yellow Army (story only)
               cline: { name: 'Cline', key: 'nexus_cline', tint: 'grayscale(0.92) brightness(1.18) contrast(1.12)', color: '#e5e7eb', story: true },   // v38 Act 3 Silver Army (story only); v39.7 steel-grey (was teal hue-rotate)
               felix: { name: 'Felix', key: 'nexus_felix', tint: 'hue-rotate(-95deg) saturate(1.1)', color: '#22c55e', story: true },   // v24 story-only (Ch1 Green Army)
@@ -1226,7 +1227,7 @@
       return out;
     }
     window.armyTune = armyTune; window.ARMY_TUNE = ARMY_TUNE;
-    const armyKey = team => { const k = (state.leaders && state.leaders[team]) || DEFAULT_LEADER[team]; return (window.Story && Story.active) ? k : (ARMY_ALIAS[k] || k); };   // v39.16 alias only outside story (story unchanged)
+    const armyKey = team => { const k = (state.leaders && state.leaders[team]) || DEFAULT_LEADER[team]; return (window.Story && Story.active) ? ((Story.m && Story.m.armyAs && Story.m.armyAs[team]) || k) : (ARMY_ALIAS[k] || k); };   // v39.16 alias only outside story (story unchanged)
     const armyOpt = (team, k, d) => { const A = ARMY_TUNE[armyKey(team)]; return A && A[k] !== undefined ? A[k] : d; };
     function applyArmy(st, team, type) {
       if (type === 'worker') return st;
@@ -4534,7 +4535,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.16';
+    window.APP_VERSION = 'v39.17';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

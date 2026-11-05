@@ -440,6 +440,7 @@
       state.loadout.red = Object.assign({}, DEFAULT_LOADOUT, m.act === 2 ? { archer: 'long', wizard: 'priest' } : { brute: 'heavy', pawn: 'shield' }, m.enemyLoadout || {});
       state.leaders.red = m.leader || (m.act === 2 ? 'glade' : 'cline');
       if (m.redCore) { const c = state.cores.red; c.maxHp = Math.round(c.maxHp * m.redCore); c.hp = c.maxHp; } }
+    if (m.blueLeader) state.leaders.blue = m.blueLeader;   // v39.17 Act 5 Drevlar's army
     if (window.armyStartFix) armyStartFix();   // v39.9 ARMY_TUNE: re-time wave clocks for the story leaders
     AIS.red.strat = AIS.red.strat0 = m.ai.strat || 'balanced'; AIS.red.switches = 0;
     state.blueGold = m.gold || 100;
@@ -579,6 +580,7 @@
     if (m.commander === 'Glade') state.units.forEach(u => { if (u.team === 'blue' && u.type === 'worker' && (u.dead || u.hp <= 0) && !u._ml) { u._ml = 1; R.minerLost = (R.minerLost || 0) + 1; } });
     if (m.factionWaves && m.factionWaves.alt === 'pirate') { const mines = (typeof state.mines !== 'undefined' && state.mines) ? state.mines.filter(mm => mm.team === 'blue') : []; if (mines.length) state.units.forEach(u => { if (!u.dead && u.faction === 'pirate' && mines.some(mn => Math.hypot(u.x - mn.x, u.y - mn.y) < 40)) R.pirateMine = true; }); }
 
+    if (m.finale && S.finaleTick) S.finaleTick(dt);   // v39.17 Act 5
     if (m.countLost) state.units.forEach(u => { if (u.team === 'blue' && !u.story && (u.dead || u.hp <= 0) && !u._lc) { u._lc = 1; R.lostN = (R.lostN || 0) + 1; } });
     const B = blueArmy(), Rd = redArmy();
     for (const st of Object.values(R.obj)) tickObjective(st, dt, B, Rd);
@@ -707,6 +709,7 @@
       if (u.dead || u.hp <= 0) { if (!st.done) { st.done = true; R.spireFirst = !(b && b.dead); toast('THE SPIRE SHATTERS!', '#67e8f9'); } return; }
       if (u.untargetable && b && S.bossFrac() <= 0.5) { u.untargetable = false; toast('THE SPIRE IS EXPOSED! BRING IT DOWN', '#67e8f9'); }
       if (u.untargetable && b && !b.dead && !b.retreat && (st.healT -= dt) <= 0) { st.healT = 3; b.hp = Math.min(b.maxHp, b.hp + b.maxHp * 0.03); addFloatingText(b.x, b.y - 30, '+HEAL', '#67e8f9', 12); }
+    } else if (o.k === 'finale') { st.done = !!(R.fin && R.fin.done);
     } else if (o.k === 'totem') {   // v39.15: win needs every bone totem down (plus boss)
       const left = (st.totems || []).filter(u => !u.dead && u.hp > 0);
       if (!left.length && !st.done) { st.done = true; toast('ALL BONE TOTEMS DESTROYED!', '#a3e635'); }
@@ -1641,6 +1644,113 @@
     }
   }
 
+  // ------------------------------------------------------------------ v39.17 ACT 5 FINALE: M25 "March of Doom" (one continuous battle, 3 stages).
+  // Player = Drevlar's dead (blue side, skeleton art, necro ARMY_TUNE via armyAs); Rufus/Felix/Glade (+Cline in C) reinforce.
+  // Stage A/B: break the necro totems. Stage C: Doom (3-bar boss) -> his crown erupts into a spire with Vesper caged ->
+  // break the cage (free her) -> she transforms -> HP thresholds: absorbs a remnant + tries to re-turn an ally (bond holds) -> escapes as birds = win.
+  // Text-only. PLACEHOLDERS: Doom = nexus_doom art (ruby crystal bird crown pending), Vesper boss = nexus_vexis art, cage = crystal spire draw, stage maps = tints.
+  // Post-credits epilogue (ch5_post_credits) deliberately NOT included.
+  {
+    const L = (w, t) => [w, t, ''];
+    const bark = (on, who, txt) => ({ on, once: true, lines: [[who, null, txt]], gap: 0.4, pause: false });
+    M.M25 = { id: 'M25', region: 'southmire', act: 5, needs: 'M24', map: 'farmland', name: 'FINALE: March of Doom', type: 'FINALE', final: true, reward: ['G5', 'X3'],
+      brief: 'Act 5. One battle, no rest. Drevlar\'s dead lead the charge; the kings fight at your back. Break each necro totem and push north to Paradale.',
+      rosterLine: ['Garrow', 'Everything, lad. Every army we\'ve got. No breaks.'],
+      leader: 'necro', blueLeader: 'drevlar', playerNecro: true, armyAs: { blue: 'necro' }, noNexusWin: true, redFloor: 0.05, commander: 'Drevlar', gold: 320,
+      ai: { level: 'hard', strat: 'balanced', income: 1.1 }, finale: true,
+      kingAllies: [
+        { id: 'rufus', on: 'time:4', hero: 'RUFUS', units: ['pawn', 'archer'] },
+        { id: 'felix', on: 'time:20', hero: 'FELIX', units: ['pawn', 'pawn', 'archer', 'archer'] }
+      ],
+      objectives: [{ k: 'finale', name: 'March of Doom' }],
+      stars: ['Win the mission', 'Nexus never below 50%', 'Every king survives'],
+      starFn: (s, R) => { s[1] = R.minCoreFrac >= 0.5; s[2] = !!R.kings && Object.values(R.kings).every(u => u && !u.dead); },
+      before: [
+        ['\u00A7', 'ACT FIVE — MARCH OF DOOM|Placeholder card (cutscene ch5_m25_intro). The swamp edge, seconds after Drevlar\'s fall. Smoke on the northern horizon.', ''],
+        L('Glade', 'They didn\'t come through the only pass, Rufus, they came under it. Remember the ancient tunnel system?'),
+        L('Rufus', 'But those paths are too tight for an army to fit through. And Tobb has the only key to the tunnels.'),
+        L('Felix', 'Then don\'t think. Ride.'),
+        L('Drevlar', 'Eleven hundred years ago a gift turned me, and my fall lit the March. A thousand years Doom bled for my mistake. He is no more the master of that army than I was of mine. Something wears him, the way the amulet wore me.'),
+        L('Drevlar', 'He was my king before he was anyone\'s puppet. I started the March. I will end it. I will free him from the evil that holds him. My dead will lead the charge. Kings, follow behind us!'),
+        L('Rufus', 'Then lead, North Guardian. Paradale marches at your back.'),
+        L('Storyteller', 'They never made it out of the swamp.')
+      ],
+      after: [
+        ['\u00A7', 'THE BIRDS|Placeholder card. She bursts into a storm of black birds that scream past Rufus and vanish into the smoke. One black feather drifts down where she stood.', ''],
+        L('Doom', 'The master… I never saw a face. Only a gift.'),
+        L('Drevlar', 'My king. Eleven hundred years. Forgive me.'),
+        L('Doom', 'Forgive? Guardian, you brought me back. Now help me give my lost souls the rest they deserve.'),
+        L('Rufus', 'How could I have been so naive. She played me like a fiddle. We can\'t let a darkness like that infect anyone else. We have to find her, wherever she goes.'),
+        L('Storyteller', 'And so the March of Doom ended where it began, under the lanterns of Paradale. But somewhere, someone was already planning the next one.')
+      ],
+      lose: [L('Rufus', 'Hold the line! We go again!')],
+      stage: { bg: null, lane: null, overlay: 'fx_ash', tint: { color: '#14532d', alpha: 0.28, blend: 'multiply' }, events: [
+        bark('t>=2', 'Felix', 'Those are my farmers. Their eyes… Don\'t kill them, break the totem!')
+      ] } };
+    M.M25.events = null;
+    BOSSES.M25 = { name: 'Doom', short: 'DOOM', art: 'nexus_doom', portrait: 'mystery', fort: 'the fallen festival' };   // PLACEHOLDER: Doom sprite with ruby crystal bird crown (Cut)
+    REGIONS.southmire.missions = ['M22', 'M23', 'M24', 'M25']; REGIONS.southmire.count = 4;
+    const FB = { A: { tint: { color: '#14532d', alpha: 0.28, blend: 'multiply' }, name: 'EASTMARCH' }, B: { tint: { color: '#713f12', alpha: 0.3, blend: 'multiply' }, name: 'WESTREACH' }, C: { tint: { color: '#1e1b4b', alpha: 0.38, blend: 'multiply' }, name: 'PARADALE' } };
+    const say = (who, txt) => { const ST = S.R && S.R.stage; if (ST) stFire(ST, { lines: [[who, null, txt]], gap: 0.4, priority: 1 }); };
+    const tintTo = t => { const ST = S.R && S.R.stage; if (!ST || !ST.tint) return; ST.tintFrom = Object.assign({}, ST.tint); ST.tintTo = t; ST.tintK = 0; };
+    const totems = (n, hp) => { const h = Math.round(hp * (BOSS_DIFF[SAVE.diff] || 1)), cr = state.cores.red; const out = [];
+      for (let i = 0; i < n; i++) out.push(storyUnit({ type: 'totem', team: 'red', x: LANE_X + (i - (n - 1) / 2) * 80, y: cr.y + 140 + (i % 2) * 30, hp: h, speed: 0, radius: 20, label: 'Necro Totem ' + (i + 1) }));
+      return out; };
+    const midDialogue = (lines) => { const F = S.R.fin; F.talk = true; state.paused = true; Promise.resolve(S.dialogue(lines, 'M25_m')).then(() => { state.paused = false; F.talk = false; }); };
+    const ally = (id, hero, x) => { const R = S.R, cb = state.cores.blue; R.kings = R.kings || {}; const st = Object.assign({}, UNIT_STATS.brute, { type: 'brute', team: 'blue', lane: 'C', x: LANE_X + x, y: cb.y - 100 });
+      const u = new Unit(st); u.maxHp = u.hp = Math.round(u.maxHp * 2.8); u.atk = Math.round(u.atk * 1.4); u.hero3 = hero; u.kingAlly = true; state.units.push(u); R.kings[id] = u; toast(hero + ' ARRIVES!', '#4ade80'); };
+    S.finaleTick = function (dt) {
+      const R = S.R, m = S.m; if (!R || !m.finale) return; const F = R.fin = R.fin || { stage: 'A', t: 0, th: [] }; F.t += dt;
+      if (F.talk) return;
+      if (!F.tot && F.stage !== 'C') { F.tot = totems(F.stage === 'A' ? 2 : 3, F.stage === 'A' ? 450 : 520); }
+      if (F.clineT && (F.clineT -= dt) <= 0) { F.clineT = 0; say('Rufus', 'Cline… I knew it.'); ally('cline', 'CLINE', 60); ['pawn', 'pawn', 'brute', 'archer'].forEach(t => state.spawnQ.blue.push(t)); setTimeout(() => say('Cline', 'Northcrag answers, Rufus! Silver Army, CHARGE!'), 3500); }
+      if (F.stage === 'A' || F.stage === 'B') {
+        if (F.stage === 'B' && !F.bSaid && F.t > 2) { F.bSaid = 1; say('Glade', 'My own lads, in yellow and white. Hold, I\'m coming for you.'); }
+        const left = F.tot.filter(u => !u.dead && u.hp > 0);
+        if (!F.half && left.length <= Math.floor(F.tot.length / 2)) { F.half = 1; say('Doom', F.stage === 'A' ? 'The light realm. One whisper and you turn on each other.' : 'Kings who burn their own fields and their own books. So easy.'); }
+        if (!left.length) { createSparks(LANE_X, state.cores.red.y + 150, '#a3e635', 30); state.shake = 0.5;
+          say('Rufus', F.stage === 'A' ? 'Totem\'s down! Forward, keep moving!' : 'One more! Paradale\'s next!');
+          F.stage = F.stage === 'A' ? 'B' : 'C'; F.tot = null; F.half = 0; F.t = 0; tintTo(FB[F.stage].tint);
+          state.cores.red.hp = state.cores.red.maxHp;   // a fresh enemy line holds each stage
+          toast('STAGE ' + F.stage + ': ' + FB[F.stage].name, '#fde68a');
+          if (F.stage === 'B' && !(R.kings || {}).glade) ally('glade', 'GLADE', -40);
+          if (F.stage === 'C') { spawnBoss({ hp: 1500, atk: 38, range: 170, interval: 1.1, speed: 22, y: 300, name: 'Doom' }); } }
+        return;
+      }
+      if (F.stage === 'C') {   // Doom, 3 bars
+        const fr = S.bossFrac();
+        if (!F.d1 && fr <= 0.75) { F.d1 = 1; say('Doom', 'Look at you. Three kings, three gifts, three fools. The light realm was so easy to turn.'); }
+        if (!F.d2 && fr <= 0.5) { F.d2 = 1; say('Doom', 'I knew Cline would never fully turn. He and Drevlar were mere distractions while I overtook your capital.'); F.clineT = 6; }
+        if (!F.d3 && fr <= 0.25) { F.d3 = 1; say('Doom', 'You fools, I am just a pawn. Even if you beat me you will have stopped nothing. I\'m a puppet. The shadow realm is but one of many tools in the master\'s hands.'); }
+        if (R.boss && R.boss.dead) { F.stage = 'cage'; const cr = state.cores.red;
+          createSparks(R.boss.x, R.boss.y, '#e11d48', 40); state.shake = 0.8; toast('THE CROWN ERUPTS INTO A SPIRE!', '#fda4af');
+          F.cage = storyUnit({ type: 'spire', team: 'red', x: LANE_X, y: cr.y + 130, hp: Math.round(700 * (BOSS_DIFF[SAVE.diff] || 1)), speed: 0, radius: 24, label: 'Vesper\'s Cage' });
+          midDialogue([['\u00A7', 'THE SPIRE|Placeholder card. Doom\'s crown explodes and a ruby crystal spire tears up out of the festival grounds. Someone is caged inside.', ''],
+            L('Vesper', 'Rufus! Please, get me out of here! It\'s taking me!')]); }
+        return;
+      }
+      if (F.stage === 'cage') {
+        if (F.cage.dead || F.cage.hp <= 0) { F.stage = 'vesper'; const cr = state.cores.red;
+          midDialogue([L('Vesper', 'What fools, now I have you right where I want you. Every amulet you broke, I kept. Every bit of their power is mine now. And you brought every one of them right to me. Felix, Glade, Cline, you were mine once. One more push and you will all be mine. Drevlar too. And even you, Rufus.'),
+            ['\u00A7', 'THE TRANSFORMATION|Placeholder card. The broken amulets\' light pours into her. She rises over the ruined festival, changed.', '']]);
+          const hp = Math.round(1800 * (BOSS_DIFF[SAVE.diff] || 1));
+          const v = new Unit({ type: 'wizard', team: 'red', lane: 'C', x: LANE_X, y: cr.y + 120, hp, atk: 40, range: 160, interval: 1.2, speed: 16, radius: 22, resist: { ranged: 0.25, magic: 0.25 } });
+          v.boss = true; v.bossArt = 'nexus_vexis'; v.vesper = true; v.label = 'Vesper'; state.units.push(v); F.v = v; }   // PLACEHOLDER: Vesper transformed art
+        return;
+      }
+      if (F.stage === 'vesper') {
+        const v = F.v, fr = v.dead ? 0 : v.hp / v.maxHp;
+        [0.75, 0.5, 0.25].forEach((th, i) => { if (F.th[i] || fr > th) return; F.th[i] = 1;
+          v.hp = Math.min(v.maxHp, v.hp + v.maxHp * 0.08); createSparks(v.x, v.y, '#a855f7', 26); toast('SHE ABSORBS AN AMULET REMNANT!', '#d8b4fe');
+          const ks = Object.entries(R.kings || {}).filter(([k, u]) => u && !u.dead); const pick = ks[Math.floor(Math.random() * ks.length)];
+          if (pick) { const [k, u] = pick; u.stunT = Math.max(u.stunT || 0, 1.6); addFloatingText(u.x, u.y - 30, 'THE BOND HOLDS', '#93c5fd', 13, true);
+            setTimeout(() => toast('SHE REACHES FOR ' + k.toUpperCase() + '… THE BOND HOLDS!', '#93c5fd'), 600); } });
+        if (fr <= 0.1) { F.stage = 'done'; createSparks(v.x, v.y, '#0f172a', 50); createSparks(v.x, v.y, '#a855f7', 30); v.dead = true; v.hp = 0; state.shake = 0.7;
+          toast('SHE ESCAPES AS A STORM OF BIRDS!', '#e9d5ff'); setTimeout(() => { F.done = true; }, 1800); }
+      }
+    };
+  }
+
   fetch('assets/vo/index.json').then(r => r.json()).then(j => VO = j).catch(() => {});
   S.voMuted = () => localStorage.getItem('rb.voMute') === '1';
   S.setVoMute = m => { localStorage.setItem('rb.voMute', m ? '1' : '0'); if (m) S.voStop(0); };
@@ -1925,6 +2035,7 @@
       if (o.k === 'defend') rows.push(`${ck} Hold ${o.zone.name} ${fmt(st.left)} \u00B7 enemy ${Math.round(st.enemyT)}/${o.maxEnemy}s`);
       if (o.k === 'rescue') rows.push(`${ck} Free ${o.cages.map(c => c.name).join(', ')}`);
       if (o.k === 'spire') rows.push(`${ck} Shatter the Crystal Spire` + (st.u && !st.u.dead && !st.done ? ` ${Math.round(100 * st.u.hp / st.u.maxHp)}%` + (st.u.untargetable ? ' (shielded until Cline is at half)' : '') : ''));
+      if (o.k === 'finale') { const F = S.R && S.R.fin; rows.push(`${ck} March of Doom: ` + (!F ? 'Stage A' : ({ A: 'break the Eastmarch totems', B: 'break the Westreach totems', C: 'bring down Doom', cage: 'break the cage, free Vesper', vesper: 'drive her back', done: 'she escapes' })[F.stage] || '')); }
       if (o.k === 'totem') { const left = (st.totems || []).filter(u => !u.dead && u.hp > 0).length; rows.push(`${ck} Destroy Bone Totems (${(st.totems||[]).length - left}/${(st.totems||[]).length})`); }
       if (o.k === 'boss') rows.push(`${ck} Defeat ${(S.m && S.m.boss && S.m.boss.name) || 'Felix'}` + (R.boss && !R.boss.dead ? ` ${Math.round(100 * R.boss.hp / R.boss.maxHp)}% \u00B7 phase ${R.phase}` : ''));
       if (o.k === 'minerKill') rows.push(`${ck} Enemy miners down: ${Math.min(st.n || 0, o.count)}/${o.count}`);

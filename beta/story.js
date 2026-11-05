@@ -400,6 +400,17 @@
       r.querySelectorAll('[data-lp]').forEach(x => { const on = x === b; x.classList.toggle('bg-amber-500', on); x.classList.toggle('text-slate-950', on); x.classList.toggle('bg-slate-800', !on); x.classList.toggle('text-slate-200', !on); }); });
     r.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => toast('Required by this mission', '#fcd34d'));
   }
+  // v39.12 pre-battle backdrop: the before-dialogue used to sit over whatever map was last on the canvas (often the OG arena).
+  // Now a full-screen layer shows this mission's own stage art (bottom slice = the player's start view) or plain black until it is ready.
+  S.backdrop = function (m) {
+    let el = $('rb-backdrop'); if (!el) { el = document.createElement('div'); el.id = 'rb-backdrop'; el.className = 'fixed inset-0 z-[79] bg-black'; el.style.cssText = 'background-color:#000;background-repeat:no-repeat;background-size:100% auto;background-position:center bottom'; document.body.appendChild(el); }
+    el.style.backgroundImage = 'none'; el.classList.remove('hidden');
+    const sg = m && m.stage; if (!sg || !sg.bg) return;
+    stPreload(sg); const k = 'bg/' + sg.bg, t0 = performance.now();
+    const poll = () => { if (el.classList.contains('hidden')) return; const i = STIMG[k]; if (i && i.src) { el.style.backgroundImage = 'url("' + i.src + '")'; return; } if (i === false || performance.now() - t0 > 20000) return; setTimeout(poll, 60); };
+    poll();
+  };
+  S.backdropOff = function () { const el = $('rb-backdrop'); if (!el) return; requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => el.classList.add('hidden'), 50))); };
   S.start = function (id) {
     const m = M[id]; if (!m || !missionOpen(id)) return false;
     if (SAVE.diff === 'veryhard' && !vhOpen(m.act)) SAVE.diff = 'hard';
@@ -840,6 +851,7 @@
     if (bimg) { const k = bimg.height / WORLD_H, y0 = Math.max(0, state.cameraY - 20), y1 = Math.min(WORLD_H, state.cameraY + viewportH + 20);   // visible slice only
       c.drawImage(bimg, 0, y0 * k, bimg.width, (y1 - y0) * k, 0, y0, WORLD_W, y1 - y0); }
     else if (sg.bg && BG_FALLBACK[sg.bg]) BG_FALLBACK[sg.bg](c);
+    else if (sg.bg && STIMG['bg/' + sg.bg] == null && STAGE_ART.has('bg/' + sg.bg)) { c.fillStyle = '#000'; c.fillRect(0, state.cameraY - 40, WORLD_W, viewportH + 80); }   // v39.12 still loading: black, never the OG map
     const limg = sg.lane && stImg('lane', sg.lane);
     if (limg) { const w = LANE_HALF_W * 2, th = w * limg.height / limg.width, y0 = Math.max(0, Math.floor(state.cameraY / th) * th);
       for (let y = y0; y < Math.min(WORLD_H, state.cameraY + viewportH + th); y += th) { if (Math.abs(y + th / 2 - BRIDGE_Y) < th * 0.75) continue;   // keep the painted bridge
@@ -1610,7 +1622,7 @@
     const rsb = $('st-rs'); if (rsb) rsb.onclick = () => { SAVE.replayStory = !SAVE.replayStory; persist(); rsb.textContent = '\u{1F4D6} Replay story: ' + (SAVE.replayStory ? 'ON' : 'OFF'); rsb.className = rsb.className.replace(SAVE.replayStory ? 'bg-slate-800 text-slate-300 border-slate-600' : 'bg-amber-500 text-slate-950 border-amber-300', SAVE.replayStory ? 'bg-amber-500 text-slate-950 border-amber-300' : 'bg-slate-800 text-slate-300 border-slate-600'); };
     const k = await kP;
     if (k && k.startsWith('d:')) { SAVE.diff = k.slice(2); persist(); return S.brief(id); }
-    if (k === 'go') { $('modal-story').classList.add('hidden'); if (!replayed || SAVE.replayStory) { const cs = cinesFor(id, 'start').filter(c => (SAVE.replayStory || !SAVE.seen.includes('cine:' + c)) && !(c === 'intro_realm' && S._introJust)); S._introJust = false; if (cs.length) await S.playCine(cs); else await S.dialogue(m.before, id + '_b'); } S.start(id); }
+    if (k === 'go') { $('modal-story').classList.add('hidden'); if (!replayed || SAVE.replayStory) { const cs = cinesFor(id, 'start').filter(c => (SAVE.replayStory || !SAVE.seen.includes('cine:' + c)) && !(c === 'intro_realm' && S._introJust)); S._introJust = false; S.backdrop(m); if (cs.length) await S.playCine(cs); else await S.dialogue(m.before, id + '_b'); } S.start(id); S.backdropOff(); }
   };
   function objText(o, m) {
     switch (o.k) {

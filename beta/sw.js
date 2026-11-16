@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-beta-v39.20';   // BETA build (/royal-blight/beta/): own cache namespace
+const CACHE_VERSION = 'royal-blight-beta-v39.21';   // BETA build (/royal-blight/beta/): own cache namespace
 const CORE = [
   './', './index.html', './manifest.json', './mp.js', './story.js', './reclaim.js', './cloud.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/kingdom_map.jpg', './assets/fonts/fonts.css',
@@ -31,10 +31,16 @@ const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromance
   // v26: Green Army (story) + Felix boss + heroes
   ['knight','knight_mace','knight_hammer','knight_shield','archer','archer_long','archer_flame','archer_hunting','brute','brute_light','brute_heavy','brute_spiked',
    'wizard','wizard_priest','wizard_banner','worker','cavalier'].flatMap(k => [k + '_green', k + '_green_back'])
-    .concat(['felix_boss', 'felix_boss_back', 'drevlar_boss', 'drevlar_boss_back', 'doom_boss', 'doom_boss_back', 'knight_yellow', 'knight_yellow_back', 'barn', 'barn_burnt', 'windmill', 'windmill_burning', 'jailwagon', 'jailwagon_open', 'lantern_on', 'lantern_off', 'oilwagon', 'oilwagon_burnt', 'cavalier_blue', 'cavalier_blue_back', 'acolyte_red', 'acolyte_red_back'])
+    .concat(['felix_boss', 'felix_boss_back', 'drevlar_boss', 'drevlar_boss_back', 'doom_boss', 'doom_boss_back', 'knight_yellow', 'knight_yellow_back', 'knight_silver', 'knight_silver_back', 'archer_silver', 'archer_silver_back', 'brute_silver', 'brute_silver_back', 'wizard_silver', 'wizard_silver_back', 'worker_silver', 'worker_silver_back', 'barn', 'barn_burnt', 'windmill', 'windmill_burning', 'jailwagon', 'jailwagon_open', 'lantern_on', 'lantern_off', 'oilwagon', 'oilwagon_burnt', 'cavalier_blue', 'cavalier_blue_back', 'acolyte_red', 'acolyte_red_back'])
 ).map(n => './assets/' + n + (/^arena_/.test(n) ? '.jpg' : '.png'))
   .concat(['rufus','ruphene','vesper','garrow','felix','pip','farmer','mystery'].map(n => './assets/portraits/' + n + '.webp'), ['./assets/vo/index.json'],
-    ['wren_blue','bram_blue','quill_blue','nettle_red','ossuar_red','wail_red'].flatMap(n => ['./assets/' + n + '.png', './assets/' + n + '_back.png']));   // v31 heroes   // v29 portraits (voice .ogg cached on first play)
+    ['wren_blue','bram_blue','quill_blue','nettle_red','ossuar_red','wail_red'].flatMap(n => ['./assets/' + n + '.png', './assets/' + n + '_back.png'])).concat([   // v39.21 Nov 15 approved media
+  './assets/cine/ch4_m23_intro_s1.mp4', './assets/cine/ch4_m23_intro_s1.jpg',
+  './assets/cine/ch5_m25_intro_s2.mp4', './assets/cine/ch5_m25_intro_s2.jpg',
+  './assets/cine/ch5_m25_end_s3.mp4', './assets/cine/ch5_m25_end_s3.jpg',
+  './assets/vo/M22_b2.m4a', './assets/vo/M23_b0.m4a', './assets/vo/M24_a0.m4a', './assets/vo/M24_a1.m4a',
+  './assets/npc/npc_drevlar_kneel.webp', './assets/prop/prop_crystal_spire_shattered.webp'
+]);
 
 // v24.1: app shell is NETWORK-FIRST (cache only as offline fallback) so a new deploy shows on the next load;
 // images/fonts/libs stay cache-first. skipWaiting + clients.claim make a new worker take over at once.
@@ -48,7 +54,7 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
   // only clean up OLD BETA caches; the live game's caches share this origin and must not be touched
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('royal-blight-beta-v39.20') && k !== CACHE_VERSION).map(k => caches.delete(k))))
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('royal-blight-beta-v39.21') && k !== CACHE_VERSION).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {

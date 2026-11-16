@@ -18,7 +18,7 @@
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
   <script>if (window.Capacitor) document.write('<script src="capacitor-shim.js"><\/script>');</script><!-- Android app only; no-op on web -->
-  <title>Evermarch BETA v39.20</title>
+  <title>Evermarch BETA v39.21</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -323,7 +323,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.20</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.21</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-3 gap-2">
@@ -862,6 +862,7 @@
     function artTeam(u) { return (u.team === 'blue' && !u.kingAlly && window.Story && Story.active && Story.m && Story.m.playerNecro) ? 'red' : (u.team === 'red' && window.Story && Story.active && Story.m && Story.m.region === 'eastmarch') ? 'green' : (u.team === 'red' && isDrill()) ? 'blue' : u.team; }
     // v36.2: P0 sparring match -> the red side is Garrow's Training Troops: Kingdom art (knights, archers, workers, turret, nexus) in gray
     function gladeMen(u) { return u.team === 'red' && !!(window.Story && Story.active && Story.m) && state.leaders && state.leaders.red === 'glade'; }   // v39.4 Act 2 Yellow Army: Kingdom art + Glade tint (knight_yellow* wins once Cut ships it)
+    function silverMen(u) { return !!(u && (u.silverArmy || (window.Story && Story.active && Story.m && (u.team === 'red' && !u.boss && (Story.m.enemyArmy === 'silver' || (state.leaders && state.leaders.red === 'cline')))))); }   // v39.21 Act 3 Silver Army + Brannock's squad
     function isDrill() { return !!(window.Story && Story.active && Story.m && Story.m.enemy === 'drill'); }   // v26: real Green Army art
     // v30: card icon = <img> of a unit sprite; falls back to the emoji already in the slot if the file is missing
     function cardIcon(id, key) {
@@ -873,7 +874,7 @@
     const HERO_STANDIN = { torvald: 'brute', ossuar: 'brute' };   // v39.20 stand-in art until torvald_*/ossuar_* sprites land (delete the entry to use real art)
     function spriteKey(u) {
       if (u.heroKey) return HERO_STANDIN[u.heroKey] || u.heroKey;
-      if (u.type === 'pawn') return artTeam(u) === 'red' && !gladeMen(u) ? 'skeleton' : 'knight';   // v39.4 Glade's men are men, not skeletons
+      if (u.type === 'pawn') return artTeam(u) === 'red' && !gladeMen(u) && !silverMen(u) ? 'skeleton' : 'knight';   // v39.21 Silver Army are men, not skeletons
       return u.type;
     }
     // Facing: the army at the bottom of this screen walks away from the camera, so it is
@@ -940,6 +941,7 @@
       let chain = (away ? [k + '_' + at + '_back', k + '_' + at, base + '_' + at + '_back', base + '_' + at] : [k + '_' + at, base + '_' + at]);
       if (gm) {   // v39.4 Cut's <unit>_yellow art (plain men); Kingdom art + Glade tint only where yellow art is missing
         const y = chain.map(n => n.replace(new RegExp('_' + at + '(?=_back$|$)'), '_yellow')); chain = y.concat(chain.map(n => n.replace('_red', '_blue'))); }   // v39.19: artTeam is 'blue' for Glade's men, so swap whatever team suffix -> _yellow (knight_yellow was never reached)
+      if (silverMen(u)) { const s = chain.map(n => n.replace(new RegExp('_' + at + '(?=_back$|$)'), '_silver')); chain = s.concat(chain); }
       if (at === 'green') chain = chain.concat(chain.map(n => n.replace('_green', '_red')));   // red-only heroes (acolyte) keep their art
       chain = chain.concat([base]);
       let pending = false;
@@ -952,6 +954,7 @@
       const teams = k === 'knight' ? ['blue'] : k === 'skeleton' ? ['red'] : ['blue', 'red'];
       teams.forEach(t => { loadSprite(k + '_' + t); loadSprite(k + '_' + t + '_back'); });
     });
+    ['knight','archer','brute','wizard','worker'].forEach(k => { loadSprite(k + '_silver'); loadSprite(k + '_silver_back'); });   // v39.21 Silver Army
     loadSprite('arena_bg');
     // v25: preload every map + unit/variant/back sprite at boot so nothing is fetched mid-match
     window.addEventListener('load', () => setTimeout(() => {
@@ -1468,6 +1471,7 @@
         }
 
         if (u.retreat) { heroRetreatTick(u, dt); clampToBounds(u); continue; }   // v34 hero falls back + heals
+        if (u.ko) { if (window.Story && Story.koTick) Story.koTick(u, dt); clampToBounds(u); continue; }   // v39.21 mercy crawl
         if (u.rally) heroRallyTick(u, dt);
         if (u.story) { if (window.Story) Story.unitTick(u, dt); continue; }   // v24 story units (farmers, wagons, cages...)
         // Worker Logic
@@ -2067,6 +2071,7 @@
       if (target.hp <= 0 && !target.dead && isHeroUnit(target) && !target.retreat && !(window.Story && Story.active && Story.heroDies)) {
         heroDefeated(target); return;                               // v34: heroes fall back to the nexus instead of dying
       }
+      if (target.hp <= 0 && !target.dead && window.Story && Story.active && Story.knockout && Story.knockout(target)) return;   // v39.21 M18 mercy
       if (target.hp <= 0 && !target.dead) {
         target.dead = true; statsDeath(target);
         if (window.Story && Story.active) { if (target.story) Story.onUnitDeath(target); if (target instanceof Turret) Story.trackTurretLoss(target); }
@@ -3165,7 +3170,7 @@
       return front;
     }
     function drawNexusSprite(core, img, barColor) {
-      const S = NEXUS_SIZE;
+      const S = (window.Story && Story.active && Story.nexusSize && Story.nexusSize(core.team)) || NEXUS_SIZE;
       // Defend animation: short scale pulse + lunge toward the unit it is zapping
       const k = core.pulse > 0 ? Math.sin((1 - core.pulse / 0.3) * Math.PI) : 0;
       ctx.save();
@@ -3276,6 +3281,7 @@
         if (filter && !filter(u)) return;
         if (u.story) return;                            // v24: drawn by Story.draw
         if (!onScreenY(u.y, 90)) return;               // v15: skip units outside the camera view
+        if (u.ko) { ctx.save(); ctx.translate(u.x, u.y); ctx.rotate(u.team === 'red' ? -1.15 : 1.15); ctx.globalAlpha = 0.85; ctx.translate(-u.x, -u.y + 6); }   // v39.21 knocked-down crawl
         ctx.save();
         // Dynamic drop shadow
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -3364,6 +3370,7 @@
         if (u.type !== 'worker' || u.hp < u.effectiveMaxHp) {
           drawHealthBar(u.x, u.y - u.radius - 12, u.radius * 2, 4, u.hp, u.lagHp, u.effectiveMaxHp);
         }
+        if (u.ko) ctx.restore();
       }
     }
 
@@ -4560,7 +4567,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.20';
+    window.APP_VERSION = 'v39.21';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

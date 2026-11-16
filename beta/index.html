@@ -18,7 +18,7 @@
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
   <script>if (window.Capacitor) document.write('<script src="capacitor-shim.js"><\/script>');</script><!-- Android app only; no-op on web -->
-  <title>Evermarch BETA v39.22</title>
+  <title>Evermarch BETA v39.23</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -323,7 +323,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.22</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.23</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-3 gap-2">
@@ -661,7 +661,7 @@
     const LANE_MID_X = LANE_X;
     const LANE_HALF_W = 65;
     const TRACK_OFFSETS = { L: -36, C: 0, R: 36 };
-    function laneCentreX(lane) { return LANE_X + (TRACK_OFFSETS[lane] || 0); }
+    function laneCentreX(lane, y) { const base = (y != null && window.Story && Story.active && Story.laneXAt) ? Story.laneXAt(y) : LANE_X; return base + (TRACK_OFFSETS[lane] || 0); }   // v39.23 M20 switchbacks
     // --- VIEW / PERSPECTIVE ---
     // bottomTeam = the army shown at the bottom of this screen (walks up, drawn from the back).
     // Single-player: always 'blue'. For multiplayer each phone sets its own team here and the
@@ -864,6 +864,9 @@
       if (u.allyArmy === 'green' || u.allyArmy === 'yellow') return u.allyArmy;   // v39.22 M24 Felix/Glade flank armies
       if (u.team === 'blue' && !u.kingAlly && m && m.playerNecro) return 'red';
       if (u.team === 'blue' && !u.kingAlly && m && (m.playerArmy === 'green' || m.playerArmy === 'yellow')) return m.playerArmy;   // v39.22 M22 Felix green, M23 Glade yellow
+      if (u.team === 'red' && !u.boss && m && m.finale && window.Story.R && Story.R.fin) {   // v39.23 meet your equal
+        const st = Story.R.fin.stage; return st === 'A' ? 'green' : st === 'B' ? 'yellow' : 'blue';
+      }
       if (u.team === 'red' && m && m.region === 'eastmarch') return 'green';
       if (u.team === 'red' && isDrill()) return 'blue';
       return u.team;
@@ -1279,7 +1282,7 @@
       if (HEROX[type]) {   // v31 roster hero: base unit body + hero stats + ability fields
         const H = HEROX[type], st = applyArmy(Object.assign({}, UNIT_STATS[H.base], H, { type: H.base, variant: null }), team, type);
         const dir = (team === 'blue') ? -1 : 1, y = state.cores[team].y + dir * (70 - back);
-        const u = new Unit(Object.assign({ team, lane, x: laneCentreX(lane), y }, st));
+        const u = new Unit(Object.assign({ team, lane, x: laneCentreX(lane, y), y }, st));
         u.heroKey = type; u.hx = H; u.abilT = (H.sweepEvery || H.fearEvery || 0) * 0.5; u.shots = 0;
         if (H.burn) u.burn = H.burn; if (H.splash) u.splash = H.splash;
         state.units.push(u); statsMade(u); return u;
@@ -1288,7 +1291,7 @@
       const base = state.cores[team];
       const dir = (team === 'blue') ? -1 : 1;           // march direction
       const y = base.y + dir * (70 - back);             // ranged units spawn further back (backline)
-      const u = new Unit(Object.assign({ type, team, lane, x: laneCentreX(lane), y }, st));
+      const u = new Unit(Object.assign({ type, team, lane, x: laneCentreX(lane, y), y }, st));
       if (type === 'cavalier') { u.chargeState = 'march'; u.chargeTimer = 0; u.chargeDir = 1; u.chargeLeft = 0; u.hitSet = new Set(); }
       state.units.push(u); statsMade(u);
       return u;
@@ -1394,7 +1397,7 @@
       if (state.tw) ['blue', 'red'].forEach(team => { const T = state.tw[team]; T.t -= dt; if (T.t <= 0) { T.n++; T.t += teamWaveLen(team); triggerWave([team]); } });
 
       // 3. Smooth Camera Lerp
-      state.cameraY += (state.targetCameraY - state.cameraY) * (1 - Math.pow(0.85, (dt / state.timeSpeed) * 60)); // spec lerp 0.15/frame
+      state.cameraY += (state.targetCameraY - state.cameraY) * (1 - Math.pow(0.85, (dt / Math.max(state.timeSpeed, 0.001)) * 60)); // spec lerp 0.15/frame; v39.23 guard frozen (timeSpeed 0) harness
       clampCamera();
 
       // 4. Opponent Strategic AI
@@ -1747,7 +1750,7 @@
         if (u.aura) {                                            // v22 Banner: walk with the front line, ~50px behind the lead ally
           let lead = null;
           state.units.forEach(a => { if (!a.dead && a.team === u.team && a !== u && a.type !== 'worker' && !a.aura && Math.abs(a.y - u.y) < 400 && (!lead || (a.y - lead.y) * marchDir > 0)) lead = a; });
-          if (lead && (lead.y - u.y) * marchDir < 50) { u.x += (laneCentreX(u.lane) + u.laneOffset - u.x) * 2.5 * dt; return; }
+          if (lead && (lead.y - u.y) * marchDir < 50) { u.x += (laneCentreX(u.lane, u.y) + u.laneOffset - u.x) * 2.5 * dt; return; }
         }
         const eCore = (u.team === 'blue') ? state.cores.red : state.cores.blue;
         const toCore = (eCore.y - u.y) * marchDir;              // v20: >0 core still ahead, <0 unit is behind it
@@ -1759,7 +1762,7 @@
         if (!rangedHeld(u)) u.y += marchDir * spd * dt;   // v39.9 ranged hold behind front melee
 
         // Softly anchor back towards assigned track to prevent drifting
-        u.x += (laneCentreX(u.lane) + u.laneOffset - u.x) * 2.5 * dt;
+        u.x += (laneCentreX(u.lane, u.y) + u.laneOffset - u.x) * 2.5 * dt;
       }
     }
 
@@ -1818,7 +1821,7 @@
       }
       if (cavPickTarget(u, st)) { u.chargeState = 'windup'; u.chargeTimer = st.windup; return; }
       u.y += fwd * u.speed * (u.rally ? HERO_RT.rally : 1) * dt;
-      u.x += (laneCentreX(u.lane) - u.x) * 2.5 * dt;
+      u.x += (laneCentreX(u.lane, u.y) - u.x) * 2.5 * dt;
     }
 
     // v31 hero abilities
@@ -3351,7 +3354,9 @@
             const size = u.radius * (hero ? 3.4 : 2.8);
             // v23: Banner art packs a small bearer next to a tall flag; draw it 1.7x (feet aligned) so the bearer is full wizard size
             const big = u.aura ? 1.7 : 1, bs = size * big;
-            ctx.drawImage(scaledSprite(spr, bs, bs, (artTeam(u) === 'green' || artTeam(u) === 'yellow' || u.faction || u.boss || u._yel) ? '' : leaderOf(u.team).tint), -bs / 2, size * 0.4 - bs, bs, bs);   // v26/v39.22: green, yellow, and faction art are already painted
+            const blight = !!(u.team === 'red' && !u.boss && !u.faction && window.Story && Story.active && Story.m && Story.m.finale);
+            const filt = blight ? 'grayscale(0.28) hue-rotate(78deg) saturate(0.7) brightness(0.8) contrast(1.2)' : ((artTeam(u) === 'green' || artTeam(u) === 'yellow' || u.faction || u.boss || u._yel) ? '' : leaderOf(u.team).tint);
+            ctx.drawImage(scaledSprite(spr, bs, bs, filt), -bs / 2, size * 0.4 - bs, bs, bs);   // v39.23 Act 5 corrupted equals
             // v17: variant without its own art -> small weapon badge
             const slot = SLOT_OF[u.type];
             if (u.variant && slot && u.variant !== DEFAULT_LOADOUT[slot] && !VARIANT_ART.has(spriteKey(u) + '_' + u.variant + '_' + u.team)) {
@@ -4583,7 +4588,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.22';
+    window.APP_VERSION = 'v39.23';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

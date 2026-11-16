@@ -469,14 +469,17 @@
     (m.objectives || []).forEach((o, i) => setupObjective(o, i));
     R.stage = stageInit(m);   // v37 level staging (null when the mission has no stage block)
     if (m.boss) spawnBoss(m.boss);
-    S.prevDmgHook = window.dmgHook;
+    if (window.dmgHook && window.dmgHook._storyHook) window.dmgHook = window.dmgHook._prev || null;
+    const prevDmg = window.dmgHook;
+    S.prevDmgHook = prevDmg;
     window.dmgHook = (owner, dealt, target) => {
-      if (S.prevDmgHook) S.prevDmgHook(owner, dealt, target);
+      if (prevDmg) prevDmg(owner, dealt, target);
       if (owner && owner.team === 'blue' && target && target.team === 'red') {   // v35.9 tutorial combo events
         if (owner.type === 'archer' && target.markUntil > state.gameTime) R.tComboHit = true;
         if (owner.type === 'brute' && target.scorchUntil > state.gameTime) R.tScorchHit = true; }
       if (owner && owner.type === 'cavalier' && owner.team === 'blue' && owner.chargeState === 'charge' && state.gameTime - R.lastJoust > 1.2 && target instanceof Unit) { R.jousts++; R.lastJoust = state.gameTime; }
     };
+    window.dmgHook._storyHook = true; window.dmgHook._prev = prevDmg;
     S.renderHud(); document.getElementById('story-hud').classList.remove('hidden');
     tutStart(m);   // v35.9 staged tutorial (off for replays of won missions / when Tutorial tips are Off)
     setTimeout(() => toast(m.name.toUpperCase(), '#fde68a'), 500);
@@ -1018,19 +1021,55 @@
   let FEST_FG = null;   // v37.3: festival guards + lantern posts are drawn in Story.drawMid (above turrets/citadels), glow + wash stay under
   const BG_FALLBACK = { bg_p0_festival: c => { festDress(c, false); FEST_FG = false; } };
   const BG_DRESS = { bg_p0_festival: (c, painted) => { festDress(c, painted); FEST_FG = painted; } };   // painted bg: keep the parade soldiers + lantern posts, drop the procedural night wash
+  S.laneXAt = function (y) {   // v39.23 winding switchbacks (3 turns up the pass)
+    if (!(S.m && S.m.switchbacks)) return LANE_X;
+    const cb = state.cores && state.cores.blue, cr = state.cores && state.cores.red;
+    const y1 = cr ? cr.y + 70 : 120, y0 = cb ? cb.y - 80 : WORLD_H - 80;
+    const t = Math.max(0, Math.min(1, (y0 - y) / Math.max(1, y0 - y1)));
+    return LANE_X + Math.sin(t * Math.PI * 3) * 100;
+  };
   S.drawBg = function (c) {
     const m = S.m; FEST_FG = null; if (!m) return;
     if (!m.stage) { if (m.enemy === 'drill') { festDress(c); FEST_FG = false; } return; }
-    const sg = m.stage, bimg = sg.bg && stImg('bg', sg.bg);
-    if (bimg) { const k = bimg.height / WORLD_H, y0 = Math.max(0, state.cameraY - 20), y1 = Math.min(WORLD_H, state.cameraY + viewportH + 20);   // visible slice only
-      c.drawImage(bimg, 0, y0 * k, bimg.width, (y1 - y0) * k, 0, y0, WORLD_W, y1 - y0); }
-    else if (sg.bg && BG_FALLBACK[sg.bg]) BG_FALLBACK[sg.bg](c);
-    else if (sg.bg && STIMG['bg/' + sg.bg] == null && STAGE_ART.has('bg/' + sg.bg)) { c.fillStyle = '#000'; c.fillRect(0, state.cameraY - 40, WORLD_W, viewportH + 80); }   // v39.12 still loading: black, never the OG map
+    const sg = m.stage;
+    if (m.finale) {   // v39.23 stacked regions: the field marches north through Eastmarch, Westreach, then Paradale
+      const bands = [
+        { y0: 0, y1: 760, bg: 'bg_p0_festival', fill: '#1e293b' },
+        { y0: 700, y1: 1520, bg: 'bg_m14_canals', fill: '#0f3b4c' },
+        { y0: 1460, y1: WORLD_H, bg: 'bg_m04_farmland_ashmorning', fill: '#3f2a1c' }
+      ];
+      const vis0 = Math.max(0, state.cameraY - 20), vis1 = Math.min(WORLD_H, state.cameraY + viewportH + 20);
+      bands.forEach(B => {
+        const a = Math.max(B.y0, vis0), b = Math.min(B.y1, vis1); if (b <= a) return;
+        c.fillStyle = B.fill; c.fillRect(0, a, WORLD_W, b - a);
+        const img = stImg('bg', B.bg); if (!img) return;
+        const sy = (a - B.y0) / (B.y1 - B.y0) * img.height, sh = Math.max(1, (b - a) / (B.y1 - B.y0) * img.height);
+        c.drawImage(img, 0, sy, img.width, sh, 0, a, WORLD_W, b - a);
+      });
+    } else {
+      const bimg = sg.bg && stImg('bg', sg.bg);
+      if (bimg) { const k = bimg.height / WORLD_H, y0 = Math.max(0, state.cameraY - 20), y1 = Math.min(WORLD_H, state.cameraY + viewportH + 20);
+        c.drawImage(bimg, 0, y0 * k, bimg.width, (y1 - y0) * k, 0, y0, WORLD_W, y1 - y0); }
+      else if (sg.bg && BG_FALLBACK[sg.bg]) BG_FALLBACK[sg.bg](c);
+      else if (sg.bg && STIMG['bg/' + sg.bg] == null && STAGE_ART.has('bg/' + sg.bg)) { c.fillStyle = '#000'; c.fillRect(0, state.cameraY - 40, WORLD_W, viewportH + 80); }
+    }
     const limg = sg.lane && stImg('lane', sg.lane);
-    if (limg) { const w = LANE_HALF_W * 2, th = w * limg.height / limg.width, y0 = Math.max(0, Math.floor(state.cameraY / th) * th);
-      for (let y = y0; y < Math.min(WORLD_H, state.cameraY + viewportH + th); y += th) { if (Math.abs(y + th / 2 - BRIDGE_Y) < th * 0.75) continue;   // keep the painted bridge
-        c.drawImage(limg, LANE_X - LANE_HALF_W, y, w, th); } }
-    if (bimg && BG_DRESS[sg.bg]) BG_DRESS[sg.bg](c, true);
+    if (limg) { const w = LANE_HALF_W * 2, th = w * limg.height / limg.width;
+      const yTop = Math.max(0, state.cameraY - th), yBot = Math.min(WORLD_H, state.cameraY + viewportH + th);
+      if (S.m && S.m.switchbacks) {
+        const step = Math.max(10, th * 0.22);
+        for (let y = yTop; y < yBot; y += step) {
+          const x = S.laneXAt(y + step / 2), x2 = S.laneXAt(y + step / 2 + 6), ang = Math.atan2(6, x2 - x);
+          c.save(); c.translate(x, y + step / 2); c.rotate(ang - Math.PI / 2);
+          c.drawImage(limg, -w / 2, -step / 2 - 6, w, step + 12); c.restore();
+        }
+      } else {
+        const y0s = Math.max(0, Math.floor(state.cameraY / th) * th);
+        for (let y = y0s; y < Math.min(WORLD_H, state.cameraY + viewportH + th); y += th) { if (Math.abs(y + th / 2 - BRIDGE_Y) < th * 0.75) continue;
+          c.drawImage(limg, LANE_X - LANE_HALF_W, y, w, th); }
+      }
+    }
+    if (!m.finale && sg.bg && BG_DRESS[sg.bg]) BG_DRESS[sg.bg](c, true);
   };
   // v37.1 troops palette (assets/palette/troops_palette.json): kingdom -> {css filter, ARMY_SKIN folder}. Used for the P0 parade/lantern
   // NPC soldiers: pre-baked army_<skin>_<kind> art when it exists, else the palette's CSS filter on the base blue art.
@@ -1665,7 +1704,7 @@
         stars: ['Survive 3:00', 'Brannock\u2019s squad survives', 'Nexus never below 50%'],
         starFn: (s, R) => { s[1] = !!(R.bran && !R.bran.dead); s[2] = R.minCoreFrac >= 0.5; },
         stage: stage('M19', { tint: { color: '#1e293b', alpha: 0.3, blend: 'multiply' }, npcs: [RUF, { id: 'brannock', sprite: 'army_cline_knight', at: 'ally_nexus', dx: -100, scale: 2 }], props: [] }) },
-      M20: { name: 'The Switchbacks', type: 'STANDARD', leader: 'necro', enemyArmy: 'necro', brannock: true, redCore: 1.3, stars: ['Win the mission', 'Brannock survives', 'Win in under 4:00'],
+      M20: { name: 'The Switchbacks', type: 'STANDARD', leader: 'necro', enemyArmy: 'necro', brannock: true, redCore: 1.3, switchbacks: true, stars: ['Win the mission', 'Brannock survives', 'Win in under 4:00'],
         starFn: (s, R) => { s[1] = !!(R.bran && !R.bran.dead); s[2] = R.t < 240; },
         stage: stage('M20', { tint: { color: '#1e293b', alpha: 0.3, blend: 'multiply' }, npcs: [RUPH, RUF], props: [{ id: 'stumps', sprite: 'prop_pine_stumps', x: 0.12, y: 0.45, w: 60, states: ['normal'] }, { id: 'stumps2', sprite: 'prop_pine_stumps', x: 0.88, y: 0.7, w: 60, states: ['normal'] }] }) },
       M21: { name: 'BOSS: The Light Keeper', type: 'BOSS', final: true, reward: ['G5', 'X3'], unlock: ['region:northcrag'], leader: 'necro', enemyArmy: 'necro', brannock: true, redFloor: 0.05,
@@ -1847,15 +1886,60 @@
     const say = (who, txt) => { const ST = S.R && S.R.stage; if (!ST) return;   // v39.18: at most one taunt waits; a newer one replaces a stale one
       if (ST.queue) ST.queue = ST.queue.filter(e => !e.fin); stFire(ST, { lines: [[who, null, txt]], gap: 0.4, priority: 1, fin: true }); };
     const tintTo = t => { const ST = S.R && S.R.stage; if (!ST || !ST.tint) return; ST.tintFrom = Object.assign({}, ST.tint); ST.tintTo = t; ST.tintK = 0; };
-    const totems = (n, hp) => { const h = Math.round(hp * (BOSS_DIFF[SAVE.diff] || 1)), cr = state.cores.red; const out = [];
-      for (let i = 0; i < n; i++) out.push(storyUnit({ type: 'totem', team: 'red', x: LANE_X + (i - (n - 1) / 2) * 80, y: cr.y + 140 + (i % 2) * 30, hp: h, speed: 0, radius: 20, label: 'Necro Totem ' + (i + 1) }));
+    const FIN_BAND = { A: { redY: 1480, totY: 1620, name: 'EASTMARCH' }, B: { redY: 780, totY: 920, name: 'WESTREACH' }, C: { redY: 90, totY: 280, name: 'PARADALE' } };   // v39.23 climb north
+    const totems = (n, hp, atY) => { const h = Math.round(hp * (BOSS_DIFF[SAVE.diff] || 1)), y = atY != null ? atY : ((FIN_BAND[(S.R && S.R.fin && S.R.fin.stage) || 'A'] || FIN_BAND.A).totY); const out = [];
+      for (let i = 0; i < n; i++) out.push(storyUnit({ type: 'totem', team: 'red', x: LANE_X + (i - (n - 1) / 2) * 80, y: y + (i % 2) * 30, hp: h, speed: 0, radius: 20, label: 'Necro Totem ' + (i + 1) }));
       return out; };
+    const startMarch = (stg) => {
+      const R = S.R, F = R.fin, band = FIN_BAND[stg], cr = state.cores.red;
+      F.march = { from: cr.y, to: band.redY, k: 0, dur: 3.6, stg: stg };
+      toast('THE MARCH MOVES NORTH — ' + band.name + '!', '#fde68a');
+    };
+    const tickMarch = (dt) => {
+      const R = S.R, F = R && R.fin, M = F && F.march; if (!M) return;
+      M.k = Math.min(1, M.k + dt / M.dur);
+      const e = 1 - Math.pow(1 - M.k, 2);
+      state.cores.red.y = M.from + (M.to - M.from) * e;
+      const wantCam = state.cores.red.y - 80;
+      if (state.cameraY > wantCam) state.targetCameraY = state.cameraY = state.cameraY + (wantCam - state.cameraY) * Math.min(1, dt * 1.6);
+      if (M.k >= 1) { state.cores.red.y = M.to; F.march = null; if (F.needSurge === 'march') { F.needSurge = null; S.resetSurge('march'); } }
+    };
+    S.resetSurge = function (why) {
+      const R = S.R, F = R && R.fin; if (!F || F.surging) return;
+      F.surging = true; F.surgeBackupT = 2.3; F.surges = (F.surges || 0) + 1;
+      toast('RESET SURGE! THE DEAD POUR IN!', '#f87171');
+      const cr = state.cores.red, types = ['pawn','pawn','pawn','pawn','archer','archer','brute','brute','wizard','pawn','archer','brute'];
+      types.forEach((tp, i) => {
+        const st0 = Object.assign({}, UNIT_STATS[tp] || UNIT_STATS.pawn, { type: tp, team: 'red', lane: i % 3 === 0 ? 'L' : i % 3 === 1 ? 'C' : 'R', x: LANE_X + (i % 3 - 1) * 36, y: cr.y + 80 + (i % 4) * 16 });
+        const u = new Unit(st0); u.surge = true; state.units.push(u);
+      });
+    };
+    S.surgeBackup = function () {
+      const R = S.R, F = R && R.fin; if (!F) return;
+      F.surging = false; toast("THE KINGS' ARMIES ANSWER!", '#4ade80');
+      const waves = [
+        { army: 'green', side: 1, units: ['pawn','pawn','archer','brute'] },
+        { army: 'yellow', side: -1, units: ['pawn','pawn','brute','wizard'] },
+        { army: 'blue', side: 0, units: ['pawn','archer','pawn'] }
+      ];
+      if ((R.kings || {}).cline) waves.push({ army: 'blue', side: 0, units: ['pawn','brute'], silver: true });
+      waves.forEach(w => {
+        const x0 = w.side === 0 ? LANE_X : (S.flankX ? S.flankX(w.side) : LANE_X + w.side * 90);
+        const y0 = Math.min(state.cores.blue.y - 80, (state.cores.red.y || 1480) + 260);   // v39.23 pour in just behind the front, not off-map at the south core
+        w.units.forEach((tp, i) => {
+          const st0 = Object.assign({}, UNIT_STATS[tp] || UNIT_STATS.pawn, { type: tp, team: 'blue', lane: i % 2 ? 'L' : 'R', x: x0 + (i % 2 ? -16 : 16), y: y0 - i * 18 });
+          const u = new Unit(st0); u.kingAlly = true; u.allyArmy = w.army; if (w.silver) u.silverArmy = true; state.units.push(u);
+        });
+      });
+    };
     const midDialogue = (lines) => { const F = S.R.fin; F.talk = true; state.paused = true; Promise.resolve(S.dialogue(lines, 'M25_m')).then(() => { state.paused = false; F.talk = false; }); };
     const ally = (id, hero, x) => { const R = S.R, cb = state.cores.blue; R.kings = R.kings || {}; const st = Object.assign({}, UNIT_STATS.brute, { type: 'brute', team: 'blue', lane: 'C', x: LANE_X + x, y: cb.y - 100 });
       const u = new Unit(st); u.maxHp = u.hp = Math.round(u.maxHp * 2.8); u.atk = Math.round(u.atk * 1.4); u.hero3 = hero; u.kingAlly = true; state.units.push(u); R.kings[id] = u; toast(hero + ' ARRIVES!', '#4ade80'); };
-    const enterStage = (stg, resumed) => { const R = S.R; S.ckpt = { id: 'M25', stage: stg };   // v39.18 checkpoint: a loss retries this stage
+    const enterStage = (stg, resumed) => { const R = S.R, F = R.fin || (R.fin = { stage: stg, t: 0 }); S.ckpt = { id: 'M25', stage: stg };   // v39.18 checkpoint: a loss retries this stage
       S.m.stage.bg = FB[stg].bg; if (resumed) { const ST = R.stage; if (ST && ST.tint) Object.assign(ST.tint, FB[stg].tint); } else tintTo(FB[stg].tint);
-      toast((resumed ? 'CHECKPOINT · ' : '') + 'STAGE ' + stg + ': ' + FB[stg].name, '#fde68a');
+      const band = FIN_BAND[stg];
+      if (resumed || stg === 'A') { state.cores.red.y = band.redY; toast((resumed ? 'CHECKPOINT · ' : '') + 'STAGE ' + stg + ': ' + FB[stg].name, '#fde68a'); }
+      else { startMarch(stg); F.needSurge = 'march'; toast('STAGE ' + stg + ': ' + FB[stg].name, '#fde68a'); }
       if (stg !== 'A' && !(R.kings || {}).glade) ally('glade', 'GLADE', -40);
       if (resumed && !(R.kings || {}).felix) ally('felix', 'FELIX', 30);
       if (resumed && stg === 'C' && !(R.kings || {}).cline) { ally('cline', 'CLINE', 60); ['pawn', 'pawn', 'brute', 'archer'].forEach(t => state.spawnQ.blue.push(t)); }   // v39.19 Cline already cleared on a resumed C
@@ -1863,16 +1947,18 @@
       if (stg === 'C') spawnBoss({ hp: 1500, atk: 38, range: 170, interval: 1.1, speed: 22, y: 300, name: 'Doom' }); };
     S.finaleTick = function (dt) {
       const R = S.R, m = S.m; if (!R || !m.finale) return; const F = R.fin = R.fin || { stage: 'A', t: 0, th: [] }; F.t += dt;
-      if (!F.init) { F.init = 1; const ck = S.ckpt && S.ckpt.id === 'M25' ? S.ckpt.stage : 'A'; if (ck !== 'A') { F.stage = ck; enterStage(ck, true); } else { S.ckpt = { id: 'M25', stage: 'A' }; S.m.stage.bg = FB.A.bg; S.m25Hero('start'); } }
+      if (!F.init) { F.init = 1; const ck = S.ckpt && S.ckpt.id === 'M25' ? S.ckpt.stage : 'A'; if (ck !== 'A') { F.stage = ck; enterStage(ck, true); } else { S.ckpt = { id: 'M25', stage: 'A' }; S.m.stage.bg = FB.A.bg; state.cores.red.y = FIN_BAND.A.redY; ['bg_m04_farmland_ashmorning','bg_m14_canals','bg_p0_festival'].forEach(n => stImg('bg', n)); S.m25Hero('start'); } }
       if (F.stage === 'A' && !F.hA && F.t > 20 && !F.talk) { F.hA = 1; if (!(state.heroForce && state.heroForce.blue === 'nettle')) S.m25Hero('A'); }
       if (F.talk) return;
-      if (!F.tot && F.stage !== 'C') { F.tot = totems(F.stage === 'A' ? 2 : 3, F.stage === 'A' ? 450 : 520); }
+      tickMarch(dt);
+      if (F.surgeBackupT) { F.surgeBackupT -= dt; if (F.surgeBackupT <= 0) { F.surgeBackupT = 0; S.surgeBackup(); } }
+      if (!F.tot && F.stage !== 'C' && !F.march) { F.tot = totems(F.stage === 'A' ? 2 : 3, F.stage === 'A' ? 450 : 520, FIN_BAND[F.stage].totY); }
       if (F.clineT && (F.clineT -= dt) <= 0) { F.clineT = 0; say('Rufus', 'Cline… I knew it.'); ally('cline', 'CLINE', 60); ['pawn', 'pawn', 'brute', 'archer'].forEach(t => state.spawnQ.blue.push(t)); setTimeout(() => say('Cline', 'Northcrag answers, Rufus! Silver Army, CHARGE!'), 3500); }
-      if (F.stage === 'A' || F.stage === 'B') {
+      if ((F.stage === 'A' || F.stage === 'B') && F.tot) {
         if (F.stage === 'A' && !F.aSaid && F.t > 2) { F.aSaid = 1; say('Felix', 'Those are my farmers. Their eyes… Don\'t kill them, break the totem!'); }   // v39.18+: stage-A only (not on a resumed checkpoint)
         if (F.stage === 'B' && !F.bSaid && F.t > 2) { F.bSaid = 1; say('Glade', 'My own lads, in yellow and white. Hold, I\'m coming for you.'); }
         const left = F.tot.filter(u => !u.dead && u.hp > 0);
-        if (!F.half && left.length <= Math.floor(F.tot.length / 2)) { F.half = 1; say('Doom', F.stage === 'A' ? 'The light realm. One whisper and you turn on each other.' : 'Kings who burn their own fields and their own books. So easy.'); }
+        if (!F.half && left.length <= Math.floor(F.tot.length / 2)) { F.half = 1; say('Doom', F.stage === 'A' ? 'The light realm. One whisper and you turn on each other.' : 'Kings who burn their own fields and their own books. So easy.'); if (!F.surging) S.resetSurge('half'); }
         if (!left.length) { createSparks(LANE_X, state.cores.red.y + 150, '#a3e635', 30); state.shake = 0.5;
           say('Rufus', F.stage === 'A' ? 'Totem\'s down! Forward, keep moving!' : 'One more! Paradale\'s next!');
           F.stage = F.stage === 'A' ? 'B' : 'C'; F.tot = null; F.half = 0; F.t = 0; enterStage(F.stage, false);
@@ -1882,7 +1968,7 @@
       }
       if (F.stage === 'C') {   // Doom, 3 bars
         const fr = S.bossFrac();
-        if (!F.d1 && fr <= 0.75) { F.d1 = 1; say('Doom', 'Look at you. Three kings, three gifts, three fools. The light realm was so easy to turn.'); }
+        if (!F.d1 && fr <= 0.75) { F.d1 = 1; say('Doom', 'Look at you. Three kings, three gifts, three fools. The light realm was so easy to turn.'); if (!F.surging) S.resetSurge('bar'); }
         if (!F.d2 && fr <= 0.5) { F.d2 = 1; say('Doom', 'I knew Cline would never fully turn. He and Drevlar were mere distractions while I overtook your capital.'); F.clineT = 6; }
         if (!F.d3 && fr <= 0.25) { F.d3 = 1; say('Doom', 'You fools, I am just a pawn. Even if you beat me you will have stopped nothing. I\'m a puppet. The shadow realm is but one of many tools in the master\'s hands.'); }
         if (R.boss && R.boss.dead) { F.stage = 'cage'; const cr = state.cores.red;

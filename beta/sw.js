@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-beta-v39.23';   // BETA build (/royal-blight/beta/): own cache namespace
+const CACHE_VERSION = 'royal-blight-beta-v39.24';   // BETA build (/royal-blight/beta/): own cache namespace
 const CORE = [
   './', './index.html', './manifest.json', './mp.js', './story.js', './reclaim.js', './cloud.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/kingdom_map.jpg', './assets/fonts/fonts.css',
@@ -39,6 +39,7 @@ const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromance
   './assets/cine/ch5_m25_intro_s2.mp4', './assets/cine/ch5_m25_intro_s2.jpg',
   './assets/cine/ch5_m25_end_s3.mp4', './assets/cine/ch5_m25_end_s3.jpg',
   './assets/vo/M22_b2.m4a', './assets/vo/M23_b0.m4a', './assets/vo/M24_a0.m4a', './assets/vo/M24_a1.m4a',
+  './assets/vo/M06_w1.m4a', './assets/vo/M06_w2.m4a', './assets/vo/M06_w3.m4a', './assets/vo/M06_w4.m4a', './assets/vo/M06_w5.m4a', './assets/vo/M06_w6.m4a', './assets/vo/M06_w7.m4a', './assets/vo/M06_w8.m4a', './assets/vo/M06_w9.m4a', './assets/vo/M06_w10.m4a', './assets/vo/M06_a1.m4a', './assets/vo/M15_t1.m4a', './assets/vo/M15_t2.m4a', './assets/vo/M15_t3.m4a', './assets/vo/M15_t4.m4a', './assets/vo/M15_t5.m4a', './assets/vo/M15_t6.m4a', './assets/vo/M15_t7.m4a', './assets/vo/M15_t8.m4a', './assets/vo/M15_t9.m4a', './assets/vo/M15_t10.m4a', './assets/vo/M15_a1.m4a', './assets/vo/M19_n1.m4a', './assets/vo/M19_n2.m4a', './assets/vo/M19_n3.m4a', './assets/vo/M19_n4.m4a', './assets/vo/M19_n5.m4a', './assets/vo/M19_n6.m4a', './assets/vo/M19_e1.m4a', './assets/vo/M19_e3.m4a', './assets/vo/M19_e4.m4a', './assets/vo/M24_a6b.m4a', './assets/vo/M25_h0.m4a', './assets/vo/M25_h1.m4a', './assets/vo/M25_hA.m4a', './assets/vo/M25_hA2.m4a', './assets/vo/M25_hB2.m4a', './assets/vo/M25_hB3.m4a', './assets/vo/M25_hC.m4a', './assets/vo/M25_hC2.m4a', './assets/vo/M25_hC3.m4a',   // v39.24 Nov 16 VO
   './assets/npc/npc_drevlar_kneel.webp', './assets/prop/prop_crystal_spire_shattered.webp',
   './assets/knight_green.png', './assets/knight_green_back.png', './assets/knight_yellow.png', './assets/knight_yellow_back.png', './assets/archer_green.png', './assets/archer_green_back.png', './assets/archer_yellow.png', './assets/archer_yellow_back.png', './assets/brute_green.png', './assets/brute_green_back.png', './assets/brute_yellow.png', './assets/brute_yellow_back.png', './assets/wizard_green.png', './assets/wizard_green_back.png', './assets/wizard_yellow.png', './assets/wizard_yellow_back.png', './assets/worker_green.png', './assets/worker_green_back.png', './assets/worker_yellow.png', './assets/worker_yellow_back.png', './assets/pirate_pawn.png', './assets/pirate_pawn_back.png', './assets/outlaw_pawn.png', './assets/outlaw_pawn_back.png', './assets/pirate_archer.png', './assets/pirate_archer_back.png', './assets/outlaw_archer.png', './assets/outlaw_archer_back.png', './assets/pirate_brute.png', './assets/pirate_brute_back.png', './assets/outlaw_brute.png', './assets/outlaw_brute_back.png', './assets/pirate_wizard.png', './assets/pirate_wizard_back.png', './assets/outlaw_wizard.png', './assets/outlaw_wizard_back.png', './assets/prop/prop_pirate_longboat.webp'
 ]);
@@ -55,7 +56,7 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
   // only clean up OLD BETA caches; the live game's caches share this origin and must not be touched
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('royal-blight-beta-v39.23') && k !== CACHE_VERSION).map(k => caches.delete(k))))
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('royal-blight-beta-v39.24') && k !== CACHE_VERSION).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {

@@ -18,7 +18,7 @@
     document.addEventListener('DOMContentLoaded', () => { document.title = document.title.replace('Royal Blight', window.RB_TITLE); const h = document.getElementById('menu-title'); if (h) h.textContent = window.RB_TITLE; });
   </script>
   <script>if (window.Capacitor) document.write('<script src="capacitor-shim.js"><\/script>');</script><!-- Android app only; no-op on web -->
-  <title>Evermarch BETA v39.21</title>
+  <title>Evermarch BETA v39.22</title>
   <!-- Tailwind CSS CDN -->
   <script src="assets/tailwind.js"></script>
   <!-- Google Fonts: Fredoka for chunky mobile strategy UI, Inter for crisp stats -->
@@ -323,7 +323,7 @@
       <img id="menu-logo" src="assets/logo_crest.webp" alt="" class="w-24 h-24 mb-1 drop-shadow-[0_6px_14px_rgba(0,0,0,0.7)]" style="animation:rblogo 3s ease-in-out infinite">
       <h1 id="menu-title" class="text-4xl font-black uppercase tracking-wider leading-none" style="color:#fbbf24;-webkit-text-stroke:1.5px #451a03;text-shadow:0 3px 0 #92400e,0 6px 12px #000c;font-family:inherit">Evermarch</h1>
       <style>@keyframes rblogo{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-4px) rotate(2deg)}}</style>
-      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.21</span></p>
+      <p class="text-slate-300 text-xs mb-6">King vs Necromancer &middot; Tug of War &middot; <span class="text-amber-300 font-black">BETA v39.22</span></p>
       <div class="w-full max-w-xs bg-slate-800/90 rounded-xl p-4 border border-slate-700 mb-4">
         <div class="text-xs font-black text-slate-200 uppercase tracking-wider mb-2">Play vs Computer</div>
         <div class="grid grid-cols-3 gap-2">
@@ -859,7 +859,15 @@
       return null;
     }
     // v24: story Chapter 1 enemy (Felix's Green Army) wears Kingdom art tinted green
-    function artTeam(u) { return (u.team === 'blue' && !u.kingAlly && window.Story && Story.active && Story.m && Story.m.playerNecro) ? 'red' : (u.team === 'red' && window.Story && Story.active && Story.m && Story.m.region === 'eastmarch') ? 'green' : (u.team === 'red' && isDrill()) ? 'blue' : u.team; }
+    function artTeam(u) {
+      const m = window.Story && Story.active && Story.m;
+      if (u.allyArmy === 'green' || u.allyArmy === 'yellow') return u.allyArmy;   // v39.22 M24 Felix/Glade flank armies
+      if (u.team === 'blue' && !u.kingAlly && m && m.playerNecro) return 'red';
+      if (u.team === 'blue' && !u.kingAlly && m && (m.playerArmy === 'green' || m.playerArmy === 'yellow')) return m.playerArmy;   // v39.22 M22 Felix green, M23 Glade yellow
+      if (u.team === 'red' && m && m.region === 'eastmarch') return 'green';
+      if (u.team === 'red' && isDrill()) return 'blue';
+      return u.team;
+    }
     // v36.2: P0 sparring match -> the red side is Garrow's Training Troops: Kingdom art (knights, archers, workers, turret, nexus) in gray
     function gladeMen(u) { return u.team === 'red' && !!(window.Story && Story.active && Story.m) && state.leaders && state.leaders.red === 'glade'; }   // v39.4 Act 2 Yellow Army: Kingdom art + Glade tint (knight_yellow* wins once Cut ships it)
     function silverMen(u) { return !!(u && (u.silverArmy || (window.Story && Story.active && Story.m && (u.team === 'red' && !u.boss && (Story.m.enemyArmy === 'silver' || (state.leaders && state.leaders.red === 'cline')))))); }   // v39.21 Act 3 Silver Army + Brannock's squad
@@ -939,9 +947,15 @@
       if (u.boss) { const bk = u.bossArt || 'felix_boss';   // v39.4 Glade's own boss art in M16
         return loadSprite(away ? bk + '_back' : bk) || loadSprite(bk) || SPRITE_PENDING; }   // v26 dedicated boss art
       let chain = (away ? [k + '_' + at + '_back', k + '_' + at, base + '_' + at + '_back', base + '_' + at] : [k + '_' + at, base + '_' + at]);
+      if (u.faction === 'pirate' || u.faction === 'outlaw') {   // v39.22 Reclamation pirate/outlaw art
+        const typ = ({ pawn: 'pawn', archer: 'archer', brute: 'brute', wizard: 'wizard', worker: 'pawn' })[u.type] || 'pawn';
+        const p = u.faction + '_' + typ;
+        chain = (away ? [p + '_back', p] : [p, p + '_back']).concat(chain);
+      }
       if (gm) {   // v39.4 Cut's <unit>_yellow art (plain men); Kingdom art + Glade tint only where yellow art is missing
         const y = chain.map(n => n.replace(new RegExp('_' + at + '(?=_back$|$)'), '_yellow')); chain = y.concat(chain.map(n => n.replace('_red', '_blue'))); }   // v39.19: artTeam is 'blue' for Glade's men, so swap whatever team suffix -> _yellow (knight_yellow was never reached)
       if (silverMen(u)) { const s = chain.map(n => n.replace(new RegExp('_' + at + '(?=_back$|$)'), '_silver')); chain = s.concat(chain); }
+      if (at === 'yellow' && !gm) { const y = chain.map(n => n.replace(new RegExp('_' + at + '(?=_back$|$)'), '_yellow')); chain = y.concat(chain); }   // v39.22 player/ally Yellow Army
       if (at === 'green') chain = chain.concat(chain.map(n => n.replace('_green', '_red')));   // red-only heroes (acolyte) keep their art
       chain = chain.concat([base]);
       let pending = false;
@@ -955,6 +969,8 @@
       teams.forEach(t => { loadSprite(k + '_' + t); loadSprite(k + '_' + t + '_back'); });
     });
     ['knight','archer','brute','wizard','worker'].forEach(k => { loadSprite(k + '_silver'); loadSprite(k + '_silver_back'); });   // v39.21 Silver Army
+    ['knight','archer','brute','wizard','worker'].forEach(k => { ['green','yellow'].forEach(t => { loadSprite(k + '_' + t); loadSprite(k + '_' + t + '_back'); }); });   // v39.22 Felix green / Glade yellow
+    ['pawn','archer','brute','wizard'].forEach(k => { ['pirate','outlaw'].forEach(f => { loadSprite(f + '_' + k); loadSprite(f + '_' + k + '_back'); }); });   // v39.22 Reclamation factions
     loadSprite('arena_bg');
     // v25: preload every map + unit/variant/back sprite at boot so nothing is fetched mid-match
     window.addEventListener('load', () => setTimeout(() => {
@@ -3335,7 +3351,7 @@
             const size = u.radius * (hero ? 3.4 : 2.8);
             // v23: Banner art packs a small bearer next to a tall flag; draw it 1.7x (feet aligned) so the bearer is full wizard size
             const big = u.aura ? 1.7 : 1, bs = size * big;
-            ctx.drawImage(scaledSprite(spr, bs, bs, (artTeam(u) === 'green' || u.boss || u._yel) ? '' : leaderOf(u.team).tint), -bs / 2, size * 0.4 - bs, bs, bs);   // v26: green art is already green
+            ctx.drawImage(scaledSprite(spr, bs, bs, (artTeam(u) === 'green' || artTeam(u) === 'yellow' || u.faction || u.boss || u._yel) ? '' : leaderOf(u.team).tint), -bs / 2, size * 0.4 - bs, bs, bs);   // v26/v39.22: green, yellow, and faction art are already painted
             // v17: variant without its own art -> small weapon badge
             const slot = SLOT_OF[u.type];
             if (u.variant && slot && u.variant !== DEFAULT_LOADOUT[slot] && !VARIANT_ART.has(spriteKey(u) + '_' + u.variant + '_' + u.team)) {
@@ -4567,7 +4583,7 @@
   <script src="cloud.js"></script>
   <script>
     // v24.1 update flow: network-first SW, update checks on load/focus, version.json poll, one guarded reload.
-    window.APP_VERSION = 'v39.21';
+    window.APP_VERSION = 'v39.22';
     (function () {
       const busy = () => { try { return !!(state.started && !state.gameOver); } catch (e) { return false; } };
       let shown = false;

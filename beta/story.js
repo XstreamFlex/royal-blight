@@ -573,24 +573,84 @@
     R.minCoreFrac = Math.min(R.minCoreFrac, cb.hp / cb.maxHp);
     S.tickGate();
     if (m.brannock && !R.bran && R.t > 2) { const st = Object.assign({}, UNIT_STATS.brute, { type: 'brute', team: 'blue', lane: 'C', x: LANE_X - 24, y: cb.y - 80 }); const u = new Unit(st); u.maxHp = u.hp = Math.round(u.maxHp * 3); u.atk = Math.round(u.atk * 1.5); u.hero3 = 'BRANNOCK'; u.silverArmy = true; u.allySquad = true; state.units.push(u); R.bran = u; toast('COMMANDER BRANNOCK JOINS YOU!', '#e5e7eb'); }   // v39.21 Brannock: Silver Army hero
-    if (m.factionWaves) {   // v39.15 Act 4 two-faction enemy waves (pirate/outlaw flank)
+    // v39.22 Act 4: flank armies, pirate longboat, real green/yellow reinforcements
+    S.flankX = function (side) { return side > 0 ? Math.min((typeof WORLD_W === 'number' ? WORLD_W : 440) - 36, LANE_X + LANE_HALF_W + 72) : Math.max(36, LANE_X - LANE_HALF_W - 72); };
+    S.ensureLandingBoat = function (side) {
+      const R = S.R; if (!R) return null;
+      if (R.landingBoat) return R.landingBoat;
+      const destX = S.flankX(side == null ? -1 : side);
+      const y = ((state.cores.red.y + (state.cores.blue ? state.cores.blue.y : 1800)) / 2) - 40;
+      const startX = destX < LANE_X ? -90 : (typeof WORLD_W === 'number' ? WORLD_W : 440) + 90;
+      R.landingBoat = { x: startX, y: y, destX: destX, side: destX < LANE_X ? -1 : 1, arrived: false };
+      return R.landingBoat;
+    };
+    S.tickLandingBoat = function (dt) {
+      const b = S.R && S.R.landingBoat; if (!b || b.arrived) return;
+      const dir = Math.sign(b.destX - b.x) || -1;
+      b.x += 110 * dir * dt;
+      if ((dir >= 0 && b.x >= b.destX) || (dir <= 0 && b.x <= b.destX)) { b.x = b.destX; b.arrived = true; toast('A LANDING BOAT HITS THE BANK!', '#fca5a5'); }
+    };
+    S.spawnFactionWave = function (fac, n) {
+      const R = S.R; if (!R) return;
+      const types0 = fac === 'pirate' ? ['pawn', 'pawn', 'archer', 'archer', 'brute'] : ['pawn', 'pawn', 'brute', 'archer', 'pawn'];
+      const types = types0.slice(0, n || types0.length);
+      const boat = fac === 'pirate' && R.landingBoat;
+      const x0 = boat ? boat.x : S.flankX(fac === 'outlaw' ? -1 : 1);
+      const y0 = boat ? boat.y - 8 : (state.cores.red.y + 90);
+      types.forEach((tp, i) => {
+        const st0 = Object.assign({}, UNIT_STATS[tp] || UNIT_STATS.pawn, { type: tp, team: 'red', lane: i % 2 ? 'L' : 'R', x: x0 + (i % 2 ? -18 : 18) + (Math.random() - 0.5) * 10, y: y0 + i * 16 });
+        const u = new Unit(st0); u.faction = fac; u.rcArt = fac; state.units.push(u);
+      });
+      R.fwN = R.fwN || {}; R.fwN[fac] = (R.fwN[fac] || 0) + 1;
+      toast((fac === 'pirate' ? 'PIRATES LAND ON THE FLANK!' : 'OUTLAWS HIT THE MINES!'), '#fca5a5');
+    };
+    S.spawnKingArmy = function (ka, first) {
+      const R = S.R; if (!R) return;
+      const army = ka.army || (ka.id === 'felix' ? 'green' : ka.id === 'glade' ? 'yellow' : 'blue');
+      const side = ka.side != null ? ka.side : (ka.id === 'felix' ? 1 : -1);
+      const x0 = S.flankX(side);
+      const y0 = state.cores.blue.y - (first ? 240 : 200);
+      const types = ka.units || ['pawn', 'pawn', 'archer'];
+      types.forEach((tp, i) => {
+        const st0 = Object.assign({}, UNIT_STATS[tp] || UNIT_STATS.pawn, { type: tp, team: 'blue', lane: i % 2 ? 'L' : 'R', x: x0 + (i % 2 ? -16 : 16), y: y0 - i * 22 });
+        const u = new Unit(st0); u.kingAlly = true; u.allyArmy = army; state.units.push(u);
+      });
+      if (first) {
+        const hero = Object.assign({}, UNIT_STATS.brute, { type: 'brute', team: 'blue', lane: 'C', x: x0, y: y0 + 24 });
+        const u = new Unit(hero); u.maxHp = u.hp = Math.round(u.maxHp * 2.8); u.atk = Math.round(u.atk * 1.4);
+        u.hero3 = ka.hero; u.kingAlly = true; u.allyArmy = army; state.units.push(u); R.kings[ka.id] = u;
+        toast((ka.hero || ka.id.toUpperCase()) + (army === 'yellow' ? "'S YELLOW ARMY ARRIVES!" : army === 'green' ? "'S GREEN ARMY ARRIVES!" : ' ARRIVES!'), army === 'yellow' ? '#fde047' : '#4ade80');
+      }
+    };
+    S.kingAllyOn = function (ka, R) {
+      return String(ka.on || '').split('|').some(on => {
+        on = on.trim();
+        if (/^time:/.test(on)) return R.t >= +on.split(':')[1];
+        if (/^boss_hp<=/.test(on)) return S.bossFrac() * 100 <= +on.split('<=')[1];
+        if (/^nexus_hp<=/.test(on)) { const part = on.split('<=')[1] || ''; const n = parseFloat(part); const c = /enemy/.test(part) ? state.cores.red : state.cores.blue; return c.hp <= c.maxHp * n / 100; }
+        return false;
+      });
+    };
+    if ((m.factionWaves && m.factionWaves.alt === 'pirate') || (m.id === 'M24' && R.pirateCalled)) {
+      if (m.factionWaves && m.factionWaves.alt === 'pirate' && !R.landingBoat) S.ensureLandingBoat(-1);
+      S.tickLandingBoat(dt);
+    }
+    if (m.factionWaves) {   // v39.22: actually spawn the flank faction (and the M24 'also' outlaws)
       const fw = m.factionWaves; R.fwT = (R.fwT == null ? (fw.first || 50) : R.fwT) - dt;
-      if (R.fwT <= 0) { R.fwT = fw.every || 40; const fac = fw.alt; R.fwN = R.fwN || {}; R.fwN[fac] = (R.fwN[fac] || 0) + 1;
-        const types = fac === 'pirate' ? ['pawn', 'pawn', 'archer', 'archer'] : ['pawn', 'pawn', 'brute', 'archer'];
-        const y0 = state.cores.red.y + 80; types.forEach((t, i) => { const st0 = Object.assign({}, UNIT_STATS[t] || UNIT_STATS.pawn, { type: t, team: 'red', lane: i % 2 ? 'L' : 'R', x: LANE_X + (i % 2 ? -50 : 50) + (Math.random() - 0.5) * 20, y: y0 + i * 18 }); const u = new Unit(st0); u.faction = fac; u.rcArt = fac; state.units.push(u); });
-        toast((fac === 'pirate' ? 'PIRATES LAND ON THE FLANK!' : 'OUTLAWS HIT THE MINES!'), '#fca5a5');
-        if (fw.also && R.fwN[fac] === 2) { R.fwN[fw.also] = (R.fwN[fw.also] || 0) + 1; } } }
-    if (m.kingAllies) {   // v39.15 M24 Felix/Glade reinforce (hero units + troops; player army stays Rufus blue)
-      R.kings = R.kings || {}; R.allyArrived = R.allyArrived || {};
-      m.kingAllies.forEach(ka => { if (R.allyArrived[ka.id]) return; let hit = false;
-        if (/^time:/.test(ka.on)) hit = R.t >= +ka.on.split(':')[1];
-        else if (/^boss_hp<=/.test(ka.on)) hit = S.bossFrac() * 100 <= +ka.on.split('<=')[1];
-        else if (/^nexus_hp<=/.test(ka.on)) { const c = state.cores.blue; hit = c.hp <= c.maxHp * (+ka.on.split('<=')[1].split(':')[0]) / 100; }
-        if (!hit) return; R.allyArrived[ka.id] = true;
-        (ka.units || []).forEach(t => state.spawnQ.blue.push(t));
-        const hero = Object.assign({}, UNIT_STATS.brute, { type: 'brute', team: 'blue', lane: 'C', x: LANE_X + (ka.id === 'felix' ? 40 : -40), y: cb.y - 100 });
-        const u = new Unit(hero); u.maxHp = u.hp = Math.round(u.maxHp * 2.8); u.atk = Math.round(u.atk * 1.4); u.hero3 = ka.hero; state.units.push(u); R.kings[ka.id] = u;
-        toast(ka.hero + ' ARRIVES!', '#4ade80'); }); }
+      if (R.fwT <= 0) { R.fwT = fw.every || 40;
+        if (fw.alt === 'pirate' && R.landingBoat && !R.landingBoat.arrived) { R.landingBoat.x = R.landingBoat.destX; R.landingBoat.arrived = true; }
+        S.spawnFactionWave(fw.alt, fw.n || 5);
+        if (fw.also && (R.fwN[fw.alt] || 0) === 2) S.spawnFactionWave(fw.also, 5); } }
+    if (m.kingAllies) {   // v39.22: Felix green from the east edge, Glade yellow from the west; follow-up waves so two armies keep fighting together
+      R.kings = R.kings || {}; R.allyArrived = R.allyArrived || {}; R.kingWaveT = R.kingWaveT || {};
+      m.kingAllies.forEach(ka => {
+        if (!R.allyArrived[ka.id] && S.kingAllyOn(ka, R)) { R.allyArrived[ka.id] = true; R.kingWaveT[ka.id] = 18; S.spawnKingArmy(ka, true); }
+        else if (R.allyArrived[ka.id]) { R.kingWaveT[ka.id] = (R.kingWaveT[ka.id] || 18) - dt;
+          if (R.kingWaveT[ka.id] <= 0) { R.kingWaveT[ka.id] = 20; S.spawnKingArmy(ka, false); } }
+      }); }
+    if (m.id === 'M24' && R.boss) {   // v39.22: Drevlar actually calls pirates then outlaws at the scripted HP bars
+      if (!R.pirateCalled && S.bossFrac() * 100 <= 66) { R.pirateCalled = true; S.ensureLandingBoat(1); if (R.landingBoat) { R.landingBoat.x = R.landingBoat.destX; R.landingBoat.arrived = true; } S.spawnFactionWave('pirate', 6); }
+      if (!R.outlawCalled && S.bossFrac() * 100 <= 33) { R.outlawCalled = true; S.spawnFactionWave('outlaw', 6); } }
     if (m.commander === 'Glade') state.units.forEach(u => { if (u.team === 'blue' && u.type === 'worker' && (u.dead || u.hp <= 0) && !u._ml) { u._ml = 1; R.minerLost = (R.minerLost || 0) + 1; } });
     if (m.factionWaves && m.factionWaves.alt === 'pirate') { const mines = (typeof state.mines !== 'undefined' && state.mines) ? state.mines.filter(mm => mm.team === 'blue') : []; if (mines.length) state.units.forEach(u => { if (!u.dead && u.faction === 'pirate' && mines.some(mn => Math.hypot(u.x - mn.x, u.y - mn.y) < 40)) R.pirateMine = true; }); }
 
@@ -978,6 +1038,12 @@
   const PAL_KEY = { eastmarch: 'green', westreach: 'yellow', northcrag: 'silver' };
   S.troopPalette = () => PAL;
   S.drawMid = function (c) { if (FEST_FG !== null) festDress(c, FEST_FG, true); if (S.R && S.R.stage) stageDrawNpcs(c);
+    const boat = S.R && S.R.landingBoat;   // v39.22 pirate longboat on the flank
+    if (boat) { const img = stImg('prop', 'prop_pirate_longboat');
+      if (img) { const w = 170, h = w * (img.height / img.width); c.save();
+        if (boat.x > LANE_X) { c.translate(boat.x, boat.y); c.scale(-1, 1); c.drawImage(img, -w / 2, -h * 0.82, w, h); }
+        else c.drawImage(img, boat.x - w / 2, boat.y - h * 0.82, w, h);
+        c.restore(); } }
     const sp = S.R && S.R.shatteredSpire;   // v39.21 draw the shattered still above the keep/nexus
     if (sp) { const img = stImg('prop', 'prop_crystal_spire_shattered');
       if (img) { const sc = 1.7; c.drawImage(img, sp.x - img.width * sc / 2, sp.y - img.height * sc * 0.92, img.width * sc, img.height * sc); label(c, 'SHATTERED SPIRE', sp.x, sp.y - Math.round(img.height * sc * 0.92) - 8); } }
@@ -1114,6 +1180,7 @@
     ...['avalanche_normal', 'barrier_broken', 'barrier_built', 'barrier_damaged', 'beacon_dark', 'beacon_lit', 'bookshelf_gate_broken', 'bookshelf_gate_burning', 'bookshelf_gate_normal', 'canal_dam_broken', 'canal_dam_normal', 'catapult_normal', 'cell_door_open', 'library_broken', 'library_burning', 'library_normal', 'pine_stumps_normal', 'scholar_cage_open', 'shrine_lit', 'shrine_normal', 'silver_banner_blue', 'silver_banner_silver', 'supply_sled_normal', 'ward_circle_dim', 'ward_circle_lit'].map(n => 'prop/prop_' + n)]);
   STAGE_ART.add('prop/prop_m11_archive'); STAGE_ART.add('prop/prop_m11_archive_burning');   // v39.2 Cut's M11 archive
   STAGE_ART.add('prop/prop_crystal_spire_shattered');   // v39.21 Nov 15 shattered spire (#2)
+  STAGE_ART.add('prop/prop_pirate_longboat');   // v39.22 pirate landing boat
   ['bg/bg_m09_stacks', 'bg/bg_m14_canals', 'bg/bg_m16_library_dusk', 'bg/bg_act3_northcrag_keep', 'prop/prop_m11_maproom', 'prop/prop_m11_maproom_burning', 'prop/prop_m11_hall', 'prop/prop_m11_hall_burning',
    'prop/prop_barrier_kit_built', 'prop/prop_barrier_kit_damaged', 'prop/prop_barrier_kit_broken'].forEach(n => STAGE_ART.add(n));   // v39.4 Cut's Oct 29 handoff
   const ST_EXT = {};   // v37.2: fx_fire is now .webp like everything else
@@ -1632,7 +1699,7 @@
       M22: a4({ needs: 'M21', name: 'The Green Line Holds', type: 'STD + 2FAC',
         brief: 'Act 4. The necromancer army is creeping out of the southern swamp, and pirates are coming with it. Hold Eastmarch\'s southern fields. Two armies, two directions.',
         rosterLine: ['Felix', 'Two enemies. Archers on the swamp lane, shields for the landing.'],
-        commander: 'Felix', factionWaves: { alt: 'pirate', first: 50, every: 40, n: 4 },
+        commander: 'Felix', playerArmy: 'green', blueLeader: 'felix', factionWaves: { alt: 'pirate', first: 50, every: 40, n: 5 },
         stars: ['Win the mission', 'Don\'t let a pirate wave reach your mines', 'Nexus never below 75%'],
         starFn: (s, R) => { s[1] = !(R.pirateMine); s[2] = R.minCoreFrac >= 0.75; },
         before: [
@@ -1652,7 +1719,7 @@
           bark('wave_faction:pirate:1', 'Pirate', 'm22_pirate_bark1', 'Plenty of grain up here, lads! Take the carts!'),
           bark('nexus_hp<=50:enemy', 'Felix', 'm22_felix_bark1', 'Flame arrows on the boats!')
         ]}) }),
-      M23: a4({ needs: 'M22', name: 'The Yellow Line Holds', type: 'STD + 2FAC', talkAfterCine: true,
+      M23: a4({ needs: 'M22', name: 'The Yellow Line Holds', type: 'STD + 2FAC', talkAfterCine: true, playerArmy: 'yellow', blueLeader: 'glade',
         brief: 'The necromancers are pushing up the west bank, and outlaws are riding with them. Hold the Westreach road.',
         rosterLine: ['Glade', 'Two enemies. Guard the mines. Outlaws steal.'],
         commander: 'Glade', factionWaves: { alt: 'outlaw', first: 50, every: 40, n: 4 },
@@ -1679,8 +1746,8 @@
         redFloor: 0.05, commander: 'Rufus',
         factionWaves: { alt: 'pirate', first: 55, every: 35, n: 3, also: 'outlaw' },
         kingAllies: [
-          { id: 'felix', on: 'time:30', hero: 'FELIX', units: ['pawn', 'pawn', 'archer', 'archer'] },
-          { id: 'glade', on: 'boss_hp<=66', hero: 'GLADE', units: ['pawn', 'pawn', 'brute', 'wizard'] }
+          { id: 'felix', on: 'time:30|nexus_hp<=80:ally', army: 'green', side: 1, hero: 'FELIX', units: ['pawn', 'pawn', 'pawn', 'archer', 'archer', 'brute'] },
+          { id: 'glade', on: 'boss_hp<=66', army: 'yellow', side: -1, hero: 'GLADE', units: ['pawn', 'pawn', 'brute', 'brute', 'wizard'] }
         ],
         boss: { hp: 1400, atk: 36, range: 170, interval: 1.1, speed: 22, y: 300, name: 'Drevlar' },
         objectives: [{ k: 'boss', name: 'Drevlar' }, { k: 'totem', hp: 550, n: 3, name: 'Bone Totems' }],

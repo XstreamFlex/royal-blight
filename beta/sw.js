@@ -1,5 +1,5 @@
 // Bump CACHE_VERSION whenever any file changes so phones pick up the update.
-const CACHE_VERSION = 'royal-blight-beta-v39.21';   // BETA build (/royal-blight/beta/): own cache namespace
+const CACHE_VERSION = 'royal-blight-beta-v39.22';   // BETA build (/royal-blight/beta/): own cache namespace
 const CORE = [
   './', './index.html', './manifest.json', './mp.js', './story.js', './reclaim.js', './cloud.js', './assets/lib/qrcode.js', './assets/lib/jsQR.js', './assets/lib/peerjs.min.js',
   './assets/tailwind.js', './assets/kingdom_map.jpg', './assets/fonts/fonts.css',
@@ -39,7 +39,8 @@ const OPTIONAL = ['arena_bg', 'nexus_king', 'nexus_king_back', 'nexus_necromance
   './assets/cine/ch5_m25_intro_s2.mp4', './assets/cine/ch5_m25_intro_s2.jpg',
   './assets/cine/ch5_m25_end_s3.mp4', './assets/cine/ch5_m25_end_s3.jpg',
   './assets/vo/M22_b2.m4a', './assets/vo/M23_b0.m4a', './assets/vo/M24_a0.m4a', './assets/vo/M24_a1.m4a',
-  './assets/npc/npc_drevlar_kneel.webp', './assets/prop/prop_crystal_spire_shattered.webp'
+  './assets/npc/npc_drevlar_kneel.webp', './assets/prop/prop_crystal_spire_shattered.webp',
+  './assets/knight_green.png', './assets/knight_green_back.png', './assets/knight_yellow.png', './assets/knight_yellow_back.png', './assets/archer_green.png', './assets/archer_green_back.png', './assets/archer_yellow.png', './assets/archer_yellow_back.png', './assets/brute_green.png', './assets/brute_green_back.png', './assets/brute_yellow.png', './assets/brute_yellow_back.png', './assets/wizard_green.png', './assets/wizard_green_back.png', './assets/wizard_yellow.png', './assets/wizard_yellow_back.png', './assets/worker_green.png', './assets/worker_green_back.png', './assets/worker_yellow.png', './assets/worker_yellow_back.png', './assets/pirate_pawn.png', './assets/pirate_pawn_back.png', './assets/outlaw_pawn.png', './assets/outlaw_pawn_back.png', './assets/pirate_archer.png', './assets/pirate_archer_back.png', './assets/outlaw_archer.png', './assets/outlaw_archer_back.png', './assets/pirate_brute.png', './assets/pirate_brute_back.png', './assets/outlaw_brute.png', './assets/outlaw_brute_back.png', './assets/pirate_wizard.png', './assets/pirate_wizard_back.png', './assets/outlaw_wizard.png', './assets/outlaw_wizard_back.png', './assets/prop/prop_pirate_longboat.webp'
 ]);
 
 // v24.1: app shell is NETWORK-FIRST (cache only as offline fallback) so a new deploy shows on the next load;
@@ -54,7 +55,7 @@ self.addEventListener('install', e => {
 });
 self.addEventListener('activate', e => {
   // only clean up OLD BETA caches; the live game's caches share this origin and must not be touched
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('royal-blight-beta-v39.21') && k !== CACHE_VERSION).map(k => caches.delete(k))))
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('royal-blight-beta-v39.22') && k !== CACHE_VERSION).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {

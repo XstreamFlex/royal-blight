@@ -2740,6 +2740,36 @@
   S.menuExtras = () => `<div class="grid grid-cols-2 gap-2"><button id="pm-guide" class="w-full py-3 rounded-xl font-black text-xs uppercase bg-slate-800 text-slate-100 active:scale-95">\u{1F4D6} Field Guide</button>` +
     (S.active && S.m ? `<button id="pm-mission" class="w-full py-3 rounded-xl font-black text-xs uppercase bg-slate-800 text-slate-100 active:scale-95">\u{1F3AF} Mission guide</button>` : '') + '</div>';
   S.bindMenu = () => { const a = $('pm-guide'), b = $('pm-mission'); if (a) a.onclick = S.openGuide; if (b) b.onclick = S.openMissionGuide; };
+  // v39.25 tester tools (Options). Gated by window.DEV_TOOLS — one flag, next to APP_VERSION in index.html.
+  const DEV = () => !!(typeof window !== 'undefined' && window.DEV_TOOLS);
+  const WIPE_KEYS = ['rb-settings', 'rb.voMute', 'rb.resume', 'evermarch.rcdev', 'rb-answer'];
+  function allUnlockKeys() {
+    const keys = new Set(['pawn:sword', 'pawn:mace', 'pawn:hammer', 'pawn:shield', 'archer:short', 'archer:long', 'archer:flame', 'archer:hunting', 'brute:base', 'brute:light', 'brute:heavy', 'brute:spiked', 'wizard:battle', 'wizard:priest', 'wizard:banner', 'worker', 'turret', 'hero:cavalier', 'hero:wren', 'hero:torvald', 'hero:quill', 'army:green', 'army:yellow', 'army:silver', 'map:farmland', 'map:swamp', 'map:pass', 'map:library', 'region:eastmarch', 'region:westreach', 'region:northcrag', 'region:southmire', 'power:fallback', 'power:rush', 'power:shieldwall']);
+    for (const id of Object.keys(M)) (M[id].unlock || []).forEach(u => keys.add(u));
+    (typeof ARMORY !== 'undefined' ? ARMORY : []).forEach(a => keys.add(a.k));
+    return [...keys];
+  }
+  S.devUnlockAll = function () {   // reversible via Start fresh
+    if (!DEV()) return false;
+    const missions = {};
+    Object.keys(M).forEach(id => { missions[id] = { wins: 1, stars: 3, plays: 1, best: 0, starSet: [true, true, true] }; });
+    const up = {};
+    Object.keys(REGIONS).forEach(rk => { up[rk] = { mines: 3, walls: 3, barracks: 3, hall: 3 }; });
+    SAVE = migrate(Object.assign({}, SAVE, { missions, unlocks: allUnlockKeys(), gold: Math.max(SAVE.gold || 0, 9999), xp: Math.max(SAVE.xp || 0, 5000), replayStory: true, cineAll: true, vh: [1, 2, 3, 4, 5], up, a3v: 5 }));
+    persist();
+    return true;
+  };
+  S.devStartFresh = function (opts) {   // brand-new player: wipe story save + settings
+    if (!DEV()) return false;
+    SAVE = freshSave(); persist();
+    WIPE_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+    try { localStorage.removeItem('rb.resume'); } catch (e) {}
+    if (!(opts && opts.reload === false)) {
+      try { location.reload(); } catch (e) {}
+    }
+    return true;
+  };
+  S.missionOpen = missionOpen;
   function injectTutOptions() {
     const done = $('settings-done'); if (!done || $('set-tut-row')) return;
     const row = document.createElement('div'); row.id = 'set-tut-row'; row.className = 'w-full max-w-xs mt-3 grid grid-cols-2 gap-2 shrink-0';
@@ -2748,6 +2778,52 @@
     done.before(row);
     const paint = () => { const b = $('set-tut'), on = tipsOn(); b.textContent = 'Tutorial tips: ' + (on ? 'On' : 'Off'); b.classList.toggle('bg-amber-500', on); b.classList.toggle('text-slate-950', on); b.classList.toggle('bg-slate-900', !on); };
     $('set-tut').onclick = () => { S.setTips(!tipsOn()); paint(); }; $('set-guide').onclick = S.openGuide; paint();
+    injectTesterOptions(done);
+  }
+  function injectTesterOptions(done) {
+    if ($('set-ver')) return;
+    const modal = $('modal-settings'), h2 = modal && modal.querySelector('h2');
+    const ver = document.createElement('button');
+    ver.id = 'set-ver'; ver.type = 'button';
+    ver.className = 'w-full max-w-xs mb-3 py-2 text-[11px] font-black tracking-wide text-amber-300/90 uppercase';
+    ver.textContent = 'BETA ' + (window.APP_VERSION || '');
+    if (h2) h2.after(ver); else done.before(ver);
+    if (!DEV()) { ver.style.pointerEvents = 'none'; return; }
+    ver.title = 'Tap 5 times to show tester tools';
+    const box = document.createElement('div');
+    box.id = 'set-tester'; box.className = 'hidden w-full max-w-xs mt-3 shrink-0 text-left';
+    box.innerHTML = `<div class="rounded-xl border-2 border-amber-400 bg-slate-900/95 p-3">
+        <div class="text-[11px] font-black uppercase text-amber-300 tracking-wider mb-1">Tester</div>
+        <p class="text-[10px] text-slate-300 leading-snug mb-2">For tests and demos. Unlock all opens every mission, act, hero, unit, and skirmish option. Start fresh wipes everything back to a new game.</p>
+        <button id="set-unlock" class="w-full py-3 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs uppercase mb-2">Unlock all</button>
+        <button id="set-fresh" class="w-full py-3 rounded-xl bg-rose-600 text-white font-black text-xs uppercase">Start fresh</button>
+        <div id="set-fresh-confirm" class="hidden mt-2 rounded-lg border border-rose-400 bg-rose-950/80 p-2">
+          <p class="text-[11px] text-rose-100 font-bold leading-snug mb-2">Wipe all progress and settings? This returns you to a brand-new game and cannot be undone.</p>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="set-fresh-no" class="py-2 rounded-lg bg-slate-700 text-slate-100 font-black text-[11px] uppercase">Cancel</button>
+            <button id="set-fresh-yes" class="py-2 rounded-lg bg-rose-500 text-white font-black text-[11px] uppercase">Yes, start fresh</button>
+          </div>
+        </div>
+        <p id="set-tester-msg" class="hidden mt-2 text-[10px] font-bold text-emerald-300"></p>
+      </div>`;
+    ver.after(box);
+    let taps = 0, tapT = 0;
+    const reveal = () => { box.classList.remove('hidden'); ver.textContent = 'BETA ' + (window.APP_VERSION || '') + ' \u00B7 Tester'; box.scrollIntoView({ block: 'nearest' }); };
+    ver.onclick = () => {
+      if (!box.classList.contains('hidden')) return;
+      const now = Date.now(); if (now - tapT > 3000) taps = 0; tapT = now; taps++;
+      if (taps >= 5) reveal();
+    };
+    S.devRevealTester = reveal;
+    $('set-unlock').onclick = () => {
+      S.devUnlockAll();
+      const msg = $('set-tester-msg'); msg.textContent = 'Everything is unlocked. Open Story to jump to any mission \u2014 including M25.'; msg.classList.remove('hidden');
+      if (!$('modal-story').classList.contains('hidden')) S.openMap();
+    };
+    const conf = () => $('set-fresh-confirm');
+    $('set-fresh').onclick = () => conf().classList.remove('hidden');
+    $('set-fresh-no').onclick = () => conf().classList.add('hidden');
+    $('set-fresh-yes').onclick = () => S.devStartFresh();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(injectTutOptions, 50)); else setTimeout(injectTutOptions, 50);
   S.save = () => SAVE; S.persist = persist; S.setDiff = d => { SAVE.diff = d; persist(); }; S.missions = M; S.regions = REGIONS; S.regionColor = regionColor; S.exportSave = exportSave; S.importSave = importSave;
